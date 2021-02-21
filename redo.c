@@ -201,7 +201,7 @@ redo_ifcreate(int fd, char *target)
 }
 
 static char *
-check_dofile(const char *fmt, ...)
+check_dofile(int fd, const char *fmt, ...)
 {
 	static char dofile[PATH_MAX];
 
@@ -212,10 +212,12 @@ check_dofile(const char *fmt, ...)
 
 	if (access(dofile, F_OK) == 0) {
 		return dofile;
-	} else {
-		redo_ifcreate(dep_fd, dofile);
-		return 0;
 	}
+
+	if (fd > 0) 
+		redo_ifcreate(fd, dofile);
+
+	return 0;
 }
 
 /*
@@ -227,14 +229,14 @@ dir/base.a.b
 this function assumes no / in target
 */
 static char *
-find_dofile(char *target)
+find_dofile(int fd, char *target)
 {
 	char updir[PATH_MAX];
 	char *u = updir;
 	char *dofile, *s;
 	struct stat st, ost;
 
-	dofile = check_dofile("./%s.do", target);
+	dofile = check_dofile(fd, "./%s.do", target);
 	if (dofile)
 		return dofile;
 
@@ -255,13 +257,13 @@ find_dofile(char *target)
 		s = target;
 		while (*s) {
 			if (*s++ == '.') {
-				dofile = check_dofile("%sdefault.%s.do", updir, s);
+				dofile = check_dofile(fd, "%sdefault.%s.do", updir, s);
 				if (dofile)
 					return dofile;
 			}
 		}
 
-		dofile = check_dofile("%sdefault.do", updir);
+		dofile = check_dofile(fd, "%sdefault.do", updir);
 		if (dofile)
 			return dofile;
 
@@ -405,7 +407,7 @@ sourcefile(char *target)
 	if (fflag < 0)
 		return access(target, F_OK) == 0;
 
-	return find_dofile(target) == 0;
+	return find_dofile(-1, target) == 0;
 }
 
 static int
@@ -645,7 +647,7 @@ run_script(char *target, int implicit)
 
 	target_fd = mkstemp(temp_target_base);
 
-	dofile = find_dofile(target);
+	dofile = find_dofile(dep_fd, target);
 	if (!dofile) {
 		fprintf(stderr, "no dofile for %s.\n", target);
 		exit(1);
