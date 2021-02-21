@@ -966,9 +966,10 @@ main(int argc, char *argv[])
 
 	if (strcmp(program, "redo") == 0) {
 		fflag = 1;
-		redo_ifchange(argc, argv);
-		procure();
+		goto do_redo;
 	} else if (strcmp(program, "redo-ifchange") == 0) {
+
+do_redo:
 		redo_ifchange(argc, argv);
 		record_deps(argc, argv);
 		procure();
