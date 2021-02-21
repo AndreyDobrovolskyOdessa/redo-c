@@ -889,7 +889,6 @@ record_deps(int targetc, char *targetv[])
 		return;
 
 	fchdir(dir_fd);
-	compute_uprel();
 
 	for (targeti = 0; targeti < targetc; targeti++) {
 		fd = open(targetv[targeti], O_RDONLY);
@@ -970,6 +969,7 @@ main(int argc, char *argv[])
 	} else if (strcmp(program, "redo-ifchange") == 0) {
 
 do_redo:
+		compute_uprel();
 		redo_ifchange(argc, argv);
 		record_deps(argc, argv);
 		procure();
