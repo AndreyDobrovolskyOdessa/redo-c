@@ -201,22 +201,6 @@ redo_ifcreate(int fd, char *target)
 		dprintf(fd, "-%s\n", target);
 }
 
-static char *
-check_dofile(int fd, const char *prefix, const char *name, const char *suffix)
-{
-	static char dofile[PATH_MAX + 16];
-
-	snprintf(dofile, sizeof dofile, "%s%s%s.do",prefix,name,suffix);
-
-	if (access(dofile, F_OK) == 0) {
-		return dofile;
-	}
-
-	redo_ifcreate(fd, dofile);
-
-	return 0;
-}
-
 /*
 dir/base.a.b
 	will look for dir/base.a.b.do,
@@ -228,9 +212,9 @@ this function assumes no / in target
 static char *
 find_dofile(int fd, char *target)
 {
-	char updir[PATH_MAX];
-	char *u = updir;
-	char *dofile, *s, *name, *point;
+	static char dofile[PATH_MAX];
+	char updir[PATH_MAX - 16];
+	char *u = updir, *s, *name, *point;
 	struct stat st, ost;
 
 	*u++ = '.';
@@ -251,9 +235,12 @@ find_dofile(int fd, char *target)
 
 		s = point;
 		while (1) {
-			dofile = check_dofile(fd, updir, name, s);
-			if (dofile)
+			snprintf(dofile, sizeof dofile, "%s%s%s.do",updir,name,s);
+			if (access(dofile, F_OK) == 0) 
 				return dofile;
+
+			redo_ifcreate(fd, dofile);
+
 			if (*s == 0)
 				break;
 			do
