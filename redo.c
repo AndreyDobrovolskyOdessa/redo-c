@@ -204,7 +204,7 @@ redo_ifcreate(int fd, char *target)
 static char *
 check_dofile(int fd, const char *prefix, const char *name, const char *suffix)
 {
-	static char dofile[PATH_MAX];
+	static char dofile[PATH_MAX + 16];
 
 	snprintf(dofile, sizeof dofile, "%s%s%s.do",prefix,name,suffix);
 
@@ -230,16 +230,14 @@ find_dofile(int fd, char *target)
 {
 	char updir[PATH_MAX];
 	char *u = updir;
-	char *dofile, *s;
+	char *dofile, *s, *name, *point;
 	struct stat st, ost;
 
 	*u++ = '.';
 	*u++ = '/';
 	*u = 0;
-
-	dofile = check_dofile(fd, updir, target, "");
-	if (dofile)
-		return dofile;
+	name = u;	// *name == *u == 0
+	point = target;
 
 	st.st_dev = ost.st_dev = st.st_ino = ost.st_ino = 0;
 
@@ -251,16 +249,19 @@ find_dofile(int fd, char *target)
 		if (ost.st_dev == st.st_dev && ost.st_ino == st.st_ino)
 			break;  // reached root dir, .. = .
 
-		s = target;
+		s = point;
 		while (1) {
-			if ((*s == '.') || (*s == 0)){
-				dofile = check_dofile(fd, updir, "default", s);
-				if (dofile)
-					return dofile;
-			}
+			dofile = check_dofile(fd, updir, name, s);
+			if (dofile)
+				return dofile;
 			if (*s == 0)
 				break;
-			s++;
+			do
+				s++;
+			while (*s && (*s != '.'));
+			if (point == target)
+				point = s;
+			name = (char *) "default";
 		}
 
 		*u++ = '.';
