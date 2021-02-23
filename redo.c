@@ -552,7 +552,7 @@ write_dep(int write_dep_fd, char *file)
 
 	if (*file == '/')
 		no_uprel = 1;
-	else if ( *dnrel && strstr(file, dnrel)){
+	else if ( *dnrel && (strncmp(file, dnrel, strlen(dnrel)) == 0)){
 		no_uprel = 1;
 		file += strlen(dnrel) + 1;
 	}
