@@ -209,18 +209,21 @@ dir/base.a.b
 
 this function assumes no / in target
 */
+
+#define UPDIR_MAX (PATH_MAX - 16)
+
 static char *
 find_dofile(int fd, char *target)
 {
 	static char dofile[PATH_MAX];
-	char updir[PATH_MAX - 16];
+	char updir[UPDIR_MAX];
 	char *u = updir, *s, *name, *point;
 	struct stat st, ost;
 
 	*u++ = '.';
 	*u++ = '/';
 	*u = 0;
-	name = u;	// *name == *u == 0
+	name = u;	// *name == *u == 0, name == ""
 	point = target;
 
 	st.st_dev = ost.st_dev = st.st_ino = ost.st_ino = 0;
@@ -250,6 +253,9 @@ find_dofile(int fd, char *target)
 				point = s;
 			name = (char *) "default";
 		}
+
+		if ((u - updir) >= (UPDIR_MAX-4))	// updir bounds check
+			return 0;
 
 		*u++ = '.';
 		*u++ = '.';
