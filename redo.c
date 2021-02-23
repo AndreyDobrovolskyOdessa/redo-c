@@ -522,6 +522,7 @@ find_job(pid_t pid)
 }
 
 char uprel[PATH_MAX];
+char dnrel[PATH_MAX];
 
 void
 compute_uprel()
@@ -530,6 +531,11 @@ compute_uprel()
 	char *dp = getenv("REDO_DIRPREFIX");
 
 	*u = 0;
+	*dnrel = 0;
+
+	if (dp)
+		strcpy(dnrel, dp);
+
 	while (dp && *dp) {
 		*u++ = '.';
 		*u++ = '.';
@@ -540,13 +546,24 @@ compute_uprel()
 }
 
 static int
-write_dep(int dep_fd, char *file)
+write_dep(int write_dep_fd, char *file)
 {
 	int fd = open(file, O_RDONLY);
+	int no_uprel=0;
+
 	if (fd < 0)
 		return 0;
-	dprintf(dep_fd, "=%s %s %s%s\n",
-	    hashfile(fd), datefile(fd), (*file == '/' ? "" : uprel), file);
+
+	if (*file == '/')
+		no_uprel = 1;
+	else if ( *dnrel && strstr(file, dnrel)){
+		no_uprel = 1;
+		file += strlen(dnrel) + 1;
+	}
+
+	if (write_dep_fd > 0)
+		dprintf(write_dep_fd, "=%s %s %s%s\n",
+		    hashfile(fd), datefile(fd), (no_uprel ? "" : uprel), file);
 	close(fd);
 	return 0;
 }
