@@ -197,25 +197,22 @@ int kflag, jflag, xflag, fflag, sflag;
 static void
 redo_ifcreate(int fd, char *target)
 {
-	dprintf(fd, "-%s\n", target);
+	if (fd > 0)
+		dprintf(fd, "-%s\n", target);
 }
 
 static char *
-check_dofile(int fd, const char *fmt, ...)
+check_dofile(int fd, const char *prefix, const char *name, const char *suffix)
 {
 	static char dofile[PATH_MAX];
 
-	va_list ap;
-	va_start(ap, fmt);
-	vsnprintf(dofile, sizeof dofile, fmt, ap);
-	va_end(ap);
+	snprintf(dofile, sizeof dofile, "%s%s%s.do",prefix,name,suffix);
 
 	if (access(dofile, F_OK) == 0) {
 		return dofile;
 	}
 
-	if (fd > 0) 
-		redo_ifcreate(fd, dofile);
+	redo_ifcreate(fd, dofile);
 
 	return 0;
 }
@@ -236,13 +233,13 @@ find_dofile(int fd, char *target)
 	char *dofile, *s;
 	struct stat st, ost;
 
-	dofile = check_dofile(fd, "./%s.do", target);
-	if (dofile)
-		return dofile;
-
 	*u++ = '.';
 	*u++ = '/';
 	*u = 0;
+
+	dofile = check_dofile(fd, updir, target, "");
+	if (dofile)
+		return dofile;
 
 	st.st_dev = ost.st_dev = st.st_ino = ost.st_ino = 0;
 
@@ -255,17 +252,16 @@ find_dofile(int fd, char *target)
 			break;  // reached root dir, .. = .
 
 		s = target;
-		while (*s) {
-			if (*s++ == '.') {
-				dofile = check_dofile(fd, "%sdefault.%s.do", updir, s);
+		while (1) {
+			if ((*s == '.') || (*s == 0)){
+				dofile = check_dofile(fd, updir, "default", s);
 				if (dofile)
 					return dofile;
 			}
+			if (*s == 0)
+				break;
+			s++;
 		}
-
-		dofile = check_dofile(fd, "%sdefault.do", updir);
-		if (dofile)
-			return dofile;
 
 		*u++ = '.';
 		*u++ = '.';
