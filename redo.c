@@ -213,18 +213,17 @@ this function assumes no / in target
 #define UPDIR_MAX (PATH_MAX - 16)
 
 static char *
-find_dofile(int fd, char *target)
+find_dofile(char *target)
 {
 	static char dofile[PATH_MAX];
 	char updir[UPDIR_MAX];
-	char *u = updir, *s, *name, *point;
+	char *u = updir, *s, *name;
 	struct stat st, ost;
 
 	*u++ = '.';
 	*u++ = '/';
 	*u = 0;
-	name = u;	// *name == *u == 0, name == ""
-	point = target;
+	name = target;
 
 	st.st_dev = ost.st_dev = st.st_ino = ost.st_ino = 0;
 
@@ -236,25 +235,22 @@ find_dofile(int fd, char *target)
 		if (ost.st_dev == st.st_dev && ost.st_ino == st.st_ino)
 			break;  // reached root dir, .. = .
 
-		s = point;
+		s = name;
 		while (1) {
-			snprintf(dofile, sizeof dofile, "%s%s%s.do",updir,name,s);
+			snprintf(dofile, sizeof dofile, "%s%s%s.do", updir, (name == target) ? "" : "default", s);
 			if (access(dofile, F_OK) == 0) 
 				return dofile;
 
-			redo_ifcreate(fd, dofile);
-
 			if (*s == 0)
 				break;
-			do
-				s++;
-			while (*s && (*s != '.'));
-			if (point == target)
-				point = s;
-			name = (char *) "default";
+
+			while (*++s && (*s != '.'));
+
+			if (name == target)
+				name = s;
 		}
 
-		if ((u - updir) >= (UPDIR_MAX-4))	// updir bounds check
+		if ((u - updir) >= (UPDIR_MAX - 4))	// updir bounds check
 			return 0;
 
 		*u++ = '.';
@@ -398,7 +394,7 @@ check_deps(char *target)
 
 	target = targetchdir(target);
 
-	if (find_dofile(-1, target) == 0)
+	if (find_dofile(target) == 0)
 		return 1;
 
 	if (fflag > 0)
@@ -646,7 +642,7 @@ run_script(char *target, int implicit)
 
 	target_fd = mkstemp(temp_target_base);
 
-	dofile = find_dofile(dep_fd, target);
+	dofile = find_dofile(target);
 	if (!dofile) {
 		fprintf(stderr, "no dofile for %s.\n", target);
 		exit(1);
