@@ -387,14 +387,17 @@ static int
 check_deps(char *target)
 {
 	char *depfile;
+	char *dofile;
 	FILE *f;
 	int ok = 1;
+	int firstline = 1;
 	int fd;
 	int old_dir_fd = dir_fd;
 
 	target = targetchdir(target);
 
-	if (find_dofile(target) == 0)
+	dofile = find_dofile(target);
+	if (dofile == 0)
 		return 1;
 
 	if (fflag > 0)
@@ -415,6 +418,13 @@ check_deps(char *target)
 
 		if (fgets(line, sizeof line, f)) {
 			line[strlen(line)-1] = 0; // strip \n
+			if (firstline) {
+				if (strcmp(filename, dofile) != 0) {
+					ok = 0;
+					break;
+				}
+				firstline = 0;
+			}
 			switch (line[0]) {
 			case '-':  // must not exist
 				if (access(line+1, F_OK) == 0)
