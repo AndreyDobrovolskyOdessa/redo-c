@@ -796,6 +796,7 @@ redo_ifchange(int targetc, char *targetv[])
 	struct job *job;
 
 	int targeti = 0;
+	int skip = -1;
 
 
 	create_pool();
@@ -806,7 +807,11 @@ redo_ifchange(int targetc, char *targetv[])
 		if (targeti < targetc) {
 			char *target = targetv[targeti];
 
-			if (check_deps(target)) {
+			if (skip < 0)
+				skip = check_deps(target);
+
+			if (skip) {
+				skip = -1;
 				targeti++;
 				continue;
 			}
@@ -814,6 +819,7 @@ redo_ifchange(int targetc, char *targetv[])
 			int implicit = implicit_jobs > 0;
 			if (try_procure()) {
 				procured = 1;
+				skip = -1;
 				targeti++;
 				run_script(target, implicit);
 			}
