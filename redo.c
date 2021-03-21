@@ -460,6 +460,9 @@ check_deps(char *target)
 
 	fclose(f);
 
+	if (!ok)
+		remove (targetdep(target));
+
 	close(dir_fd);
 	dir_fd = old_dir_fd;
 
