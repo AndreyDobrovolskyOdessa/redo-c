@@ -211,12 +211,23 @@ this function assumes no / in target
 */
 
 static char *
-find_dofile(char *target)
+find_dofile(char *target, int aux)
 {
 	static char dofile[PATH_MAX];
+	static char dofile_aux[PATH_MAX];
+	char *dofile_ptr = dofile;
+
 	char updir[PATH_MAX];
 	char *u = updir, *s, *name;
 	struct stat st, ost;
+
+
+	if (aux)
+		dofile_ptr = dofile_aux;
+
+	if (!target)
+		return dofile_ptr;
+
 
 	*u++ = '.';
 	*u++ = '/';
@@ -235,12 +246,12 @@ find_dofile(char *target)
 
 		s = name;
 		while (1) {
-			if ((size_t) snprintf(dofile, sizeof dofile, "%s%s%s.do",
+			if ((size_t) snprintf(dofile_ptr, sizeof dofile, "%s%s%s.do",
 						updir, (name == target) ? "" : "default", s) >= sizeof dofile)
 				return 0;
 
-			if (access(dofile, F_OK) == 0) 
-				return dofile;
+			if (access(dofile_ptr, F_OK) == 0) 
+				return dofile_ptr;
 
 			if (*s == 0)
 				break;
@@ -385,7 +396,7 @@ targetlock(char *target)
 
 
 static int
-check_deps(char *target)
+check_deps(char *target, int aux)
 {
 	char *depfile;
 	char *dofile;
@@ -397,7 +408,7 @@ check_deps(char *target)
 
 	target = targetchdir(target);
 
-	dofile = find_dofile(target);
+	dofile = find_dofile(target, aux);
 	if (dofile == 0)
 		return 1;
 
@@ -443,7 +454,7 @@ check_deps(char *target)
 				}
 				// hash is good, recurse into dependencies
 				if (ok && strcmp(target, filename) != 0) {
-					ok = check_deps(filename);
+					ok = check_deps(filename, 1);
 					fchdir(dir_fd);
 				}
 				break;
@@ -656,7 +667,7 @@ run_script(char *target, int implicit)
 
 	target_fd = mkstemp(temp_target_base);
 
-	dofile = find_dofile(target);
+	dofile = find_dofile(0, 0);
 	if (!dofile) {
 		fprintf(stderr, "no dofile for %s.\n", target);
 		exit(1);
@@ -822,7 +833,7 @@ redo_ifchange(int targetc, char *targetv[])
 			char *target = targetv[targeti];
 
 			if (skip < 0)
-				skip = check_deps(target);
+				skip = check_deps(target, 0);
 
 			if (skip) {
 				skip = -1;
