@@ -971,21 +971,25 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (argc == 0) {
-		argc = 1;
-		argv[0] = (char *)"all";    // XXX safe?
-	}
-
 	compute_uprel();
 
 	dir_fd = keepdir();
 
 	if (strcmp(program, "redo") == 0) {
-		fflag = 1;
-		goto do_redo;
-	} else if (strcmp(program, "redo-ifchange") == 0) {
+		char all[] = "all";
+		char *argv_def[] = {all};
 
-do_redo:
+		if ((argc == 0) && (level == 0)) {
+			argc = 1;
+			argv = argv_def;
+		}
+
+		fflag = 1;
+		redo_ifchange(argc, argv);
+		if (dep_fd > 0)
+			dprintf(dep_fd, "!\n");
+		procure();
+	} else if (strcmp(program, "redo-ifchange") == 0) {
 		redo_ifchange(argc, argv);
 		record_deps(argc, argv);
 		procure();
