@@ -907,10 +907,6 @@ record_deps(int targetc, char *targetv[])
 {
 	int targeti;
 
-	dep_fd = envfd("REDO_DEP_FD");
-	if (dep_fd < 0)
-		return;
-
 	fchdir(dir_fd);
 
 	for (targeti = 0; targeti < targetc; targeti++) {
