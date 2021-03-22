@@ -557,25 +557,30 @@ compute_uprel()
 }
 
 static int
-write_dep(int write_dep_fd, char *file)
+write_dep(int dfd, char *file, int check_presence)
 {
-	int fd = open(file, O_RDONLY);
-	int no_uprel=0;
+	int fd = -1;
+	char *prefix = uprel;
 
-	if (fd < 0)
-		return 0;
+	if (check_presence)
+		fd = open(file, O_RDONLY);
 
 	if (*file == '/')
-		no_uprel = 1;
+		prefix = (char *) "";
 	else if ( *dnrel && (strncmp(file, dnrel, strlen(dnrel)) == 0)){
-		no_uprel = 1;
+		prefix = (char *) "";
 		file += strlen(dnrel) + 1;
 	}
 
-	if (write_dep_fd > 0)
-		dprintf(write_dep_fd, "=%s %s %s%s\n",
-		    hashfile(fd), datefile(fd), (no_uprel ? "" : uprel), file);
-	close(fd);
+	if (dfd > 0){
+		if (fd < 0)
+			dprintf(dfd, "-%s%s\n", prefix, file);
+		else {
+			dprintf(dfd, "=%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
+			close(fd);
+		}
+	}
+
 	return 0;
 }
 
@@ -670,7 +675,7 @@ run_script(char *target, int implicit)
 	dofile = find_dofile(0, 0);
 
 	fprintf(stderr, "redo%*.*s %s # %s\n", level*2, level*2, " ", orig_target, dofile);
-	write_dep(dep_fd, dofile);
+	write_dep(dep_fd, dofile, 1);
 
 	// .do files are called from the directory they reside in, we need to
 	// prefix the arguments with the path from the dofile to the target
@@ -879,7 +884,7 @@ redo_ifchange(int targetc, char *targetv[])
 				    O_WRONLY | O_APPEND);
 				if (stat(job->temp_target, &st) == 0) {
 					rename(job->temp_target, target);
-					write_dep(dfd, target);
+					write_dep(dfd, target, 1);
 				} else {
 					remove(job->temp_target);
 					redo_ifcreate(dfd, target);
@@ -903,14 +908,14 @@ redo_ifchange(int targetc, char *targetv[])
 }
 
 static void
-record_deps(int targetc, char *targetv[])
+record_deps(int targetc, char *targetv[], int check_presence)
 {
 	int targeti;
 
 	fchdir(dir_fd);
 
 	for (targeti = 0; targeti < targetc; targeti++) {
-		write_dep(dep_fd, targetv[targeti]);
+		write_dep(dep_fd, targetv[targeti], check_presence);
 	}
 }
 
@@ -987,16 +992,15 @@ main(int argc, char *argv[])
 		procure();
 	} else if (strcmp(program, "redo-ifchange") == 0) {
 		redo_ifchange(argc, argv);
-		record_deps(argc, argv);
+		record_deps(argc, argv, 1);
 		procure();
 	} else if (strcmp(program, "redo-ifcreate") == 0) {
-		for (i = 0; i < argc; i++)
-			redo_ifcreate(dep_fd, argv[i]);
+		record_deps(argc, argv, 0);
 	} else if (strcmp(program, "redo-always") == 0) {
 		dprintf(dep_fd, "!\n");
 	} else if (strcmp(program, "redo-hash") == 0) {
 		for (i = 0; i < argc; i++)
-			write_dep(1, argv[i]);
+			write_dep(1, argv[i], 1);
 	} else {
 		fprintf(stderr, "not implemented %s\n", program);
 		exit(-1);
