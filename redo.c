@@ -976,6 +976,8 @@ main(int argc, char *argv[])
 		argv[0] = (char *)"all";    // XXX safe?
 	}
 
+	compute_uprel();
+
 	dir_fd = keepdir();
 
 	if (strcmp(program, "redo") == 0) {
@@ -984,7 +986,6 @@ main(int argc, char *argv[])
 	} else if (strcmp(program, "redo-ifchange") == 0) {
 
 do_redo:
-		compute_uprel();
 		redo_ifchange(argc, argv);
 		record_deps(argc, argv);
 		procure();
