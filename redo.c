@@ -668,10 +668,6 @@ run_script(char *target, int implicit)
 	target_fd = mkstemp(temp_target_base);
 
 	dofile = find_dofile(0, 0);
-	if (!dofile) {
-		fprintf(stderr, "no dofile for %s.\n", target);
-		exit(1);
-	}
 
 	fprintf(stderr, "redo%*.*s %s # %s\n", level*2, level*2, " ", orig_target, dofile);
 	write_dep(dep_fd, dofile);
