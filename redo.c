@@ -532,7 +532,7 @@ find_job(pid_t pid)
 	return 0;
 }
 
-char uprel[PATH_MAX];
+char uprel[2 * PATH_MAX];
 char dnrel[PATH_MAX];
 
 void
