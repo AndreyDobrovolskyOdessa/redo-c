@@ -725,6 +725,7 @@ run_script(char *target, int implicit)
 	char temp_target_base[] = ".target.XXXXXX";
 	char temp_target[PATH_MAX], rel_target[PATH_MAX], cwd[PATH_MAX];
 	char *orig_target = target;
+	char *warn_msg = 0;
 	int old_dep_fd = dep_fd;
 	int target_fd;
 	char *dofile, *dirprefix;
@@ -732,8 +733,14 @@ run_script(char *target, int implicit)
 
 	target = targetchdir(target);
 
-	if ((lflag > 0) && (append_branch (target) != 0)) {
-		fprintf (stderr, "WARNING: Infinite dependency loop attempt - %s. Target skipped.\n",target);
+	if ((size_t) getcwd(cwd, sizeof cwd) >= sizeof cwd)
+		warn_msg = (char *) "cwd too long";
+
+	if ((lflag > 0) && (append_branch (target) != 0))
+		warn_msg = (char *) "Infinite dependency loop attempt";
+
+	if (warn_msg) {
+		fprintf (stderr, "WARNING: %s -- %s. Target skipped.\n", warn_msg, orig_target);
 		orig_target [0] = 0; /* preventing target appearance in .dep file */
 		return;
 	}
@@ -763,7 +770,6 @@ run_script(char *target, int implicit)
 
 	// .do files are called from the directory they reside in, we need to
 	// prefix the arguments with the path from the dofile to the target
-	getcwd(cwd, sizeof cwd);
 	dirprefix = strchr(cwd, '\0');
 	dofile += 2;  // find_dofile starts with ./ always
 	while (strncmp(dofile, "../", 3) == 0) {
