@@ -192,7 +192,7 @@ int poolwr_fd = -1;
 int poolrd_fd = -1;
 int level = -1;
 int implicit_jobs = 1;
-int kflag, jflag, xflag, fflag, sflag;
+int kflag, lflag, xflag, fflag, sflag;
 
 static void
 redo_ifcreate(int fd, char *target)
@@ -734,7 +734,7 @@ run_script(char *target, int implicit)
 
 	target = targetchdir(target);
 
-	if (append_branch (target) != 0) {
+	if ((lflag > 0) && (append_branch (target) != 0)) {
 		orig_target [0] = 0; /* preventing target appearance in .dep file */
 		return;
 	}
@@ -1034,6 +1034,8 @@ main(int argc, char *argv[])
 			break;
 		case 'f':
 			setenvfd("REDO_FORCE", 1);
+			if (level == 0)
+				setenvfd("REDO_LOOP_CONTROL", 1);
 			break;
 		case 's':
 			setenvfd("REDO_STDOUT", 1);
@@ -1056,6 +1058,7 @@ main(int argc, char *argv[])
 	argv += optind;
 
 	fflag = envfd("REDO_FORCE");
+	lflag = envfd("REDO_LOOP_CONTROL");
 	kflag = envfd("REDO_KEEP_GOING");
 	xflag = envfd("REDO_TRACE");
 	sflag = envfd("REDO_STDOUT");
