@@ -702,10 +702,8 @@ append_branch (char *target)
 	ptr = strstr(redo_track_buf, target_wd);
 	if (ptr) {
 		ptr += strlen(target_wd);
-		if ((*ptr == ':') || (*ptr == 0)) {
-			fprintf (stderr, "Infinite dependency loop attempt - %s\n",target);
+		if ((*ptr == ':') || (*ptr == 0))
 			return 1;
-		}
 	}
 
 	redo_track_buf [redo_track_len] = ':';	/* appending target full path to
@@ -735,6 +733,7 @@ run_script(char *target, int implicit)
 	target = targetchdir(target);
 
 	if ((lflag > 0) && (append_branch (target) != 0)) {
+		fprintf (stderr, "WARNING: Infinite dependency loop attempt - %s. Target skipped.\n",target);
 		orig_target [0] = 0; /* preventing target appearance in .dep file */
 		return;
 	}
