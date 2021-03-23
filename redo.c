@@ -567,7 +567,7 @@ write_dep(int dfd, char *file, int check_presence)
 
 	if (*file == '/')
 		prefix = (char *) "";
-	else if ( *dnrel && (strncmp(file, dnrel, strlen(dnrel)) == 0)){
+	else if (strcmp(file, dnrel) == 0) {
 		prefix = (char *) "";
 		file += strlen(dnrel) + 1;
 	}
