@@ -729,8 +729,8 @@ run_script(char *target, int implicit)
 
 	target = targetchdir(target);
 
-	if ((size_t) getcwd(cwd, sizeof cwd) >= sizeof cwd)
-		warn_msg = (char *) "cwd too long";
+	if (!getcwd(cwd, sizeof cwd))
+		warn_msg = (errno == ERANGE) ? (char *) "cwd too long" : strerror(errno);
 
 	if ((lflag > 0) && (append_branch (target) != 0))
 		warn_msg = (char *) "Infinite dependency loop attempt";
