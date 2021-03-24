@@ -1088,8 +1088,8 @@ main(int argc, char *argv[])
 		procure();
 	} else if (strcmp(program, "redo-ifchange") == 0) {
 		redo_ifchange(argc, argv);
-		record_deps(argc, argv, 1);
 		procure();
+		record_deps(argc, argv, 1);
 	} else if (strcmp(program, "redo-ifcreate") == 0) {
 		record_deps(argc, argv, 0);
 	} else if (strcmp(program, "redo-always") == 0) {
