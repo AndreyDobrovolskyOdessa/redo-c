@@ -18,10 +18,6 @@
 */
 
 /*
-current bugs:
-  dependency-loop: unlimited recursion
-    need locks
-
 todo:
   test job server properly
 */
