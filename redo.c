@@ -1079,17 +1079,18 @@ main(int argc, char *argv[])
 
 		fflag = 1;
 		redo_ifchange(argc, argv);
+		procure();
+		goto always;
+	} else if (strcmp(program, "redo-always") == 0) {
+		always:
 		if (dep_fd > 0)
 			dprintf(dep_fd, "!\n");
-		procure();
 	} else if (strcmp(program, "redo-ifchange") == 0) {
 		redo_ifchange(argc, argv);
 		procure();
 		record_deps(argc, argv, 1);
 	} else if (strcmp(program, "redo-ifcreate") == 0) {
 		record_deps(argc, argv, 0);
-	} else if (strcmp(program, "redo-always") == 0) {
-		dprintf(dep_fd, "!\n");
 	} else if (strcmp(program, "redo-hash") == 0) {
 		for (i = 0; i < argc; i++)
 			write_dep(1, argv[i], 1);
