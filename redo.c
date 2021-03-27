@@ -1014,6 +1014,9 @@ main(int argc, char *argv[])
 	char *program;
 	int opt, i;
 
+	char all[] = "all";
+	char *argv_def[] = {all};
+
 	dep_fd = envfd("REDO_DEP_FD");
 
 	level = envfd("REDO_LEVEL");
@@ -1069,23 +1072,20 @@ main(int argc, char *argv[])
 	dir_fd = keepdir();
 
 	if (strcmp(program, "redo") == 0) {
-		char all[] = "all";
-		char *argv_def[] = {all};
-
 		if ((argc == 0) && (level == 0)) {
 			argc = 1;
 			argv = argv_def;
 		}
 
 		fflag = 1;
-		redo_ifchange(argc, argv);
-		procure();
 		goto always;
 	} else if (strcmp(program, "redo-always") == 0) {
-		always:
+	    always:
 		if (dep_fd > 0)
 			dprintf(dep_fd, "!\n");
+		goto ifchange;
 	} else if (strcmp(program, "redo-ifchange") == 0) {
+	    ifchange:
 		redo_ifchange(argc, argv);
 		procure();
 		record_deps(argc, argv, 1);
