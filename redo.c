@@ -709,7 +709,6 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 	if (!dep_err && !ok) {
 		lseek(dep_fd,SEEK_SET,0);
 		write_dep(dep_fd, dofile_rel, 0);
-		strcat(target_new, target);
 /*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, uprel, target_rel, target_base_rel, target_new_rel); */
 		{
 			pid_t pid;
