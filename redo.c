@@ -729,7 +729,7 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 
 				track("", 0);
 
-				fprintf(stderr, "redo%*.*s %s # %s\n", nlevel*2, nlevel*2, " ", target_path, dofile_rel);
+				fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target_path, dofile_rel);
 
 				if (access(dofile, X_OK) != 0)   // run -x files with /bin/sh
 					execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
@@ -749,6 +749,8 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
+			if (dep_err)
+				fprintf(stderr, "     %*s %s # %s exit = %d\n", (level + nlevel) * 2, "", target_path, dofile_rel,dep_err);
 		}
 	}
 
