@@ -53,3 +53,14 @@ To the extent possible under law, Leah Neukirchen <leah@vuxu.org>
 has waived all copyright and related or neighboring rights to this work.
 
 http://creativecommons.org/publicdomain/zero/1.0/
+
+
+### Current version usage
+
+Only -f and -x options available.
+
+Empty targets are not created.
+
+    redo ""
+    
+tries to find and execute ".do" file in the current and upper directories, for this file "default" prefix is not applicable.
