@@ -530,7 +530,7 @@ track(const char *target, int track_op)
 		ptr = strrchr(redo_track_buf, ':');
 		if (ptr)
 			*ptr = 0;
-		return redo_track_buf;
+		return ptr;
 	}
 
 	target_len = strlen(target);
@@ -540,11 +540,8 @@ track(const char *target, int track_op)
 		target_wd = getcwd (redo_track_buf + redo_track_len + 1,
 				redo_track_buf_size - redo_track_len - target_len - 3);
 
-		if (target_wd) {	/* getcwd successful */
-			strcat (target_wd, "/");
-			strcat (target_wd, target);
+		if (target_wd)		/* getcwd successful */
 			break;
-		}
 
 		if (errno == ERANGE) {  /* redo_track_buf_size is not sufficient */
 			redo_track_buf_size += PATH_MAX;
@@ -558,6 +555,10 @@ track(const char *target, int track_op)
 			exit (-1);
 		}
 	}
+
+	ptr = strchr(target_wd, '\0');
+	*ptr++ = '/';
+	strcpy(ptr, target);
 
 	*--target_wd = ':';	/* appending target full path to the redo_track_buf */
 
