@@ -586,7 +586,7 @@ base_name(const char *name, int uprel)
 			ptr--;
 	} while (uprel--);
 
-	if (ptr != name)
+	if (*ptr == '/')
 		ptr++;
 
 	return ptr;
