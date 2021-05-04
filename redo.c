@@ -35,8 +35,6 @@ This will be available after job server implementation.
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 */
 
-#define _GNU_SOURCE
-
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -578,6 +576,22 @@ track(const char *target, int track_op)
 }
 
 
+static char *
+base_name(const char *name, int uprel)
+{
+	char *ptr = strrchr(name, '\0');
+
+	do {
+		while ((ptr != name) && (*ptr != '/'))
+			ptr--;
+	} while (uprel--);
+
+	if (ptr != name)
+		ptr++;
+
+	return ptr;
+}
+
 
 #define TARGET_BUSY 123
 #define TARGET_LOOP 124
@@ -612,7 +626,6 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 
 	struct stat dep_st;
 
-	int i;
 
 
 	target = file_chdir(dir_fd, target_path);
@@ -641,13 +654,7 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 			return 0;
 	}
 
-
-	target_rel = strchr(target_full, '\0');
-	i = uprel + 1;
-	while (i--) {
-		while (*--target_rel != '/');
-	}
-	target_rel++;
+	target_rel = base_name(target_full, uprel);
 
 	if (strlen(target_rel) >= sizeof target_base){
 		fprintf(stderr, "Target relative basename too long -- %s\n", target_rel);
@@ -655,10 +662,10 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 	}
 
 	strcpy(target_base_rel, target_rel);
-	strcpy(basename(target_base_rel), target_base);
+	strcpy(base_name(target_base_rel, 0), target_base);
 
 	strcpy(target_new_rel, target_rel);
-	target_new = basename(target_new_rel);
+	target_new = base_name(target_new_rel, 0);
 	strcpy(target_new, target_new_prefix);
 	strcat(target_new, target);
 
@@ -783,7 +790,7 @@ main(int argc, char *argv[])
 	int main_dir_fd, dir_fd, dep_fd;
 	int target_err, redo_err = 0;
 
-	char *program = basename(argv[0]);
+	char *program = base_name(argv[0], 0);
 
 	while ((opt = getopt(argc, argv, "+xf")) != -1) {
 		switch (opt) {
