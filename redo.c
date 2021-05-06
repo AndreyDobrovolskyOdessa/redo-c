@@ -789,7 +789,6 @@ main(int argc, char *argv[])
 	int main_dir_fd, dir_fd, dep_fd;
 	int target_err, redo_err = 0;
 
-	char *program = base_name(argv[0], 0);
 
 	while ((opt = getopt(argc, argv, "+xf")) != -1) {
 		switch (opt) {
@@ -814,8 +813,8 @@ main(int argc, char *argv[])
 	uprel = envint("REDO_UPREL");
 	dep_fd = envfd("REDO_DEP_FD");
 
-	if (strcmp(program, "redo-always") == 0)
-		dprintf(dep_fd, "always\n");
+	if (argc == 0)
+		dprintf(dep_fd, "\n");
 
 	track(0, 0);
 

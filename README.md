@@ -67,12 +67,7 @@ tries to find and execute ".do" file in the current and upper directories, for t
 
 "redo" and "redo-ifchange" are equivalent.
 
-"redo-always" process arguments the same way as "redo" and "redo-ifchange". No need of
+    redo
 
-    redo-ifchange a b c
-    redo-always
-
-You can simply
-
-    redo-always a b c
+without arguments means redo-always
 
