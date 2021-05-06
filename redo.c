@@ -579,11 +579,10 @@ track(const char *target, int track_op)
 static char *
 base_name(const char *name, int uprel)
 {
-	char *ptr = strrchr(name, '\0');
+	char *ptr = strchr(name, '\0');
 
 	do {
-		while ((ptr != name) && (*ptr != '/'))
-			ptr--;
+		while ((ptr != name) && (*--ptr != '/'));
 	} while (uprel--);
 
 	if (*ptr == '/')
