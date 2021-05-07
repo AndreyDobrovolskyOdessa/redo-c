@@ -453,7 +453,7 @@ back_chdir(int to_dir_fd, int from_dir_fd)
 }
 
 static int
-write_dep(int dep_fd, char *file, int uprel)
+write_dep(int dep_fd, char *name, int uprel)
 {
 	int fd; 
 
@@ -461,17 +461,17 @@ write_dep(int dep_fd, char *file, int uprel)
 	if (dep_fd < 0)
 		return 1;
 
-	fd = open(file, O_RDONLY);
+	fd = open(name, O_RDONLY);
 
-	if (*file != '/') {
+	if (*name != '/') {
 		while (uprel--) {
-			char *slash = strchr(file, '/');
+			char *slash = strchr(name, '/');
 			if (slash)
-				file = slash + 1;
+				name = slash + 1;
 		}
 	}
 
-	dprintf(dep_fd, "%s %s %s\n", hashfile(fd), datefile(fd), file);
+	dprintf(dep_fd, "%s %s %s\n", hashfile(fd), datefile(fd), name);
 	if (fd > 0)
 		close(fd);
 
@@ -691,15 +691,15 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 				firstline = 0;
 			}
 
-			dep_dir_fd = *dir_fd;
-			dep_err = redo_target(&dep_dir_fd, filename, nlevel + 1);
-			back_chdir(*dir_fd, dep_dir_fd);
-			track(0, 1);
+			if (strcmp(filename, target) != 0) {
+				dep_dir_fd = *dir_fd;
+				dep_err = redo_target(&dep_dir_fd, filename, nlevel + 1);
+				back_chdir(*dir_fd, dep_dir_fd);
+				track(0, 1);
 
-			if (dep_err)
-				break;
-
-			write_dep(dep_fd, filename, 0);
+				if (dep_err)
+					break;
+			}
 
 			fd = open(filename, O_RDONLY);
 			dep_changed = strncmp(timestamp, datefile(fd), 16) != 0 &&
@@ -707,6 +707,8 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 			close(fd);
 			if (dep_changed)
 				break;
+
+			write_dep(dep_fd, filename, 0);
 		}
 		if (feof(fdep))
 			ok = 1;
@@ -761,16 +763,18 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 		}
 	}
 
-	close(dep_fd);
 
 	if (dep_err) {
+		close(dep_fd);
 		remove(target_new);
 		remove(depfile_new);
 	} else {
 		if (!ok) {  /* script was executed */
 			remove(target);
 			rename(target_new,target);
+			write_dep(dep_fd, target, 0);
 		}
+		close(dep_fd);
 		remove(depfile);
 		rename(depfile_new,depfile);
 	}
