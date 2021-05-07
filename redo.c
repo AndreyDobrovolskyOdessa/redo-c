@@ -682,7 +682,7 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 			int fd, line_len = strlen(line);
 
 			line[line_len - 1] = 0; // strip \n
-			if (line_len < 64 + 1 + 16 + 1)
+			if (line_len < 64 + 1 + 16 + 1 + 1)
 				break;
 
 			if (firstline) {
