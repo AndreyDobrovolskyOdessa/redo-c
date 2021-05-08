@@ -813,15 +813,18 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
+	dep_fd = envfd("REDO_DEP_FD");
+
+	if (argc == 0) {		/* redo-always */
+		dprintf(dep_fd, "\n");
+		return 0;
+	}
+
 	fflag = envint("REDO_FORCE");
 	xflag = envint("REDO_TRACE");
 
 	level = envint("REDO_LEVEL");
 	uprel = envint("REDO_UPREL");
-	dep_fd = envfd("REDO_DEP_FD");
-
-	if (argc == 0)
-		dprintf(dep_fd, "\n");
 
 	track(0, 0);
 
