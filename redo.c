@@ -452,31 +452,58 @@ back_chdir(int to_dir_fd, int from_dir_fd)
 	close(from_dir_fd);
 }
 
-static int
-write_dep(int dep_fd, char *name, int uprel)
+
+
+char updir[PATH_MAX];
+
+static void
+compute_updir(char *dp)
 {
-	int fd; 
+	char *u = updir;
 
+	*u = 0;
 
-	if (dep_fd < 0)
-		return 1;
-
-	fd = open(name, O_RDONLY);
-
-	if (*name != '/') {
-		while (uprel--) {
-			char *slash = strchr(name, '/');
-			if (slash)
-				name = slash + 1;
+	if (dp) {
+		while (1) {
+			dp = strchr(dp, '/');
+			if (!dp)
+				break;
+			dp++;
+			*u++ = '.';
+			*u++ = '.';
+			*u++ = '/';
+			*u = 0;
 		}
 	}
+}
 
-	dprintf(dep_fd, "%s %s %s\n", hashfile(fd), datefile(fd), name);
+static int
+write_dep(int dfd, char *file, char *dp)
+{
+	int fd;
+	char *prefix = (char *) "";
+
+	if (dfd < 0)
+		return 1;
+
+	fd = open(file, O_RDONLY);
+
+	if (dp && *file != '/') {
+		size_t dp_len = strlen(dp);
+
+		if (strncmp(file, dp, dp_len) == 0)
+			file += dp_len;
+		else
+			prefix = updir;
+	}
+
+	dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
 	if (fd > 0)
 		close(fd);
 
 	return 0;
 }
+
 
 /*
 
@@ -611,6 +638,9 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 	char target_new_prefix[] = ".targetnew.";
 	char *target_new, target_new_rel[PATH_MAX + sizeof target_new_prefix];
 
+	size_t dirprefix_len;
+	char dirprefix[PATH_MAX];
+
 	struct stat dep_st;
 
 	int dep_fd, dep_dir_fd, dep_err = 0, dep_changed;
@@ -667,6 +697,9 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 	strcpy(target_new, target_new_prefix);
 	strcat(target_new, target);
 
+	dirprefix_len = target_new - target_new_rel;
+	memcpy(dirprefix, target_new_rel, dirprefix_len);
+	dirprefix[dirprefix_len] = '\0';
 
 	strcat(depfile_new,target);
 
@@ -737,7 +770,7 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 
 				setenvfd("REDO_DEP_FD", dep_fd);
 				setenvfd("REDO_LEVEL", nlevel + 1);
-				setenvfd("REDO_UPREL", uprel);
+				setenv("REDO_DIRPREFIX", dirprefix, 1);
 
 				track("", 0);
 
@@ -792,7 +825,7 @@ int
 main(int argc, char *argv[])
 {
 	int opt, i;
-	int uprel;
+	char *dirprefix;
 	int main_dir_fd, dir_fd, dep_fd;
 	int target_err, redo_err = 0;
 
@@ -824,7 +857,8 @@ main(int argc, char *argv[])
 	xflag = envint("REDO_TRACE");
 
 	level = envint("REDO_LEVEL");
-	uprel = envint("REDO_UPREL");
+	dirprefix = getenv("REDO_DIRPREFIX");
+	compute_updir(dirprefix);
 
 	track(0, 0);
 
@@ -840,7 +874,7 @@ main(int argc, char *argv[])
 		track(0, 1);
 
 		if(target_err == 0) {
-			write_dep(dep_fd, argv[i], uprel);
+			write_dep(dep_fd, argv[i], dirprefix);
 		} else if(target_err == TARGET_BUSY) {
 			redo_err = TARGET_BUSY;
 		} else
