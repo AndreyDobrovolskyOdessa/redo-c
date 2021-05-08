@@ -603,27 +603,26 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 	char target_base[PATH_MAX], target_base_rel[PATH_MAX];
 	char *dofile, dofile_rel[PATH_MAX];
 
+	int uprel;
+
 	char depfile[PATH_MAX + 5] = ".dep.";
 	char depfile_new[PATH_MAX + 8] = ".depnew.";
 
 	char target_new_prefix[] = ".targetnew.";
 	char *target_new, target_new_rel[PATH_MAX + sizeof target_new_prefix];
 
-	int dep_dir_fd, dep_fd;
+	struct stat dep_st;
+
+	int dep_fd, dep_dir_fd, dep_err = 0, dep_changed;
 
 	FILE *fdep;
 
-	int ok = 0, dep_err, dep_changed;
-
-	char line[4096];
+	char line[64 + 1 + 16 + 1 + PATH_MAX];
 	char *hash = line;
 	char *timestamp = line + 64 + 1;
 	char *filename = line + 64 + 1 + 16 + 1;
 
-	int firstline = 1;
-	int uprel;
-
-	struct stat dep_st;
+	int firstline = 1, lastline = 0, ok = 0;
 
 
 
@@ -685,13 +684,12 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 			if (line_len < 64 + 1 + 16 + 1 + 1)
 				break;
 
-			if (firstline) {
-				if (strcmp(filename, dofile_rel) != 0)
+			if (firstline && strcmp(filename, dofile_rel) != 0)
 					break;
-				firstline = 0;
-			}
 
-			if (strcmp(filename, target) != 0) {
+			if (strcmp(filename, target) == 0)
+				lastline = 1;
+			else {
 				dep_dir_fd = *dir_fd;
 				dep_err = redo_target(&dep_dir_fd, filename, nlevel + 1);
 				back_chdir(*dir_fd, dep_dir_fd);
@@ -709,9 +707,14 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 				break;
 
 			write_dep(dep_fd, filename, 0);
+
+			firstline = 0;
+
+			if (lastline) {
+				ok = 1;
+				break;
+			}
 		}
-		if (feof(fdep))
-			ok = 1;
 		fclose(fdep);
 	}
 
