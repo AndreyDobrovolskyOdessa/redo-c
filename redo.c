@@ -829,6 +829,8 @@ main(int argc, char *argv[])
 	int main_dir_fd, dir_fd, dep_fd;
 	int target_err, redo_err = 0;
 
+	char *program = base_name(argv[0], 0);
+
 
 	while ((opt = getopt(argc, argv, "+xf")) != -1) {
 		switch (opt) {
@@ -846,18 +848,16 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	dep_fd = envfd("REDO_DEP_FD");
-
-	if (argc == 0) {		/* redo-always */
-		dprintf(dep_fd, "\n");
-		return 0;
-	}
-
 	fflag = envint("REDO_FORCE");
 	xflag = envint("REDO_TRACE");
 
+	dep_fd = envfd("REDO_DEP_FD");
 	level = envint("REDO_LEVEL");
 	dirprefix = getenv("REDO_DIRPREFIX");
+
+	if (strcmp(program, "redo") == 0)
+		dprintf(dep_fd, "\n");
+
 	compute_updir(dirprefix);
 
 	track(0, 0);

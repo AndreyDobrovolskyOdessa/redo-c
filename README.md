@@ -55,19 +55,96 @@ has waived all copyright and related or neighboring rights to this work.
 http://creativecommons.org/publicdomain/zero/1.0/
 
 
+
+
+## Appendix
+
+### Motivation
+
+Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that A depends on B, and B depends on C (some source). Then redo_target() recurses down to C, checks its hash, and in case it was changed, runs B.do. Then B hash is checked and A.do is run then and only if B's hash differs from its previous value, stored in the .dep file.
+
+
+### redo-ifchange
+
+Undoubtedly is the heart of the "redo" build system. Its main property is the possibility to communicate with the parent, supplying it with the information (targets names, dates and hashes), sufficient for making decision about the parent's next possible invocation conditions.
+
+
+### redo
+
+In the current version "redo" act following the same pattern - build targets if they are outdated, supplies parent process with the information about their hashes, but tells the parent, that next time it (parent) is to be run unconditionally (not the targets scripts).
+
+Here lies the incompatibility with many known "redo" implementations, because they treat "redo" command, like it must unconditionally force targets' scripts to be run. I guess "redo" command in these implementations can not be used in the .do scripts, because it don't send hashes to the parent and called from inside the .do script will brake the dependencies tree consistency. For this purpose traditionally (starting probably from A.Pennarun's implementation) "redo-always" is used.
+
+So in this implementation "redo" can be used in place of "redo-always", meaning that the script, from which it was run, next time will be run unconditionally, but the targets to be built may be specified and their hashes will be stored in the corresponding .dep file. Instead of
+
+    redo-ifchange a b c
+    redo-always
+
+You use
+
+    redo a b c
+
+If You want some .do script to be executed unconditionally, place in it
+
+    redo
+
+If You want the targets to be built unconditionally, use -f option
+
+    redo-ifchange -f t1 t2 t3
+
+If You want script to be run unconditionally and targets built unconditionally, use
+
+    redo -f t1 t2 t3
+
+D.J.Bernstein in his papers was talking mostly about "redo-ifchange", and didn't mentioned "redo-always". In my opinion "redo" command is to follow the "redo-ifchange" mode of operation - being used in the .do script, tie together the nodes (targets) into the consistent dependency tree. 
+
+
+### redo-ifcreate
+
+D.J.Bernstein proposed to use "redo-ifchange" for detecting of the target's change and removal, while "redo-ifcreate" for detecting the target's creating. The current imlementation of "redo-ifchange" provides all three tasks, so "redo-ifcreate" and "redo-ifchange" are fully interchangeable.
+
+
+### Default "all" target
+
+Not implemented, because it will break the use of "redo" without targets specified in the .do scripts.
+
+
+### "Imaginary" target
+
+One feature of this implementation is the possible use of nameless target
+
+    redo ''
+
+or
+
+    redo ./
+
+Of course such targets can not exist, but thay may have the corresponding script, named ".do". If You want to build '' target, then ".do" script will be looked for in the current directory and all upper dirs, without any "default" prefixes applied. Such non-existing targets may be interesting replace for "all" target. The difference is in "default" rules, which are applicable for "all" target, but are ignored for "" target.
+
+
+### Notes on stdout and $3
+
+Sorry, stdout is not captured. $3 is the only possible option. Someone treats this as the total fail. My bad, I am afraid that mixing stdout and $3 is mess. If You need stdout to be captured, You can easily do it for every script individually with the help of
+
+    exec >$3
+
+at the .do file top. This will allow flawlessly use in one build both approaches.
+
+
+### Empty and missing targets
+
+Are matching, because hashes of empty file and missing one are equal. If script don't write anything into $3, empty new target is not created.
+
+
 ### Current version usage
 
 Only -f and -x options available.
 
-Empty targets are not created.
 
-    redo ""
-    
-tries to find and execute ".do" file in the current and upper directories, for this file "default" prefix is not applicable.
+### Loop dependencies
 
-"redo" and "redo-ifchange" are equivalent.
+Are monitored unconditionally and issue error if found.
 
-    redo
 
-without arguments means redo-always
+Andrey Dobrovolsky
 
