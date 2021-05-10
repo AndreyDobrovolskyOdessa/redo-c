@@ -855,7 +855,7 @@ main(int argc, char *argv[])
 	level = envint("REDO_LEVEL");
 	dirprefix = getenv("REDO_DIRPREFIX");
 
-	if (strcmp(program, "redo") == 0)
+	if (strcmp(program, "redo") == 0 || strcmp(program, "redo-always") == 0)
 		dprintf(dep_fd, "\n");
 
 	compute_updir(dirprefix);

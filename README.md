@@ -66,10 +66,14 @@ Improve performance avoiding unnecessary targets scripts' execution. As deep as 
 
 ### redo-ifchange
 
+Meaning: redo-this-script-if-change-after-updating dependency1 ...
+
 Undoubtedly is the heart of the "redo" build system. Its main property is the possibility to communicate with the parent, supplying it with the information (targets names, dates and hashes), sufficient for making decision about the parent's next possible invocation conditions.
 
 
 ### redo
+
+Meaning: redo-this-script-even-if-not-change-after-updating dependency1 ...
 
 In the current version "redo" act following the same pattern - build targets if they are outdated, supplies parent process with the information about their hashes, but tells the parent, that next time it (parent) is to be run unconditionally (not the targets scripts).
 
@@ -97,6 +101,13 @@ If You want script to be run unconditionally and targets built unconditionally, 
     redo -f t1 t2 t3
 
 D.J.Bernstein in his papers was talking mostly about "redo-ifchange", and didn't mentioned "redo-always". In my opinion "redo" command is to follow the "redo-ifchange" mode of operation - being used in the .do script, tie together the nodes (targets) into the consistent dependency tree. 
+
+
+### redo-always
+
+Meaning: redo-this-script-always-after-updating dependency1 ...
+
+In current implementation is alias of "redo" command. Thanks for idea to Sergey Matveev, author of [goredo](http://www.goredo.cypherpunks.ru/), Go implementation of "redo" build system.
 
 
 ### redo-ifcreate
