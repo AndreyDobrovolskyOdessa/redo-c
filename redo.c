@@ -624,7 +624,7 @@ base_name(const char *name, int uprel)
 #define TARGET_ALWAYS 125
 
 static int
-redo_target(int *dir_fd, char *target_path, int nlevel)
+update_target(int *dir_fd, char *target_path, int nlevel)
 {
 	char *target, *target_full, *target_rel;
 	char target_base[PATH_MAX], target_base_rel[PATH_MAX];
@@ -724,7 +724,7 @@ redo_target(int *dir_fd, char *target_path, int nlevel)
 				lastline = 1;
 			else {
 				dep_dir_fd = *dir_fd;
-				dep_err = redo_target(&dep_dir_fd, filename, nlevel + 1);
+				dep_err = update_target(&dep_dir_fd, filename, nlevel + 1);
 				back_chdir(*dir_fd, dep_dir_fd);
 				track(0, 1);
 
@@ -869,7 +869,7 @@ main(int argc, char *argv[])
 	for (i = 0 ; i < argc ; i++) {
 
 		dir_fd = main_dir_fd;
-		target_err = redo_target(&dir_fd, argv[i], 0);
+		target_err = update_target(&dir_fd, argv[i], 0);
 		back_chdir(main_dir_fd, dir_fd);
 		track(0, 1);
 
