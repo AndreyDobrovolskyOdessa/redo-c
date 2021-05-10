@@ -196,7 +196,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 // ----------------------------------------------------------------------
 
 int level;
-int xflag, fflag;
+int xflag, fflag, sflag, tflag;
 
 
 /*
@@ -671,9 +671,14 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	strcpy(target_base, target);
 	dofile = find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel);
-	if (!dofile)
+	if (!dofile) {
+		if (sflag)
+			printf("%s\n", target_full);
 		return 0;
+	}
 
+	if (tflag)
+		printf("%s\n", target_full);
 
 	strcat(depfile, target);
 
@@ -832,13 +837,19 @@ main(int argc, char *argv[])
 	char *program = base_name(argv[0], 0);
 
 
-	while ((opt = getopt(argc, argv, "+xf")) != -1) {
+	while ((opt = getopt(argc, argv, "+xfst")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
 			break;
 		case 'f':
 			setenvfd("REDO_FORCE", 1);
+			break;
+		case 's':
+			setenvfd("REDO_LIST_SOURCES", 1);
+			break;
+		case 't':
+			setenvfd("REDO_LIST_TARGETS", 1);
 			break;
 		default:
 			fprintf(stderr, "usage: redo [-fx]  [TARGETS...]\n");
@@ -850,6 +861,8 @@ main(int argc, char *argv[])
 
 	fflag = envint("REDO_FORCE");
 	xflag = envint("REDO_TRACE");
+	sflag = envint("REDO_LIST_SOURCES");
+	tflag = envint("REDO_LIST_TARGETS");
 
 	dep_fd = envfd("REDO_DEP_FD");
 	level = envint("REDO_LEVEL");

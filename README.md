@@ -147,9 +147,16 @@ at the .do file top. This will allow flawlessly use in one build both approaches
 Are matching, because hashes of empty file and missing one are equal. If script don't write anything into $3, empty new target is not created.
 
 
-### Current version usage
+### Current version options available
 
-Only -f and -x options available.
+-f
+
+-x
+
+-s list source files' full paths to stdout
+
+-t list target files' full paths to stdout
+
 
 
 ### Loop dependencies

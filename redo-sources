@@ -1,9 +1,0 @@
-#!/bin/sh
-# redo-sources - list dependencies which are not targets
-
-find . -name '.dep.*' | xargs grep -h '^=' | cut -c84- |
-while read f; do
-	[ -e "$f" ] &&
-	! [ -e "$(printf '%s' "$f" | sed 's,\(.*/\)\|,\1.dep.,')" ] &&
-        printf '%s\n' "$f"
-done | sort -u
