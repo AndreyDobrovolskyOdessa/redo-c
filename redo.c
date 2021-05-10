@@ -852,7 +852,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LIST_TARGETS", 1);
 			break;
 		default:
-			fprintf(stderr, "usage: redo [-fx]  [TARGETS...]\n");
+			fprintf(stderr, "usage: redo [-fxst]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
