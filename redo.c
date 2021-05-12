@@ -627,32 +627,21 @@ static int
 update_target(int *dir_fd, char *target_path, int nlevel)
 {
 	char *target, *target_full, *target_rel;
-	char target_base[PATH_MAX], target_base_rel[PATH_MAX];
-	char *dofile, dofile_rel[PATH_MAX];
+	char target_base[PATH_MAX];
+	char dofile_rel[PATH_MAX];
 
 	int uprel;
 
 	char depfile[PATH_MAX + 5] = ".dep.";
 	char depfile_new[PATH_MAX + 8] = ".depnew.";
 
-	char target_new_prefix[] = ".targetnew.";
-	char *target_new, target_new_rel[PATH_MAX + sizeof target_new_prefix];
-
-	size_t dirprefix_len;
-	char dirprefix[PATH_MAX];
-
 	struct stat dep_st;
 
-	int dep_fd, dep_dir_fd, dep_err = 0, dep_changed;
+	int dep_fd, dep_err = 0;
 
 	FILE *fdep;
 
-	char line[64 + 1 + 16 + 1 + PATH_MAX];
-	char *hash = line;
-	char *timestamp = line + 64 + 1;
-	char *filename = line + 64 + 1 + 16 + 1;
-
-	int firstline = 1, lastline = 0, ok = 0;
+	int ok = 0;
 
 
 
@@ -666,12 +655,11 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	if (strlen(target) >= sizeof target_base) {
 		fprintf(stderr, "Target basename too long -- %s\n", target);
-		return 1;
+		return 11;
 	}
 
 	strcpy(target_base, target);
-	dofile = find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel);
-	if (!dofile) {
+	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel)) {
 		if (sflag)
 			printf("%s\n", target_full);
 		return 0;
@@ -680,43 +668,35 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	if (tflag)
 		printf("%s\n", target_full);
 
-	strcat(depfile, target);
+	target_rel = base_name(target_full, uprel);
+	if (strlen(target_rel) >= sizeof target_base){
+		fprintf(stderr, "Target relative too long -- %s\n", target_rel);
+		return 22;
+	}
 
+	strcat(depfile, target);
 	if (stat(depfile, &dep_st) == 0) {
 		if (strcmp(datestat(&dep_st),datebuild()) >= 0)
 			return 0;
 	}
 
-	target_rel = base_name(target_full, uprel);
-
-	if (strlen(target_rel) >= sizeof target_base){
-		fprintf(stderr, "Target relative basename too long -- %s\n", target_rel);
-		return 2;
-	}
-
-	strcpy(target_base_rel, target_rel);
-	strcpy(base_name(target_base_rel, 0), target_base);
-
-	strcpy(target_new_rel, target_rel);
-	target_new = base_name(target_new_rel, 0);
-	strcpy(target_new, target_new_prefix);
-	strcat(target_new, target);
-
-	dirprefix_len = target_new - target_new_rel;
-	memcpy(dirprefix, target_new_rel, dirprefix_len);
-	dirprefix[dirprefix_len] = '\0';
-
 	strcat(depfile_new,target);
-
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
 	if (dep_fd < 0){
 		return TARGET_BUSY; /* target busy */
 	}
 
+
 	fdep = fflag ? NULL : fopen(depfile,"r");
 	if (fdep) {
+		char line[64 + 1 + 16 + 1 + PATH_MAX];
+		char *filename = line + 64 + 1 + 16 + 1;
+
+		int firstline = 1, lastline = 0;
+
+
 		while (fgets(line, sizeof line, fdep)) {
-			int fd, line_len = strlen(line);
+			int dep_dir_fd, fd, dep_changed, line_len = strlen(line);
 
 			line[line_len - 1] = 0; // strip \n
 			if (line_len < 64 + 1 + 16 + 1 + 1)
@@ -738,8 +718,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			}
 
 			fd = open(filename, O_RDONLY);
-			dep_changed = strncmp(timestamp, datefile(fd), 16) != 0 &&
-					strncmp(hash, hashfile(fd), 64) != 0;
+			dep_changed = strncmp(line + 64 + 1, datefile(fd), 16) != 0 &&
+					strncmp(line, hashfile(fd), 64) != 0;
 			close(fd);
 			if (dep_changed)
 				break;
@@ -756,30 +736,51 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		fclose(fdep);
 	}
 
+
+
 	if (!dep_err && !ok) {
 		lseek(dep_fd,SEEK_SET,0);
 		write_dep(dep_fd, dofile_rel, 0);
-/*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, uprel, target_rel, target_base_rel, target_new_rel); */
+/*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target_rel, target_base); */
 		{
 			pid_t pid;
+			char *dofile, target_base_rel[PATH_MAX];
+
+			char target_new_prefix[] = ".targetnew.";
+			char *target_new, target_new_rel[PATH_MAX + sizeof target_new_prefix];
+
+			size_t dirprefix_len;
+			char dirprefix[PATH_MAX];
+
+			int tlevel = level + nlevel;
+
+			strcpy(target_new_rel, target_rel);
+			target_new = base_name(target_new_rel, 0);
+			strcpy(target_new, target_new_prefix);
+			strcat(target_new, target);
+
+			fprintf(stderr, "redo %*s %s # %s\n", tlevel * 2, "", target_path, dofile_rel);
 
 			pid = fork();
 			if (pid < 0) {
 				perror("fork");
-				dep_err = 3;
+				dep_err = 33;
 			} else if (pid == 0) {
 
 				dofile = file_chdir(dir_fd, dofile_rel);
 
-				nlevel += level;
+				strcpy(target_base_rel, target_rel);
+				strcpy(base_name(target_base_rel, 0), target_base);
+
+				dirprefix_len = target_new - target_new_rel;
+				memcpy(dirprefix, target_new_rel, dirprefix_len);
+				dirprefix[dirprefix_len] = '\0';
 
 				setenvfd("REDO_DEP_FD", dep_fd);
-				setenvfd("REDO_LEVEL", nlevel + 1);
+				setenvfd("REDO_LEVEL", tlevel + 1);
 				setenv("REDO_DIRPREFIX", dirprefix, 1);
 
 				track("", 0);
-
-				fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target_path, dofile_rel);
 
 				if (access(dofile, X_OK) != 0)   // run -x files with /bin/sh
 					execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
@@ -793,29 +794,28 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			} else {
 				if (wait(&dep_err) < 0) {
 					perror("wait");
-					dep_err = 3;
+					dep_err = 44;
 				} else {
 					if (WIFEXITED(dep_err))
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
-			if (dep_err)
-				fprintf(stderr, "     %*s %s # %s exit = %d\n", (level + nlevel) * 2, "", target_path, dofile_rel,dep_err);
+			if (dep_err) {
+				fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel,dep_err);
+				remove(target_new);
+			} else {
+				remove(target);
+				rename(target_new,target);
+			}
 		}
+		write_dep(dep_fd, target, 0);
 	}
 
+	close(dep_fd);
 
 	if (dep_err) {
-		close(dep_fd);
-		remove(target_new);
 		remove(depfile_new);
 	} else {
-		if (!ok) {  /* script was executed */
-			remove(target);
-			rename(target_new,target);
-			write_dep(dep_fd, target, 0);
-		}
-		close(dep_fd);
 		remove(depfile);
 		rename(depfile_new,depfile);
 	}
