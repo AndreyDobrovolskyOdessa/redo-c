@@ -619,9 +619,20 @@ base_name(const char *name, int uprel)
 }
 
 
+static void
+choose(char *old, char *new, int err)
+{
+	if (err) {
+		remove(new);
+	} else {
+		remove(old);
+		rename(new,old);
+	}
+}
+
+
 #define TARGET_BUSY 123
 #define TARGET_LOOP 124
-#define TARGET_ALWAYS 125
 
 static int
 update_target(int *dir_fd, char *target_path, int nlevel)
@@ -696,11 +707,12 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 
 		while (fgets(line, sizeof line, fdep)) {
-			int dep_dir_fd, fd, dep_changed, line_len = strlen(line);
+			int fd, dep_changed, line_len = strlen(line);
 
-			line[line_len - 1] = 0; // strip \n
 			if (line_len < 64 + 1 + 16 + 1 + 1)
 				break;
+
+			line[line_len - 1] = 0; // strip \n
 
 			if (firstline && strcmp(filename, dofile_rel) != 0)
 					break;
@@ -708,7 +720,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			if (strcmp(filename, target) == 0)
 				lastline = 1;
 			else {
-				dep_dir_fd = *dir_fd;
+				int dep_dir_fd = *dir_fd;
+
 				dep_err = update_target(&dep_dir_fd, filename, nlevel + 1);
 				back_chdir(*dir_fd, dep_dir_fd);
 				track(0, 1);
@@ -800,25 +813,14 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
-			if (dep_err) {
-				fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel,dep_err);
-				remove(target_new);
-			} else {
-				remove(target);
-				rename(target_new,target);
-			}
+			fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel,dep_err);
+			choose(target, target_new, dep_err);
 		}
 		write_dep(dep_fd, target, 0);
 	}
 
 	close(dep_fd);
-
-	if (dep_err) {
-		remove(depfile_new);
-	} else {
-		remove(depfile);
-		rename(depfile_new,depfile);
-	}
+	choose(depfile, depfile_new, dep_err);
 
 	return dep_err;
 }
@@ -831,7 +833,7 @@ main(int argc, char *argv[])
 {
 	int opt, i;
 	char *dirprefix;
-	int main_dir_fd, dir_fd, dep_fd;
+	int main_dir_fd, dep_fd;
 	int target_err, redo_err = 0;
 
 	char *program = base_name(argv[0], 0);
@@ -880,8 +882,8 @@ main(int argc, char *argv[])
 	main_dir_fd = keepdir();
 
 	for (i = 0 ; i < argc ; i++) {
+		int dir_fd = main_dir_fd;
 
-		dir_fd = main_dir_fd;
 		target_err = update_target(&dir_fd, argv[i], 0);
 		back_chdir(main_dir_fd, dir_fd);
 		track(0, 1);
