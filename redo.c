@@ -737,8 +737,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			if (dep_changed)
 				break;
 
-			write_dep(dep_fd, filename, 0);
-
 			firstline = 0;
 
 			if (lastline) {
@@ -749,10 +747,18 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		fclose(fdep);
 	}
 
+	if (ok) {
+		fstat(dep_fd, &dep_st);			/* read with umask applied */
+		chmod(depfile, dep_st.st_mode);		/* freshen up depfile ctime */
+		close(dep_fd);
+		remove(depfile_new);
+
+		return 0;
+	}
 
 
-	if (!dep_err && !ok) {
-		lseek(dep_fd,SEEK_SET,0);
+
+	if (!dep_err) {
 		write_dep(dep_fd, dofile_rel, 0);
 /*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target_rel, target_base); */
 		{
@@ -813,7 +819,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
-			fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel,dep_err);
+			fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel, dep_err);
 			choose(target, target_new, dep_err);
 		}
 		write_dep(dep_fd, target, 0);
