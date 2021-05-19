@@ -671,8 +671,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	FILE *fdep;
 
-	int ok = 0;
-
 
 
 	target = file_chdir(dir_fd, target_path);
@@ -754,23 +752,18 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 			firstline = 0;
 
-			if (lastline) {
-				ok = 1;
-				break;
+			if (lastline) {			/* all dependencies are ok */
+				fclose(fdep);
+				fstat(dep_fd, &dep_st);			/* read with umask applied */
+				chmod(depfile, dep_st.st_mode);		/* freshen up depfile ctime */
+				close(dep_fd);
+				remove(depfile_new);
+
+				return 0;
 			}
 		}
 		fclose(fdep);
 	}
-
-	if (ok) {
-		fstat(dep_fd, &dep_st);			/* read with umask applied */
-		chmod(depfile, dep_st.st_mode);		/* freshen up depfile ctime */
-		close(dep_fd);
-		remove(depfile_new);
-
-		return 0;
-	}
-
 
 
 	if (!dep_err) {
