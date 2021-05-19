@@ -456,13 +456,10 @@ back_chdir(int to_dir_fd, int from_dir_fd)
 
 
 
-char updir[PATH_MAX];
 
 static void
-compute_updir(char *dp)
+compute_updir(char *dp, char *u)
 {
-	char *u = updir;
-
 	*u = 0;
 
 	if (dp) {
@@ -480,7 +477,7 @@ compute_updir(char *dp)
 }
 
 static int
-write_dep(int dfd, char *file, char *dp)
+write_dep(int dfd, char *file, char *dp, char *updir)
 {
 	int fd;
 	char *prefix = (char *) "";
@@ -756,7 +753,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 
 	if (!dep_err) {
-		write_dep(dep_fd, dofile_rel, 0);
+		write_dep(dep_fd, dofile_rel, 0, 0);
 
 /*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel); */
 
@@ -826,7 +823,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			choose(target, target_new, dep_err);
 		} while (0);
 
-		write_dep(dep_fd, target, 0);
+		write_dep(dep_fd, target, 0, 0);
 	}
 
 	close(dep_fd);
@@ -840,7 +837,7 @@ int
 main(int argc, char *argv[])
 {
 	int opt, i;
-	char *dirprefix;
+	char *dirprefix, updir[PATH_MAX];
 	int main_dir_fd, dep_fd;
 	int level;
 	int target_err, redo_err = 0;
@@ -882,7 +879,7 @@ main(int argc, char *argv[])
 	if (strcmp(program, "redo") == 0 || strcmp(program, "redo-always") == 0)
 		dprintf(dep_fd, "\n");
 
-	compute_updir(dirprefix);
+	compute_updir(dirprefix, updir);
 
 	track(0, 0);
 
@@ -898,7 +895,7 @@ main(int argc, char *argv[])
 		track(0, 1);
 
 		if(target_err == 0) {
-			write_dep(dep_fd, argv[i], dirprefix);
+			write_dep(dep_fd, argv[i], dirprefix, updir);
 		} else if(target_err == TARGET_BUSY) {
 			redo_err = TARGET_BUSY;
 		} else
