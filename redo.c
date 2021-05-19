@@ -195,7 +195,6 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 // ----------------------------------------------------------------------
 
-int level;
 int xflag, fflag, sflag, tflag;
 
 
@@ -386,32 +385,23 @@ datefilename(char *name)
 static char *
 datebuild()
 {
-	static char hexdate[17];
-	static int ready = 0;
+	static char hexdate[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
+	char *dateptr;
 
 	FILE *f;
 
-	if (ready)
+	if (hexdate[0])
 		return hexdate;
 
-	if (level) {
-		char *envptr = getenv("REDO_BUILD_DATE");
-		if (envptr) {
-			memcpy(hexdate, envptr, 16);
-			hexdate[16] = 0;
-			ready = 1;
-		
-			return hexdate;
-		}
-	}
+	dateptr = getenv("REDO_BUILD_DATE");
+	if (dateptr)
+		return memcpy(hexdate, dateptr, 16);
 
 	f = tmpfile();
-	strcpy(hexdate, datefile(fileno(f)));
+	memcpy(hexdate, datefile(fileno(f)), 16);
 	fclose(f);
 
 	setenv("REDO_BUILD_DATE", hexdate, 1);
-
-	ready = 1;
 
 	return hexdate;
 }
@@ -777,8 +767,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			char *target_new, target_new_prefix[] = ".targetnew.";
 			char target_new_rel[PATH_MAX + sizeof target_new_prefix];
 
-			int tlevel = level + nlevel;
-
 
 			target_rel = base_name(target_full, uprel);
 			if (strlen(target_rel) >= sizeof target_base_rel){
@@ -795,7 +783,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			strcpy(target_new, target_new_prefix);
 			strcat(target_new, target);
 
-			fprintf(stderr, "redo %*s %s # %s\n", tlevel * 2, "", target_path, dofile_rel);
+			fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target_path, dofile_rel);
 
 			pid = fork();
 			if (pid < 0) {
@@ -811,7 +799,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				dirprefix[dirprefix_len] = '\0';
 
 				setenvfd("REDO_DEP_FD", dep_fd);
-				setenvfd("REDO_LEVEL", tlevel + 1);
+				setenvfd("REDO_LEVEL", nlevel + 1);
 				setenv("REDO_DIRPREFIX", dirprefix, 1);
 
 				track("", 0);
@@ -834,7 +822,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
-			fprintf(stderr, "     %*s %s # %s -> %d\n", tlevel * 2, "", target_path, dofile_rel, dep_err);
+			fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target_path, dofile_rel, dep_err);
 			choose(target, target_new, dep_err);
 		} while (0);
 
@@ -854,6 +842,7 @@ main(int argc, char *argv[])
 	int opt, i;
 	char *dirprefix;
 	int main_dir_fd, dep_fd;
+	int level;
 	int target_err, redo_err = 0;
 
 	char *program = base_name(argv[0], 0);
@@ -904,7 +893,7 @@ main(int argc, char *argv[])
 	for (i = 0 ; i < argc ; i++) {
 		int dir_fd = main_dir_fd;
 
-		target_err = update_target(&dir_fd, argv[i], 0);
+		target_err = update_target(&dir_fd, argv[i], level);
 		back_chdir(main_dir_fd, dir_fd);
 		track(0, 1);
 
