@@ -631,6 +631,25 @@ choose(char *old, char *new, int err)
 }
 
 
+static int
+dep_changed(char *line)
+{
+	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
+	struct stat st = {0};
+	int fd;
+
+	stat(filename, &st);
+	if (strncmp(line + 64 +1, datestat(&st), 16) == 0)
+		return 0;
+
+	fd = open(filename, O_RDONLY);
+	hashstr = hashfile(fd);
+	close(fd);
+
+	return strncmp(line, hashstr, 64) != 0;
+}
+
+
 #define TARGET_BUSY 123
 #define TARGET_LOOP 124
 
@@ -707,7 +726,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 
 		while (fgets(line, sizeof line, fdep)) {
-			int fd, dep_changed, line_len = strlen(line);
+			int line_len = strlen(line);
 
 			if (line_len < 64 + 1 + 16 + 1 + 1)
 				break;
@@ -730,11 +749,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 					break;
 			}
 
-			fd = open(filename, O_RDONLY);
-			dep_changed = strncmp(line + 64 + 1, datefile(fd), 16) != 0 &&
-					strncmp(line, hashfile(fd), 64) != 0;
-			close(fd);
-			if (dep_changed)
+			if (dep_changed(line))
 				break;
 
 			firstline = 0;
@@ -819,7 +834,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 						dep_err = WEXITSTATUS(dep_err);
 				}
 			}
-			fprintf(stderr, "     %*s %s # %s exit = %d\n", tlevel * 2, "", target_path, dofile_rel, dep_err);
+			fprintf(stderr, "     %*s %s # %s -> %d\n", tlevel * 2, "", target_path, dofile_rel, dep_err);
 			choose(target, target_new, dep_err);
 		}
 		write_dep(dep_fd, target, 0);
