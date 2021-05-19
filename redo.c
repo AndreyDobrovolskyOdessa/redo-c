@@ -772,11 +772,10 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 		do {			/* single-shot loop, run_script() emulation */
 			pid_t pid;
-			char *target_rel, *target_new;
+			char *target_rel, target_base_rel[PATH_MAX];
 
-			char target_new_prefix[] = ".targetnew.";
+			char *target_new, target_new_prefix[] = ".targetnew.";
 			char target_new_rel[PATH_MAX + sizeof target_new_prefix];
-			char target_base_rel[PATH_MAX];
 
 			int tlevel = level + nlevel;
 
@@ -788,13 +787,13 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				break;
 			}
 
+			strcpy(target_base_rel, target_rel);
+			strcpy(base_name(target_base_rel, 0), target_base);
+
 			strcpy(target_new_rel, target_rel);
 			target_new = base_name(target_new_rel, 0);
 			strcpy(target_new, target_new_prefix);
 			strcat(target_new, target);
-
-			strcpy(target_base_rel, target_rel);
-			strcpy(base_name(target_base_rel, 0), target_base);
 
 			fprintf(stderr, "redo %*s %s # %s\n", tlevel * 2, "", target_path, dofile_rel);
 
