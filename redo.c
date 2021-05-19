@@ -371,6 +371,18 @@ datefile(int fd)
 	return datestat(&st);
 }
 
+
+static char *
+datefilename(char *name)
+{
+	struct stat st = {0};
+
+	stat(name, &st);
+
+	return datestat(&st);
+}
+
+
 static char *
 datebuild()
 {
@@ -635,11 +647,9 @@ static int
 dep_changed(char *line)
 {
 	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
-	struct stat st = {0};
 	int fd;
 
-	stat(filename, &st);
-	if (strncmp(line + 64 +1, datestat(&st), 16) == 0)
+	if (strncmp(line + 64 +1, datefilename(filename), 16) == 0)
 		return 0;
 
 	fd = open(filename, O_RDONLY);
@@ -664,8 +674,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	char depfile[PATH_MAX + 5] = ".dep.";
 	char depfile_new[PATH_MAX + 8] = ".depnew.";
-
-	struct stat dep_st;
 
 	int dep_fd, dep_err = 0;
 
@@ -703,16 +711,13 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	}
 
 	strcat(depfile, target);
-	if (stat(depfile, &dep_st) == 0) {
-		if (strcmp(datestat(&dep_st),datebuild()) >= 0)
-			return 0;
-	}
+	if (strcmp(datefilename(depfile), datebuild()) >= 0)
+		return 0;
 
 	strcat(depfile_new,target);
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
-	if (dep_fd < 0){
-		return TARGET_BUSY; /* target busy */
-	}
+	if (dep_fd < 0)
+		return TARGET_BUSY;
 
 
 	fdep = fflag ? NULL : fopen(depfile,"r");
@@ -752,7 +757,9 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 			firstline = 0;
 
-			if (lastline) {			/* all dependencies are ok */
+			if (lastline) {				/* all dependencies are ok */
+				struct stat dep_st;
+
 				fclose(fdep);
 				fstat(dep_fd, &dep_st);			/* read with umask applied */
 				chmod(depfile, dep_st.st_mode);		/* freshen up depfile ctime */
