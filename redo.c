@@ -725,10 +725,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		char line[64 + 1 + 16 + 1 + PATH_MAX];
 		char *filename = line + 64 + 1 + 16 + 1;
 
-		int firstline = 1, lastline = 0;
 
-
-		while (fgets(line, sizeof line, fdep)) {
+		for (int firstline = 1 ; fgets(line, sizeof line, fdep) ; firstline = 0) {
 			int line_len = strlen(line);
 
 			if (line_len < 64 + 1 + 16 + 1 + 1)
@@ -739,30 +737,24 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			if (firstline && strcmp(filename, dofile_rel) != 0)
 					break;
 
-			if (strcmp(filename, target) == 0)
-				lastline = 1;
-			else {
+			if (strcmp(filename, target) != 0) {
 				int dep_dir_fd = *dir_fd;
 
 				dep_err = update_target(&dep_dir_fd, filename, nlevel + 1);
 				back_chdir(*dir_fd, dep_dir_fd);
 				track(0, 1);
 
-				if (dep_err)
+				if (dep_err || dep_changed(line))
 					break;
-			}
-
-			if (dep_changed(line))
-				break;
-
-			firstline = 0;
-
-			if (lastline) {				/* all dependencies are ok */
+			} else {
 				struct stat dep_st;
 
+				if (dep_changed(line))
+					break;
+
 				fclose(fdep);
-				fstat(dep_fd, &dep_st);			/* read with umask applied */
-				chmod(depfile, dep_st.st_mode);		/* freshen up depfile ctime */
+				fstat(dep_fd, &dep_st);		/* read with umask applied */
+				chmod(depfile, dep_st.st_mode);	/* freshen up depfile ctime */
 				close(dep_fd);
 				remove(depfile_new);
 
