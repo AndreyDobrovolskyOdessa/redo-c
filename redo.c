@@ -660,13 +660,20 @@ dep_changed(char *line)
 }
 
 
-#define TARGET_BUSY 123
-#define TARGET_LOOP 124
+enum update_target_errors {
+	TARGET_UPTODATE = 0,
+	TARGET_TOOLONG = 11,
+	TARGET_REL_TOOLONG = 22,
+	TARGET_FORK_FAILED = 33,
+	TARGET_WAIT_FAILED = 44,
+	TARGET_BUSY = 123,
+	TARGET_LOOP = 124
+};
 
 static int
 update_target(int *dir_fd, char *target_path, int nlevel)
 {
-	char *target, *target_full, *target_rel;
+	char *target, *target_full;
 	char target_base[PATH_MAX];
 	char dofile_rel[PATH_MAX];
 
@@ -680,7 +687,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	FILE *fdep;
 
 
-
 	target = file_chdir(dir_fd, target_path);
 
 	target_full = track(target, 1);
@@ -691,28 +697,22 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	if (strlen(target) >= sizeof target_base) {
 		fprintf(stderr, "Target basename too long -- %s\n", target);
-		return 11;
+		return TARGET_TOOLONG;
 	}
 
 	strcpy(target_base, target);
 	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel)) {
 		if (sflag)
 			printf("%s\n", target_full);
-		return 0;
+		return TARGET_UPTODATE;
 	}
 
 	if (tflag)
 		printf("%s\n", target_full);
 
-	target_rel = base_name(target_full, uprel);
-	if (strlen(target_rel) >= sizeof target_base){
-		fprintf(stderr, "Target relative too long -- %s\n", target_rel);
-		return 22;
-	}
-
 	strcat(depfile, target);
 	if (strcmp(datefilename(depfile), datebuild()) >= 0)
-		return 0;
+		return TARGET_UPTODATE;
 
 	strcat(depfile_new,target);
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
@@ -758,7 +758,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				close(dep_fd);
 				remove(depfile_new);
 
-				return 0;
+				return TARGET_UPTODATE;
 			}
 		}
 		fclose(fdep);
@@ -767,38 +767,47 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	if (!dep_err) {
 		write_dep(dep_fd, dofile_rel, 0);
-/*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target_rel, target_base); */
-		{
+
+/*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel); */
+
+		do {			/* single-shot loop, run_script() emulation */
 			pid_t pid;
-			char *dofile, target_base_rel[PATH_MAX];
+			char *target_rel, *target_new;
 
 			char target_new_prefix[] = ".targetnew.";
-			char *target_new, target_new_rel[PATH_MAX + sizeof target_new_prefix];
-
-			size_t dirprefix_len;
-			char dirprefix[PATH_MAX];
+			char target_new_rel[PATH_MAX + sizeof target_new_prefix];
+			char target_base_rel[PATH_MAX];
 
 			int tlevel = level + nlevel;
+
+
+			target_rel = base_name(target_full, uprel);
+			if (strlen(target_rel) >= sizeof target_base_rel){
+				fprintf(stderr, "Target relative too long -- %s\n", target_rel);
+				dep_err = TARGET_REL_TOOLONG;
+				break;
+			}
 
 			strcpy(target_new_rel, target_rel);
 			target_new = base_name(target_new_rel, 0);
 			strcpy(target_new, target_new_prefix);
 			strcat(target_new, target);
 
+			strcpy(target_base_rel, target_rel);
+			strcpy(base_name(target_base_rel, 0), target_base);
+
 			fprintf(stderr, "redo %*s %s # %s\n", tlevel * 2, "", target_path, dofile_rel);
 
 			pid = fork();
 			if (pid < 0) {
 				perror("fork");
-				dep_err = 33;
+				dep_err = TARGET_FORK_FAILED;
 			} else if (pid == 0) {
 
-				dofile = file_chdir(dir_fd, dofile_rel);
+				char *dofile = file_chdir(dir_fd, dofile_rel);
+				char dirprefix[PATH_MAX];
+				size_t dirprefix_len = target_new - target_new_rel;
 
-				strcpy(target_base_rel, target_rel);
-				strcpy(base_name(target_base_rel, 0), target_base);
-
-				dirprefix_len = target_new - target_new_rel;
 				memcpy(dirprefix, target_new_rel, dirprefix_len);
 				dirprefix[dirprefix_len] = '\0';
 
@@ -820,7 +829,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			} else {
 				if (wait(&dep_err) < 0) {
 					perror("wait");
-					dep_err = 44;
+					dep_err = TARGET_WAIT_FAILED;
 				} else {
 					if (WIFEXITED(dep_err))
 						dep_err = WEXITSTATUS(dep_err);
@@ -828,7 +837,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 			}
 			fprintf(stderr, "     %*s %s # %s -> %d\n", tlevel * 2, "", target_path, dofile_rel, dep_err);
 			choose(target, target_new, dep_err);
-		}
+		} while (0);
+
 		write_dep(dep_fd, target, 0);
 	}
 
@@ -837,8 +847,6 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	return dep_err;
 }
-
-
 
 
 int
