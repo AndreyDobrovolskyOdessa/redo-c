@@ -427,11 +427,13 @@ file_chdir(int *fd, char *name)
 
 	*slash = 0;
 	*fd = openat(*fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	*slash = '/';
+
 	if (*fd < 0) {
 		perror("openat dir");
-		exit(-1);
+		return 0;
 	}
-	*slash = '/';
+
 	if (fchdir(*fd) < 0) {
 		perror("chdir");
 		exit(-1);
@@ -653,6 +655,7 @@ enum update_target_errors {
 	TARGET_REL_TOOLONG = 22,
 	TARGET_FORK_FAILED = 33,
 	TARGET_WAIT_FAILED = 44,
+	TARGET_NODIR = 55,
 	TARGET_BUSY = 123,
 	TARGET_LOOP = 124
 };
@@ -675,6 +678,11 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 
 	target = file_chdir(dir_fd, target_path);
+	if (target == 0) {
+		fprintf(stderr, "Missing target directory -- %s\n", target_path);
+		track("", 1);	/* dummy call */
+		return TARGET_NODIR;
+	}
 
 	target_full = track(target, 1);
 	if (target_full == 0){
