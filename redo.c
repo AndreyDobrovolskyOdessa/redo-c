@@ -499,6 +499,7 @@ write_dep(int dfd, char *file, char *dp, char *updir)
 	}
 
 	dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
+
 	if (fd > 0)
 		close(fd);
 
@@ -519,41 +520,41 @@ target  && track_op  -> append name
 static char *
 track(const char *target, int track_op)
 {
-	static char *redo_track_buf = 0;	/* this buffer will hold initial REDO_TRACK
+	static char *track_buf = 0;		/* this buffer will hold initial REDO_TRACK
 						stored once during the very first envocation
 						followed by target cwd and target basename
 						varying for consequent envocations */
 
-	static size_t redo_track_buf_size = 0;	/* the whole redo_track_buf size, sufficient for
+	static size_t track_buf_size = 0;	/* the whole track_buf size, sufficient for
 						holding initial REDO_TRACK and current target
 						full path */
 					      
-	int redo_track_len = 0, target_len;
+	int track_len = 0, target_len;
 	char *target_wd, *ptr;
 
-	if (!redo_track_buf) {
-		char *redo_track_ptr = getenv("REDO_TRACK");
-		if (redo_track_ptr)
-			redo_track_len = strlen (redo_track_ptr);
-		redo_track_buf_size = redo_track_len + PATH_MAX;
-		redo_track_buf = malloc (redo_track_buf_size);
-		if (!redo_track_buf) {
-			fprintf(stderr,"redo_track_buf malloc failed.\n");
+	if (!track_buf) {
+		char *track_ptr = getenv("REDO_TRACK");
+		if (track_ptr)
+			track_len = strlen (track_ptr);
+		track_buf_size = track_len + PATH_MAX;
+		track_buf = malloc (track_buf_size);
+		if (!track_buf) {
+			fprintf(stderr,"track_buf malloc failed.\n");
 			exit (-1);
 		}
-		*redo_track_buf = 0;
-		if (redo_track_ptr)
-			strcpy (redo_track_buf, redo_track_ptr);
+		*track_buf = 0;
+		if (track_ptr)
+			strcpy (track_buf, track_ptr);
 	}
 
 	if (!track_op) {
 		if (target)
-			setenv("REDO_TRACK", redo_track_buf, 1);
+			setenv("REDO_TRACK", track_buf, 1);
 		return 0;
 	}
 
 	if (!target) {		/* strip last path */
-		ptr = strrchr(redo_track_buf, ':');
+		ptr = strrchr(track_buf, ':');
 		if (ptr)
 			*ptr = 0;
 		return ptr;
@@ -562,18 +563,18 @@ track(const char *target, int track_op)
 	target_len = strlen(target);
 
 	while (1) {
-		redo_track_len = strlen(redo_track_buf);
-		target_wd = getcwd (redo_track_buf + redo_track_len + 1,
-				redo_track_buf_size - redo_track_len - target_len - 3);
+		track_len = strlen(track_buf);
+		target_wd = getcwd (track_buf + track_len + 1,
+				track_buf_size - track_len - target_len - 3);
 
 		if (target_wd)		/* getcwd successful */
 			break;
 
-		if (errno == ERANGE) {  /* redo_track_buf_size is not sufficient */
-			redo_track_buf_size += PATH_MAX;
-			redo_track_buf = realloc (redo_track_buf, redo_track_buf_size);
-			if (!redo_track_buf) {
-				fprintf(stderr,"redo_track_buf realloc failed.\n");
+		if (errno == ERANGE) {  /* track_buf_size is not sufficient */
+			track_buf_size += PATH_MAX;
+			track_buf = realloc (track_buf, track_buf_size);
+			if (!track_buf) {
+				fprintf(stderr,"track_buf realloc failed.\n");
 				exit (-1);
 			}
 		} else {
@@ -586,10 +587,10 @@ track(const char *target, int track_op)
 	*ptr++ = '/';
 	strcpy(ptr, target);
 
-	*--target_wd = ':';	/* appending target full path to the redo_track_buf */
+	*--target_wd = ':';	/* appending target full path to the track_buf */
 
-	/* searching for target full path inside redo_track_buf */
-	ptr = redo_track_buf;
+	/* searching for target full path inside track_buf */
+	ptr = track_buf;
 	target_len = strlen(target_wd);
 	while (1) {
 		ptr = strstr(ptr, target_wd);
@@ -623,12 +624,11 @@ base_name(const char *name, int uprel)
 static void
 choose(char *old, char *new, int err)
 {
-	if (err) {
-		remove(new);
-	} else {
+	if (!err) {
 		remove(old);
 		rename(new,old);
-	}
+	} else
+		remove(new);
 }
 
 
