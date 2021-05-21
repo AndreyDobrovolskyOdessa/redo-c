@@ -464,11 +464,9 @@ compute_updir(char *dp, char *u)
 {
 	*u = 0;
 
-	if (dp) {
-		while (1) {
-			dp = strchr(dp, '/');
-			if (!dp)
-				break;
+	while (dp) {
+		dp = strchr(dp, '/');
+		if (dp) {
 			dp++;
 			*u++ = '.';
 			*u++ = '.';
@@ -638,7 +636,7 @@ dep_changed(char *line)
 	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
 	int fd;
 
-	if (strncmp(line + 64 +1, datefilename(filename), 16) == 0)
+	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
 		return 0;
 
 	fd = open(filename, O_RDONLY);
@@ -646,6 +644,25 @@ dep_changed(char *line)
 	close(fd);
 
 	return strncmp(line, hashstr, 64) != 0;
+}
+
+
+static int
+check_record(char *line)
+{
+	int line_len = strlen(line);
+
+	if (line_len < 64 + 1 + 16 + 1 + 1)
+		return 1;
+
+	if (line[line_len - 1] != '\n') {
+		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
+		return 1;
+	}
+
+	line[line_len - 1] = 0; // strip \n
+
+	return 0;
 }
 
 
@@ -717,17 +734,12 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	fdep = fflag ? NULL : fopen(depfile,"r");
 	if (fdep) {
-		char line[64 + 1 + 16 + 1 + PATH_MAX];
+		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		char *filename = line + 64 + 1 + 16 + 1;
 
-
 		for (int firstline = 1 ; fgets(line, sizeof line, fdep) ; firstline = 0) {
-			int line_len = strlen(line);
-
-			if (line_len < 64 + 1 + 16 + 1 + 1)
+			if (check_record(line) != 0)
 				break;
-
-			line[line_len - 1] = 0; // strip \n
 
 			if (firstline && strcmp(filename, dofile_rel) != 0)
 					break;
