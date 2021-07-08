@@ -72,9 +72,11 @@ The current implementation (dev2 branch) follows D.J.Bernstein's guidelines on d
 
 Actively used nowadays implementations:
 
-https://github.com/apenwarr/redo\
-https://github.com/leahneukirchen/redo-c\
-http://www.goredo.cypherpunks.ru/
+https://github.com/apenwarr/redo
+
+https://github.com/leahneukirchen/redo-c
+
+http://www.goredo.cypherpunks.ru
 
 use more sophisticated though more complicated and not so clear logic, which depends not only on .do files configuration, but on the internal state of the build system too.
 
