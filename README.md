@@ -66,15 +66,39 @@ Improve performance avoiding unnecessary targets scripts' execution. As deep as 
 
 ### Compatibility notes
 
+#### Important
+
+The current implementation (dev2 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding .do files, while sources - don't. KISS.
+
+Actively used nowadays implementations:
+
+https://github.com/apenwarr/redo\
+https://github.com/leahneukirchen/redo-c\
+http://www.goredo.cypherpunks.ru/
+
+use more sophisticated though more complicated and not so clear logic, which depends not only on .do files configuration, but on the internal state of the build system too.
+
+#### Less important
+
+stdout of .do scripts is not captured. 
+
+If the .do script writes nothing, empty target is not created.
+
+Empty targets and missing ones are equivalent, as they have the same hashes.
+
+"redo-ifchange" provides "redo-ifcreate" functionality, i.e. writes .dep entries for non-existent targets too and triggers execution in case they will be created and non-empty.
+
+#### Unimportant
+
 No default target.
 
 "redo" doesn't force execution of up-to-date targets' dofiles.
 
-stdout of .do scripts is not captured. 
+#### Consequences
 
-If the .do script writes nothing, empty target is not created. Empty targets and missing ones are equivalent, as they have the same hashes.
+The project designed to be built with the current implementation (dev2 branch) will be built successfully with any of the above mentioned imlementations.
 
-"redo-ifchange" provides "redo-ifcreate" functionality, i.e. writes .dep entries for non-existent targets too and triggers execution in case they will be created and non-empty.
+The project designed to be built with one of the above mentioned redo implementations will fail to build with the current implementation (dev2 branch). 
 
 
 ### "Imaginary" target
