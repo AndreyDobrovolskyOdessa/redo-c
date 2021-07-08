@@ -98,7 +98,7 @@ No default target.
 
 #### Consequences
 
-The project designed to be built with the current implementation (dev2 branch) will be built successfully with any of the above mentioned imlementations.
+The project designed to be built with the current implementation (dev2 branch) will be built successfully with any of the above mentioned implementations.
 
 The project designed to be built with one of the above mentioned redo implementations will fail to build with the current implementation (dev2 branch). 
 
