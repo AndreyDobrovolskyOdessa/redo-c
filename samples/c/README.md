@@ -6,8 +6,8 @@ Allow to build projects with correctly written headers.
 
 ### 1.
 
-int bar(int) squares the integer
-int foo(int, int) retrns the sum of arguments' squares - call bar()
+int bar(int) squares the integer\
+int foo(int, int) retrns the sum of arguments' squares - call bar()\
 int main() returns 1's and 2's squares sum - call foo()
 
 In order to build the program "prog" You need to enter 1/prog and
@@ -26,6 +26,6 @@ The same task, but for all sources CFLAGS="-Os -Wall -Wextra" (see c/2/default.c
 
 ### 3.
 
-main() calls baz() in order to print the sum the screen width's and height's squares. baz() needs ncurses (see c/3/baz/default.cflags.do). baz calls foo() (compiled with tcc), bar.c is compiled with -O0, main is compiled with -Os and prog is linked with tcc.
+main() calls baz() in order to print the sum of the screen width's and height's squares. baz() needs ncurses (see c/3/baz/default.cflags.do). baz calls foo() (compiled with tcc), bar.c is compiled with -O0, main is compiled with -Os and prog is linked with tcc.
 
 
