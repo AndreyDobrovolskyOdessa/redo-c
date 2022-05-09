@@ -122,9 +122,18 @@ for i, rn in ipairs(RNames) do
 end
 
 
-f = io.open(arg[3], "w")
+local SortedNames = {}
 
 for n, v in pairs(DepNames) do
+  table.insert(SortedNames, n)
+end
+
+table.sort(SortedNames)
+
+
+f = io.open(arg[3], "w")
+
+for i, n in ipairs(SortedNames) do
   f:write(n, "\n")
 end
 
