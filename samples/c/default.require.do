@@ -8,17 +8,42 @@ local Compiler = "gcc"
 ----------------------------
 
 
+local Split = function(P)
+  local Dir, Name = P:match("(.*/)(.*)")
+  if not Dir then
+    Dir = ""
+    Name = P
+  end
+  return Dir, Name
+end
+
+
+local Sanitize = function(P)
+  local D, N = Split(P)
+
+  local S = {}
+
+  for part in D:gmatch("([^/]*)/") do
+    if part == ".." and #S > 0 and S[#S] ~= ".." then
+      table.remove(S)
+    else
+      table.insert(S, part)
+    end
+  end
+
+  table.insert(S, "")
+  D = table.concat(S, "/")
+
+  return D .. N
+end
+
+
 local BName = arg[1]:gsub("%.require$", "") -- = arg[2]
 
 local CName = BName .. ".c"
 local OName = BName .. ".o"
 
-local TDir, TName = BName:match("(.*/)(.*)")
-
-if not TDir then
-  TDir = ""
-  TName = BName
-end
+local TDir, TName = Split(BName)
 
 local FName = TDir .. "local.cflags"
 
@@ -71,12 +96,12 @@ local AllDeps = table.concat({CName, OName, IList, RList}, " ")
 assert(os.execute("redo-ifchange " .. AllDeps))
 
 
-f = io.open(arg[3], "w")
+local DepNames = {}
 
-f:write(TName, ".o\n")
+DepNames[TName .. ".o"] = true
 
 for d in Deps:gmatch("[^%s]+") do
-  f:write(d, "\n")
+  DepNames[d] = true
 end
 
 
@@ -85,16 +110,23 @@ for i, rn in ipairs(RNames) do
   local fr = io.open(rn)
   if fr then
     for r in fr:lines() do
+      local n = ""
       if r:match("%.o$") then
-        f:write(RDir)
+        n = RDir
       end
-      f:write(r, "\n")
+      n = Sanitize(n .. r)
+      DepNames[n] = true
     end
     fr:close()
   end
 end
 
+
+f = io.open(arg[3], "w")
+
+for n, v in pairs(DepNames) do
+  f:write(n, "\n")
+end
+
 f:close()
-
-
 

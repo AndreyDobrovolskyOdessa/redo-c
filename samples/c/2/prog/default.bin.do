@@ -53,43 +53,32 @@ end
 
 assert(os.execute("redo-ifchange " .. RName))
 
-local f = io.open(RName)
+local f = assert(io.open(RName))
 
-local RList, DList
+local RUniq = {}
+local DUniq = {}
 
-if f then
-  local RNames = {}
-  for n in f:lines() do
-    local s = n
-    if n:match("%.o$") then
-      s = Sanitize(TDir.. n)
-    end
-    RNames[s] = true
+for n in f:lines() do
+  if n:match("%.o$") then
+    local s = Sanitize(TDir .. n)
+    table.insert(RUniq, s)
+  else
+    table.insert(DUniq, n)
   end
-  f:close()
-
-  local RUniq = {}
-  local DUniq = {}
-  for n, v in pairs(RNames) do
-    if n:match("%.o$") then
-      table.insert(RUniq, n)
-    else
-      table.insert(DUniq, n)
-    end
-  end
-  RList = table.concat(RUniq, " ")
-  DList = table.concat(DUniq, " ")
 end
 
-if DList and DList ~= "" then
+f:close()
+
+local RList = table.concat(RUniq, " ")
+local DList = table.concat(DUniq, " ")
+
+if DList ~= "" then
   f = assert(io.popen("pkg-config --libs " .. DList))
   Libs = Libs .. " " .. f:read()
   assert(f:close())
 end
 
-if RList and RList ~= "" then
-  assert(os.execute("redo-ifchange " .. RList))
-  assert(os.execute(Linker .. " -o " .. arg[2] .. " " .. RList .. " " .. Libs))
-  assert(os.execute("redo-ifchange " .. arg[2]))
-end
+assert(os.execute("redo-ifchange " .. RList))
+assert(os.execute(Linker .. " -o " .. arg[2] .. " " .. RList .. " " .. Libs))
+assert(os.execute("redo-ifchange " .. arg[2]))
 
