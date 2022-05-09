@@ -208,15 +208,12 @@ this function assumes no / in target
 */
 
 static char *
-find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel)
+find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char *slash)
 {
 	char default_name[] = "default", suffix[] = ".do";
 	char *name = default_name + (sizeof default_name - 1);
 	char *ext  = target; 
 	char *dofile = dofile_rel;
-
-	struct stat st;
-
 
 	/* we must avoid doing default*.do files */
 	if ((strncmp(target, default_name, sizeof default_name - 1) == 0) &&
@@ -227,24 +224,11 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel)
 		return 0;
 	dofile_free -= sizeof suffix;
 
-	strcpy(dofile_rel,"./");
-
-	st.st_dev = st.st_ino = 0;
-
-	for (*uprel = 0 ; ; (*uprel)++) {
+	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = ext;
-		struct stat ost = st;
-
-		if (stat(dofile_rel, &st) < 0)
-			return 0;
-		if (ost.st_dev == st.st_dev && ost.st_ino == st.st_ino)
-			break;  // reached root dir, .. = .
 
 		while (1) {
-			strcpy(dofile, name);
-			strcat(dofile, s);
-			strcat(dofile, suffix);
-			/* sprintf(dofile, "%s%s%s", name, s, suffix); */
+			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
 			if (access(dofile_rel, F_OK) == 0) {
 				if (*s == '.')
@@ -713,7 +697,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	}
 
 	strcpy(target_base, target);
-	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel)) {
+	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full)) {
 		if (sflag)
 			printf("%s\n", target_full);
 		return TARGET_UPTODATE;
