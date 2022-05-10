@@ -236,12 +236,12 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 				return dofile;
 			}
 
-			if (*s == 0)
+			if ((*s == 0) || (*s == '.'))
 				break;
 
 			while (*++s && (*s != '.'));
 
-			if (ext == target) {
+			if (name != default_name) {
 				size_t required = (sizeof default_name - 1) + strlen(s);
 
 				if (dofile_free < required)
