@@ -236,7 +236,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 				return dofile;
 			}
 
-			if ((*s == 0) || (*s == '.'))
+			if ((*s == 0) || ((name != default_name) && (*s == '.')))
 				break;
 
 			while (*++s && (*s != '.'));
