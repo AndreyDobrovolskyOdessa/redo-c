@@ -1,5 +1,8 @@
 #!/usr/bin/env lua
 
+-- The purpose of this script is to compile "arg[2].c", mark all
+-- immediate dependencies with "redo-ifchange" and collect all
+-- recursive dependencies in "arg[2].require"
 
 --------- Editable ---------
 
@@ -8,18 +11,8 @@ local Compiler = "gcc"
 ----------------------------
 
 
-local Split = function(P)
-  local Dir, Name = P:match("(.*/)(.*)")
-  if not Dir then
-    Dir = ""
-    Name = P
-  end
-  return Dir, Name
-end
-
-
 local Sanitize = function(P)
-  local D, N = Split(P)
+  local D, N = P:match("(.-)([^/]*)$")
 
   local S = {}
 
@@ -38,12 +31,10 @@ local Sanitize = function(P)
 end
 
 
-local BName = arg[1]:gsub("%.require$", "") -- = arg[2]
+local CName = arg[2] .. ".c"
+local OName = arg[2] .. ".o"
 
-local CName = BName .. ".c"
-local OName = BName .. ".o"
-
-local TDir, TName = Split(BName)
+local TDir, TName = arg[2]:match("(.-)([^/]*)$")
 
 local FName = TDir .. "local.cflags"
 
@@ -60,7 +51,7 @@ local RNames = {}
 local RNamesShort = {}
 
 
-local DName = BName .. ".d"
+local DName = arg[2] .. ".d"
 
 assert(os.execute(Compiler .. " -MD " .. Cflags .. " -o " .. OName .. " -c " .. CName))
 
@@ -72,7 +63,7 @@ for l in f:lines() do
     local Last = w:sub(-1)
     if First ~= "/" and (not ([[:c\]]):find(Last)) then
       table.insert(INames, w)
-      if w:match(".*%.h") and w ~= BName .. ".h" then
+      if w:match(".*%.h") and w ~= arg[2] .. ".h" then
         local wb = w:gsub("%.h$", "")
         local c = wb .. ".c"
         if os.execute("test -e " .. c) then
@@ -110,11 +101,10 @@ for i, rn in ipairs(RNames) do
   local fr = io.open(rn)
   if fr then
     for r in fr:lines() do
-      local n = ""
+      local n = r
       if r:match("%.o$") then
-        n = RDir
+        n = Sanitize(RDir .. r)
       end
-      n = Sanitize(n .. r)
       DepNames[n] = true
     end
     fr:close()
