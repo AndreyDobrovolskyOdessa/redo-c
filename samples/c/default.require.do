@@ -98,17 +98,15 @@ end
 
 for i, rn in ipairs(RNames) do
   local RDir = RNamesShort[i]:match(".*/") or ""
-  local fr = io.open(rn)
-  if fr then
-    for r in fr:lines() do
-      local n = r
-      if r:match("%.o$") then
-        n = Sanitize(RDir .. r)
-      end
-      DepNames[n] = true
+  local fr = assert(io.open(rn))
+  for r in fr:lines() do
+    local n = r
+    if r:match("%.o$") then
+      n = Sanitize(RDir .. r)
     end
-    fr:close()
+    DepNames[n] = true
   end
+  fr:close()
 end
 
 
