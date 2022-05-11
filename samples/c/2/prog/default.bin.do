@@ -30,48 +30,21 @@ if TName == "main" then
 end
 
 
-if not os.execute("test -e " .. CName) then
-  io.stderr:write("Missing " .. CName .. "\n")
-  os.exit(1)
-end
-
-
-local Sanitize = function(P)
-  local D, N = P:match("(.-)([^/]*)$")
-
-  local S = {}
-
-  for part in D:gmatch("([^/]*)/") do
-    if part == ".." and #S > 0 and S[#S] ~= ".." then
-      table.remove(S)
-    else
-      table.insert(S, part)
-    end
-  end
-
-  table.insert(S, "")
-  D = table.concat(S, "/")
-
-  return D .. N
-end
+assert(os.execute("test -e " .. CName), "Missing " .. CName .. "\n")
 
 
 assert(os.execute("redo-ifchange " .. RName))
 
-local f = assert(io.open(RName))
-
 local RUniq = {}
 local DUniq = {}
 
-for n in f:lines() do
+for n in io.lines(RName) do
   if n:match("%.o$") then
-    table.insert(RUniq, Sanitize(TDir .. n))
+    table.insert(RUniq, TDir .. n)
   else
     table.insert(DUniq, n)
   end
 end
-
-f:close()
 
 local RList = table.concat(RUniq, " ")
 local DList = table.concat(DUniq, " ")

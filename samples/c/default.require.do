@@ -32,9 +32,14 @@ end
 
 
 local CName = arg[2] .. ".c"
+local HName = arg[2] .. ".h"
 local OName = arg[2] .. ".o"
+local DName = arg[2] .. ".d"
 
 local TDir, TName = arg[2]:match("(.-)([^/]*)$")
+
+local TNameStart = #TDir + 1
+
 
 local FName = TDir .. "local.cflags"
 
@@ -45,37 +50,25 @@ local Cflags = assert(f:read())
 local Deps = assert(f:read())
 f:close()
 
+assert(os.execute(Compiler .. " -MD " .. Cflags .. " -o " .. OName .. " -c " .. CName))
+
 
 local INames = {}
 local RNames = {}
-local RNamesShort = {}
 
-
-local DName = arg[2] .. ".d"
-
-assert(os.execute(Compiler .. " -MD " .. Cflags .. " -o " .. OName .. " -c " .. CName))
-
-local f = assert(io.open(DName))
-
-for l in f:lines() do
+for l in io.lines(DName) do
   for w in l:gmatch("[^%s]+") do
     local First = w:sub(1,1)
     local Last = w:sub(-1)
     if First ~= "/" and (not ([[:c\]]):find(Last)) then
       table.insert(INames, w)
       local wb = w:match("(.*)%.h$")
-      if wb and w ~= arg[2] .. ".h" then
-        if os.execute("test -e " .. wb .. ".c") then
-          local r = wb .. ".require"
-          table.insert(RNames, r)
-          table.insert(RNamesShort, r:sub(#TDir + 1))
-        end
+      if wb and w ~= HName and os.execute("test -e " .. wb .. ".c") then
+        table.insert(RNames, wb .. ".require")
       end
     end
   end
 end
-
-f:close()
 
 os.execute("rm " .. DName)
 
@@ -96,16 +89,11 @@ end
 
 
 for i, rn in ipairs(RNames) do
-  local RDir = RNamesShort[i]:match(".*/") or ""
-  local fr = assert(io.open(rn))
-  for r in fr:lines() do
-    local n = r
-    if r:match("%.o$") then
-      n = Sanitize(RDir .. r)
-    end
+  local RDir = rn:match(".*/", TNameStart) or ""
+  for r in io.lines(rn) do
+    local n = r:match("%.o$") and Sanitize(RDir .. r) or r
     DepNames[n] = true
   end
-  fr:close()
 end
 
 
@@ -117,12 +105,7 @@ end
 
 table.sort(SortedNames)
 
-
-f = io.open(arg[3], "w")
-
-for i, n in ipairs(SortedNames) do
-  f:write(n, "\n")
-end
-
+f = assert(io.open(arg[3], "w"))
+assert(f:write(table.concat(SortedNames, "\n")))
 f:close()
 
