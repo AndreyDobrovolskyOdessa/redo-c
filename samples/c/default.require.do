@@ -69,7 +69,7 @@ for l in f:lines() do
         if os.execute("test -e " .. c) then
           local r = wb .. ".require"
           table.insert(RNames, r)
-          table.insert(RNamesShort, (r:gsub(TDir, "", 1)))
+          table.insert(RNamesShort, (r:sub(#TDir + 1)))
         end
       end
     end
