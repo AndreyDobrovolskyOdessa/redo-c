@@ -63,13 +63,12 @@ for l in f:lines() do
     local Last = w:sub(-1)
     if First ~= "/" and (not ([[:c\]]):find(Last)) then
       table.insert(INames, w)
-      if w:match(".*%.h") and w ~= arg[2] .. ".h" then
-        local wb = w:gsub("%.h$", "")
-        local c = wb .. ".c"
-        if os.execute("test -e " .. c) then
+      local wb = w:match("(.*)%.h$")
+      if wb and w ~= arg[2] .. ".h" then
+        if os.execute("test -e " .. wb .. ".c") then
           local r = wb .. ".require"
           table.insert(RNames, r)
-          table.insert(RNamesShort, (r:sub(#TDir + 1)))
+          table.insert(RNamesShort, r:sub(#TDir + 1))
         end
       end
     end
