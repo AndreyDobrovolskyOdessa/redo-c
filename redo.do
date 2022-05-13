@@ -2,9 +2,7 @@
 #
 # Kick-start:
 #
-#	. ./redo.do # DESTDIR=$HOME/.local/bin
-#
-#	DESTDIR=<another-dir> ; . ./redo.do
+#	(DESTDIR=$HOME/.local/bin ; . ./redo.do)
 #
 # Build redo with redo:
 #
