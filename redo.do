@@ -1,4 +1,8 @@
-# Dual-purpose script.
+# Triple-purpose script.
+#
+# Test-drive:
+#
+#	DESTDIR= ; . ./redo.do
 #
 # Kick-start:
 #
@@ -18,12 +22,14 @@ then
   OFILE=${3:-redo}
 fi
 
-cc -g -Os -Wall -Wextra -Wwrite-strings -o $OFILE redo.c
+cc -O2 -Wall -Wextra -Wwrite-strings -o $OFILE redo.c &&
 
 if [ x${OFILE} = xredo ]
 then
-  test -n "$DESTDIR" || DESTDIR=${HOME}/.local/bin
-  cp -nT redo ${DESTDIR}/redo && {
+  test -z "$DESTDIR" &&
+  { DESTDIR=$PWD; PATH=$DESTDIR:$PATH; } || 
+  cp -nT redo ${DESTDIR}/redo &&
+  {
     ln -sf redo ${DESTDIR}/redo-ifchange
     ln -sf redo ${DESTDIR}/redo-ifcreate
     ln -sf redo ${DESTDIR}/redo-always

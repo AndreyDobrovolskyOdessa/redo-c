@@ -1,11 +1,5 @@
 #!/usr/bin/env lua
 
-local BinName = arg[2]
-
-local CName = arg[2] .. ".c"
-local RName = arg[2] .. ".require"
-
-
 --------- Editable -----------
 
 local Linker = "gcc"
@@ -13,6 +7,11 @@ local Linker = "gcc"
 local Libs = ""
 
 ------------------------------
+
+local BinName = arg[2]
+
+local CName = arg[2] .. ".c"
+local RName = arg[2] .. ".require"
 
 -- if arg[2] == "main" then current directory name
 -- is used as the output binary name

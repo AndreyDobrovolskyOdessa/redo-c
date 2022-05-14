@@ -63,6 +63,9 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that A depends on B, and B depends on C (some source). Then redo_target() recurses down to C, checks its hash, and in case it was changed, runs B.do. Then B hash is checked and A.do is run then and only if B's hash differs from its previous value, stored in the .dep file.
 
+### Test-drive
+
+    DESTDIR= ; . ./redo.do
 
 ### Kick-start
 

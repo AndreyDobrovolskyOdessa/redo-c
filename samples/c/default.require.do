@@ -10,27 +10,6 @@ local Compiler = "gcc"
 
 ----------------------------
 
-
-local Sanitize = function(P)
-  local D, N = P:match("(.-)([^/]*)$")
-
-  local S = {}
-
-  for part in D:gmatch("([^/]*)/") do
-    if part == ".." and #S > 0 and S[#S] ~= ".." then
-      table.remove(S)
-    else
-      table.insert(S, part)
-    end
-  end
-
-  table.insert(S, "")
-  D = table.concat(S, "/")
-
-  return D .. N
-end
-
-
 local CName = arg[2] .. ".c"
 local HName = arg[2] .. ".h"
 local OName = arg[2] .. ".o"
@@ -39,7 +18,6 @@ local DName = arg[2] .. ".d"
 local TDir, TName = arg[2]:match("(.-)([^/]*)$")
 
 local TNameStart = #TDir + 1
-
 
 local FName = TDir .. "local.cflags"
 
@@ -79,6 +57,26 @@ local AllDeps = table.concat({CName, OName, IList, RList}, " ")
 assert(os.execute("redo-ifchange " .. AllDeps))
 
 
+local Sanitize = function(P)
+  local D, N = P:match("(.-)([^/]*)$")
+
+  local S = {}
+
+  for part in D:gmatch("([^/]*)/") do
+    if part == ".." and #S > 0 and S[#S] ~= ".." then
+      table.remove(S)
+    else
+      table.insert(S, part)
+    end
+  end
+
+  table.insert(S, "")
+  D = table.concat(S, "/")
+
+  return D .. N
+end
+
+
 local DepNames = {}
 
 DepNames[TName .. ".o"] = true
@@ -86,7 +84,6 @@ DepNames[TName .. ".o"] = true
 for d in Deps:gmatch("[^%s]+") do
   DepNames[d] = true
 end
-
 
 for i, rn in ipairs(RNames) do
   local RDir = rn:match(".*/", TNameStart) or ""

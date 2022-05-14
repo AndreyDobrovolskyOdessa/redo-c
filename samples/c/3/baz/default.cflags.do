@@ -2,7 +2,7 @@
 
 ---------- Editable ------------
 
-local Cflags = "-O0 -Wall -Wextra"
+local Cflags = "-Wall -Wextra"
 
 local Deps = "ncursesw"
 

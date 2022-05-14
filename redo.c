@@ -195,76 +195,63 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 // ----------------------------------------------------------------------
 
-int xflag, fflag, sflag, tflag;
-
-
-/*
-dir/base.a.b
-	will look for dir/base.a.b.do,
-	dir/default.a.b.do, dir/default.b.do, dir/default.do,
-	default.a.b.do, default.b.do, and default.do.
-
-this function assumes no / in target
-*/
-
 static char *
-find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char *slash)
+hashfile(int fd)
 {
-	char default_name[] = "default", suffix[] = ".do";
-	char *name = default_name + (sizeof default_name - 1);
-	char *ext  = target; 
-	char *dofile = dofile_rel;
+	static char hex[16] = "0123456789abcdef";
+	static char asciihash[65];
 
-	/* we must avoid doing default*.do files */
-	if ((strncmp(target, default_name, sizeof default_name - 1) == 0) &&
-	    (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0))
-		return 0;
+	struct sha256 ctx;
+	char buf[4096];
+	char *a;
+	unsigned char hash[32];
+	int i;
+	ssize_t r;
 
-	if (dofile_free < (strlen(target) + sizeof suffix))
-		return 0;
-	dofile_free -= sizeof suffix;
+	sha256_init(&ctx);
 
-	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
-		char *s = ext;
-
-		while (1) {
-			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
-
-			if (access(dofile_rel, F_OK) == 0) {
-				if (*s == '.')
-					*s = '\0';
-				return dofile;
-			}
-
-			if ((*s == 0) || ((name != default_name) && (*s == '.')))
-				break;
-
-			while (*++s && (*s != '.'));
-
-			if (name != default_name) {
-				size_t required = (sizeof default_name - 1) + strlen(s);
-
-				if (dofile_free < required)
-					return 0;
-				dofile_free -= required;
-
-				name = default_name;
-				ext = s;
-			}
-		}
-
-		if (dofile_free < 3)
-			return 0;
-		dofile_free -= 3;
-
-		*dofile++ = '.';
-		*dofile++ = '.';
-		*dofile++ = '/';
-		*dofile = 0;
+	while ((r = read(fd, buf, sizeof buf)) > 0) {
+		sha256_update(&ctx, buf, r);
 	}
 
-	return 0;
+	sha256_sum(&ctx, hash);
+
+	for (i = 0, a = asciihash; i < 32; i++) {
+		*a++ = hex[hash[i] / 16];
+		*a++ = hex[hash[i] % 16];
+	}
+	*a = 0;
+
+	return asciihash;
 }
+
+
+static char *
+base_name(const char *name, int uprel)
+{
+	char *ptr = strchr(name, '\0');
+
+	do {
+		while ((ptr != name) && (*--ptr != '/'));
+	} while (uprel--);
+
+	if (*ptr == '/')
+		ptr++;
+
+	return ptr;
+}
+
+
+static void
+choose(char *old, char *new, int err)
+{
+	if (!err) {
+		remove(old);
+		rename(new,old);
+	} else
+		remove(new);
+}
+
 
 static int
 envfd(const char *name)
@@ -299,38 +286,6 @@ setenvfd(const char *name, int i)
 	char buf[16];
 	snprintf(buf, sizeof buf, "%d", i);
 	setenv(name, buf, 1);
-}
-
-static char *
-hashfile(int fd)
-{
-	static char hex[16] = "0123456789abcdef";
-	static char asciihash[65];
-
-	struct sha256 ctx;
-	off_t off = 0;
-	char buf[4096];
-	char *a;
-	unsigned char hash[32];
-	int i;
-	ssize_t r;
-
-	sha256_init(&ctx);
-
-	while ((r = pread(fd, buf, sizeof buf, off)) > 0) {
-		sha256_update(&ctx, buf, r);
-		off += r;
-	}
-
-	sha256_sum(&ctx, hash);
-
-	for (i = 0, a = asciihash; i < 32; i++) {
-		*a++ = hex[hash[i] / 16];
-		*a++ = hex[hash[i] % 16];
-	}
-	*a = 0;
-
-	return asciihash;
 }
 
 static char *
@@ -441,8 +396,6 @@ back_chdir(int to_dir_fd, int from_dir_fd)
 }
 
 
-
-
 static void
 compute_updir(char *dp, char *u)
 {
@@ -459,6 +412,43 @@ compute_updir(char *dp, char *u)
 		}
 	}
 }
+
+
+static int
+check_record(char *line)
+{
+	int line_len = strlen(line);
+
+	if (line_len < 64 + 1 + 16 + 1 + 1)
+		return 1;
+
+	if (line[line_len - 1] != '\n') {
+		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
+		return 1;
+	}
+
+	line[line_len - 1] = 0; // strip \n
+
+	return 0;
+}
+
+
+static int
+dep_changed(char *line)
+{
+	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
+	int fd;
+
+	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
+		return 0;
+
+	fd = open(filename, O_RDONLY);
+	hashstr = hashfile(fd);
+	close(fd);
+
+	return strncmp(line, hashstr, 64) != 0;
+}
+
 
 static int
 write_dep(int dfd, char *file, char *dp, char *updir)
@@ -587,64 +577,70 @@ track(const char *target, int track_op)
 }
 
 
+/*
+dir/base.a.b
+	will look for dir/base.a.b.do,
+	dir/default.a.b.do, dir/default.b.do, dir/default.do,
+	default.a.b.do, default.b.do, and default.do.
+
+this function assumes no / in target
+*/
+
 static char *
-base_name(const char *name, int uprel)
+find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char *slash)
 {
-	char *ptr = strchr(name, '\0');
+	char default_name[] = "default", suffix[] = ".do";
+	char *name = default_name + (sizeof default_name - 1);
+	char *ext  = target; 
+	char *dofile = dofile_rel;
 
-	do {
-		while ((ptr != name) && (*--ptr != '/'));
-	} while (uprel--);
-
-	if (*ptr == '/')
-		ptr++;
-
-	return ptr;
-}
-
-
-static void
-choose(char *old, char *new, int err)
-{
-	if (!err) {
-		remove(old);
-		rename(new,old);
-	} else
-		remove(new);
-}
-
-
-static int
-dep_changed(char *line)
-{
-	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
-	int fd;
-
-	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
+	/* we must avoid doing default*.do files */
+	if ((strncmp(target, default_name, sizeof default_name - 1) == 0) &&
+	    (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0))
 		return 0;
 
-	fd = open(filename, O_RDONLY);
-	hashstr = hashfile(fd);
-	close(fd);
+	if (dofile_free < (strlen(target) + sizeof suffix))
+		return 0;
+	dofile_free -= sizeof suffix;
 
-	return strncmp(line, hashstr, 64) != 0;
-}
+	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
+		char *s = ext;
 
+		while (1) {
+			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
-static int
-check_record(char *line)
-{
-	int line_len = strlen(line);
+			if (access(dofile_rel, F_OK) == 0) {
+				if (*s == '.')
+					*s = '\0';
+				return dofile;
+			}
 
-	if (line_len < 64 + 1 + 16 + 1 + 1)
-		return 1;
+			if ((*s == 0) || ((name != default_name) && (*s == '.')))
+				break;
 
-	if (line[line_len - 1] != '\n') {
-		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
-		return 1;
+			while (*++s && (*s != '.'));
+
+			if (name != default_name) {
+				size_t required = (sizeof default_name - 1) + strlen(s);
+
+				if (dofile_free < required)
+					return 0;
+				dofile_free -= required;
+
+				name = default_name;
+				ext = s;
+			}
+		}
+
+		if (dofile_free < 3)
+			return 0;
+		dofile_free -= 3;
+
+		*dofile++ = '.';
+		*dofile++ = '.';
+		*dofile++ = '/';
+		*dofile = 0;
 	}
-
-	line[line_len - 1] = 0; // strip \n
 
 	return 0;
 }
@@ -652,14 +648,90 @@ check_record(char *line)
 
 enum update_target_errors {
 	TARGET_UPTODATE = 0,
-	TARGET_TOOLONG = 11,
-	TARGET_REL_TOOLONG = 22,
-	TARGET_FORK_FAILED = 33,
-	TARGET_WAIT_FAILED = 44,
-	TARGET_NODIR = 55,
-	TARGET_BUSY = 123,
-	TARGET_LOOP = 124
+	TARGET_BUSY = 11,
+	TARGET_TOOLONG = 22,
+	TARGET_REL_TOOLONG = 33,
+	TARGET_FORK_FAILED = 44,
+	TARGET_WAIT_FAILED = 55,
+	TARGET_NODIR = 66,
+	TARGET_LOOP = 77
 };
+
+
+int xflag, fflag, sflag, tflag;
+
+
+static int 
+run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, char *target_base, char *target_full, int uprel)
+{
+	int dep_err = 0;
+
+	pid_t pid;
+	char *target_rel, target_base_rel[PATH_MAX];
+
+	char *target_new, target_new_prefix[] = ".targetnew.";
+	char target_new_rel[PATH_MAX + sizeof target_new_prefix];
+
+
+	target_rel = base_name(target_full, uprel);
+	if (strlen(target_rel) >= sizeof target_base_rel){
+		fprintf(stderr, "Target relative too long -- %s\n", target_rel);
+		return TARGET_REL_TOOLONG;
+	}
+
+	strcpy(target_base_rel, target_rel);
+	strcpy(base_name(target_base_rel, 0), target_base);
+
+	strcpy(target_new_rel, target_rel);
+	target_new = base_name(target_new_rel, 0);
+	strcpy(target_new, target_new_prefix);
+	strcat(target_new, target);
+
+	fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
+
+	pid = fork();
+	if (pid < 0) {
+		perror("fork");
+		dep_err = TARGET_FORK_FAILED;
+	} else if (pid == 0) {
+
+		char *dofile = file_chdir(dir_fd, dofile_rel);
+		char dirprefix[PATH_MAX];
+		size_t dirprefix_len = target_new - target_new_rel;
+
+		memcpy(dirprefix, target_new_rel, dirprefix_len);
+		dirprefix[dirprefix_len] = '\0';
+
+		setenvfd("REDO_DEP_FD", dep_fd);
+		setenvfd("REDO_LEVEL", nlevel + 1);
+		setenv("REDO_DIRPREFIX", dirprefix, 1);
+
+		track("", 0);
+
+		if (access(dofile, X_OK) != 0)   // run -x files with /bin/sh
+			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
+			dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
+		else
+			execl(dofile,
+			dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
+
+		perror("execl");
+		exit(-1);
+	} else {
+		if (wait(&dep_err) < 0) {
+			perror("wait");
+			dep_err = TARGET_WAIT_FAILED;
+		} else {
+			if (WIFEXITED(dep_err))
+				dep_err = WEXITSTATUS(dep_err);
+		}
+	}
+	fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, dep_err);
+	choose(target, target_new, dep_err);
+
+	return dep_err;
+}
+
 
 static int
 update_target(int *dir_fd, char *target_path, int nlevel)
@@ -759,73 +831,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	if (!dep_err) {
 		write_dep(dep_fd, dofile_rel, 0, 0);
 
-/*		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel); */
-
-		do {			/* single-shot loop, run_script() emulation */
-			pid_t pid;
-			char *target_rel, target_base_rel[PATH_MAX];
-
-			char *target_new, target_new_prefix[] = ".targetnew.";
-			char target_new_rel[PATH_MAX + sizeof target_new_prefix];
-
-
-			target_rel = base_name(target_full, uprel);
-			if (strlen(target_rel) >= sizeof target_base_rel){
-				fprintf(stderr, "Target relative too long -- %s\n", target_rel);
-				dep_err = TARGET_REL_TOOLONG;
-				break;
-			}
-
-			strcpy(target_base_rel, target_rel);
-			strcpy(base_name(target_base_rel, 0), target_base);
-
-			strcpy(target_new_rel, target_rel);
-			target_new = base_name(target_new_rel, 0);
-			strcpy(target_new, target_new_prefix);
-			strcat(target_new, target);
-
-			fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target_path, dofile_rel);
-
-			pid = fork();
-			if (pid < 0) {
-				perror("fork");
-				dep_err = TARGET_FORK_FAILED;
-			} else if (pid == 0) {
-
-				char *dofile = file_chdir(dir_fd, dofile_rel);
-				char dirprefix[PATH_MAX];
-				size_t dirprefix_len = target_new - target_new_rel;
-
-				memcpy(dirprefix, target_new_rel, dirprefix_len);
-				dirprefix[dirprefix_len] = '\0';
-
-				setenvfd("REDO_DEP_FD", dep_fd);
-				setenvfd("REDO_LEVEL", nlevel + 1);
-				setenv("REDO_DIRPREFIX", dirprefix, 1);
-
-				track("", 0);
-
-				if (access(dofile, X_OK) != 0)   // run -x files with /bin/sh
-					execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
-					dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
-				else
-					execl(dofile,
-					dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
-
-				perror("execl");
-				exit(-1);
-			} else {
-				if (wait(&dep_err) < 0) {
-					perror("wait");
-					dep_err = TARGET_WAIT_FAILED;
-				} else {
-					if (WIFEXITED(dep_err))
-						dep_err = WEXITSTATUS(dep_err);
-				}
-			}
-			fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target_path, dofile_rel, dep_err);
-			choose(target, target_new, dep_err);
-		} while (0);
+		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
 
 		write_dep(dep_fd, target, 0, 0);
 	}

@@ -26,6 +26,6 @@ The same task, but for all sources CFLAGS="-Os -Wall -Wextra" (see c/2/default.c
 
 ### 3.
 
-main() calls baz() in order to print the sum of the screen width's and height's squares. baz() needs ncurses (see c/3/baz/default.cflags.do). baz calls foo() (compiled with tcc), bar.c is compiled with -O0, main is compiled with -Os and prog is linked with tcc.
+main() calls baz() in order to print the sum of the screen width's and height's squares. baz() needs ncurses (see c/3/baz/default.cflags.do).
 
 
