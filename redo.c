@@ -35,6 +35,8 @@ This will be available after job server implementation.
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 */
 
+#define _GNU_SOURCE 1
+
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -50,8 +52,8 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <string.h>
 #include <unistd.h>
 
-// ---------------------------------------------------------------------------
-// from musl/src/crypt/crypt_sha256.c
+/* --------------------------------------------------------------------------- */
+/* from musl/src/crypt/crypt_sha256.c */
 
 /* public domain sha256 implementation based on fips180-3 */
 
@@ -193,7 +195,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 	memcpy(s->buf, p, len);
 }
 
-// ----------------------------------------------------------------------
+/* ---------------------------------------------------------------------- */
 
 static char *
 hashfile(int fd)
@@ -427,7 +429,7 @@ check_record(char *line)
 		return 1;
 	}
 
-	line[line_len - 1] = 0; // strip \n
+	line[line_len - 1] = 0; /* strip \n */
 
 	return 0;
 }
@@ -708,7 +710,7 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 
 		track("", 0);
 
-		if (access(dofile, X_OK) != 0)   // run -x files with /bin/sh
+		if (access(dofile, X_OK) != 0)   /* run -x files with /bin/sh */
 			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
 			dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
 		else
@@ -790,10 +792,11 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	fdep = fflag ? NULL : fopen(depfile,"r");
 	if (fdep) {
+		int firstline = 1;
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		char *filename = line + 64 + 1 + 16 + 1;
 
-		for (int firstline = 1 ; fgets(line, sizeof line, fdep) ; firstline = 0) {
+		for ( ; fgets(line, sizeof line, fdep) ; firstline = 0) {
 			if (check_record(line) != 0)
 				break;
 
