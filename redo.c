@@ -801,9 +801,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				fstat(dep_fd, &dep_st);		/* read with umask applied */
 				chmod(depfile, dep_st.st_mode);	/* freshen up depfile ctime */
 				close(dep_fd);
-				remove(depfile_new);
 
-				return TARGET_UPTODATE;
+				return (remove(depfile_new) == 0) ? TARGET_UPTODATE : TARGET_RM_FAILED;
 			}
 		}
 		fclose(fdep);
