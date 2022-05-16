@@ -228,259 +228,6 @@ hashfile(int fd)
 }
 
 
-static char *
-base_name(const char *name, int uprel)
-{
-	char *ptr = strchr(name, '\0');
-
-	do {
-		while ((ptr != name) && (*--ptr != '/'));
-	} while (uprel--);
-
-	if (*ptr == '/')
-		ptr++;
-
-	return ptr;
-}
-
-
-static void
-choose(char *old, char *new, int err)
-{
-	if (!err) {
-		remove(old);
-		rename(new,old);
-	} else
-		remove(new);
-}
-
-
-static int
-envfd(const char *name)
-{
-	long fd;
-
-	char *s = getenv(name);
-	if (!s)
-		return -1;
-
-	fd = strtol(s, 0, 10);
-	if (fd < 0 || fd > 1023)
-		fd = -1;
-
-	return fd;
-}
-
-static int
-envint(const char *name)
-{
-	int n = envfd(name);
-
-	if (n < 0)
-		n = 0;
-
-	return n;
-}
-
-static void
-setenvfd(const char *name, int i)
-{
-	char buf[16];
-	snprintf(buf, sizeof buf, "%d", i);
-	setenv(name, buf, 1);
-}
-
-static char *
-datestat(struct stat *st)
-{
-	static char hexdate[17];
-
-	snprintf(hexdate, sizeof hexdate, "%016" PRIx64, (uint64_t)st->st_ctime);
-
-	return hexdate;
-}
-
-
-static char *
-datefile(int fd)
-{
-	struct stat st = {0};
-
-	fstat(fd, &st);
-
-	return datestat(&st);
-}
-
-
-static char *
-datefilename(char *name)
-{
-	struct stat st = {0};
-
-	stat(name, &st);
-
-	return datestat(&st);
-}
-
-
-static char *
-datebuild()
-{
-	static char hexdate[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
-	char *dateptr;
-
-	FILE *f;
-
-	if (hexdate[0])
-		return hexdate;
-
-	dateptr = getenv("REDO_BUILD_DATE");
-	if (dateptr)
-		return memcpy(hexdate, dateptr, 16);
-
-	f = tmpfile();
-	memcpy(hexdate, datefile(fileno(f)), 16);
-	fclose(f);
-
-	setenv("REDO_BUILD_DATE", hexdate, 1);
-
-	return hexdate;
-}
-
-static int
-keepdir()
-{
-	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-	if (fd < 0) {
-		perror("dir open");
-		exit(-1);
-	}
-	return fd;
-}
-
-static char *
-file_chdir(int *fd, char *name)
-{
-	char *slash = strrchr(name, '/');
-
-	if (!slash)
-		return name;
-
-	*slash = 0;
-	*fd = openat(*fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-	*slash = '/';
-
-	if (*fd < 0) {
-		perror("openat dir");
-		return 0;
-	}
-
-	if (fchdir(*fd) < 0) {
-		perror("chdir");
-		exit(-1);
-	}
-
-	return slash + 1;
-}
-
-static void
-back_chdir(int to_dir_fd, int from_dir_fd)
-{
-	if (to_dir_fd == from_dir_fd)
-		return;
-
-	if (fchdir(to_dir_fd) < 0) {
-		perror("chdir");
-		exit(-1);
-	}
-
-	close(from_dir_fd);
-}
-
-
-static void
-compute_updir(char *dp, char *u)
-{
-	*u = 0;
-
-	while (dp) {
-		dp = strchr(dp, '/');
-		if (dp) {
-			dp++;
-			*u++ = '.';
-			*u++ = '.';
-			*u++ = '/';
-			*u = 0;
-		}
-	}
-}
-
-
-static int
-check_record(char *line)
-{
-	int line_len = strlen(line);
-
-	if (line_len < 64 + 1 + 16 + 1 + 1)
-		return 1;
-
-	if (line[line_len - 1] != '\n') {
-		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
-		return 1;
-	}
-
-	line[line_len - 1] = 0; /* strip \n */
-
-	return 0;
-}
-
-
-static int
-dep_changed(char *line)
-{
-	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
-	int fd;
-
-	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
-		return 0;
-
-	fd = open(filename, O_RDONLY);
-	hashstr = hashfile(fd);
-	close(fd);
-
-	return strncmp(line, hashstr, 64) != 0;
-}
-
-
-static int
-write_dep(int dfd, char *file, char *dp, char *updir)
-{
-	int fd;
-	char *prefix = (char *) "";
-
-	if (dfd < 0)
-		return 1;
-
-	fd = open(file, O_RDONLY);
-
-	if (dp && *file != '/') {
-		size_t dp_len = strlen(dp);
-
-		if (strncmp(file, dp, dp_len) == 0)
-			file += dp_len;
-		else
-			prefix = updir;
-	}
-
-	dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
-
-	if (fd > 0)
-		close(fd);
-
-	return 0;
-}
-
-
 /*
 
 !target && !track_op  -> init
@@ -579,6 +326,155 @@ track(const char *target, int track_op)
 }
 
 
+static char *
+base_name(const char *name, int uprel)
+{
+	char *ptr = strchr(name, '\0');
+
+	do {
+		while ((ptr != name) && (*--ptr != '/'));
+	} while (uprel--);
+
+	if (*ptr == '/')
+		ptr++;
+
+	return ptr;
+}
+
+
+static int
+envfd(const char *name)
+{
+	long fd;
+
+	char *s = getenv(name);
+	if (!s)
+		return -1;
+
+	fd = strtol(s, 0, 10);
+	if (fd < 0 || fd > 1023)
+		fd = -1;
+
+	return fd;
+}
+
+static int
+envint(const char *name)
+{
+	int n = envfd(name);
+
+	if (n < 0)
+		n = 0;
+
+	return n;
+}
+
+static void
+setenvfd(const char *name, int i)
+{
+	char buf[16];
+	snprintf(buf, sizeof buf, "%d", i);
+	setenv(name, buf, 1);
+}
+
+static char *
+datestat(struct stat *st)
+{
+	static char hexdate[17];
+
+	snprintf(hexdate, sizeof hexdate, "%016" PRIx64, (uint64_t)st->st_ctime);
+
+	return hexdate;
+}
+
+
+static char *
+datefile(int fd)
+{
+	struct stat st = {0};
+
+	fstat(fd, &st);
+
+	return datestat(&st);
+}
+
+
+static char *
+datefilename(char *name)
+{
+	struct stat st = {0};
+
+	stat(name, &st);
+
+	return datestat(&st);
+}
+
+
+static char *
+datebuild()
+{
+	static char hexdate[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
+	char *dateptr;
+
+	FILE *f;
+
+	if (hexdate[0])
+		return hexdate;
+
+	dateptr = getenv("REDO_BUILD_DATE");
+	if (dateptr)
+		return memcpy(hexdate, dateptr, 16);
+
+	f = tmpfile();
+	memcpy(hexdate, datefile(fileno(f)), 16);
+	fclose(f);
+
+	setenv("REDO_BUILD_DATE", hexdate, 1);
+
+	return hexdate;
+}
+
+
+static char *
+file_chdir(int *fd, char *name)
+{
+	char *slash = strrchr(name, '/');
+
+	if (!slash)
+		return name;
+
+	*slash = 0;
+	*fd = openat(*fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	*slash = '/';
+
+	if (*fd < 0) {
+		perror("openat dir");
+		return 0;
+	}
+
+	if (fchdir(*fd) < 0) {
+		perror("chdir");
+		exit(-1);
+	}
+
+	return slash + 1;
+}
+
+static void
+back_chdir(int to_dir_fd, int from_dir_fd)
+{
+	if (to_dir_fd == from_dir_fd)
+		return;
+
+	if (fchdir(to_dir_fd) < 0) {
+		perror("chdir");
+		exit(-1);
+	}
+
+	close(from_dir_fd);
+}
+
+
 /*
 dir/base.a.b
 	will look for dir/base.a.b.do,
@@ -650,14 +546,33 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 
 enum update_target_errors {
 	TARGET_UPTODATE = 0,
-	TARGET_BUSY = 11,
-	TARGET_TOOLONG = 22,
-	TARGET_REL_TOOLONG = 33,
-	TARGET_FORK_FAILED = 44,
-	TARGET_WAIT_FAILED = 55,
-	TARGET_NODIR = 66,
-	TARGET_LOOP = 77
+	TARGET_RM_FAILED = 4,
+	TARGET_MV_FAILED = 8,
+	TARGET_BUSY = 0x10,
+	TARGET_TOOLONG = 0x20,
+	TARGET_REL_TOOLONG = 0x30,
+	TARGET_FORK_FAILED = 0x40,
+	TARGET_WAIT_FAILED = 0x50,
+	TARGET_NODIR = 0x60,
+	TARGET_LOOP = 0x70
 };
+
+
+static int
+choose(char *old, char *new, int err)
+{
+	if (err) {
+		if (remove(new) != 0)
+			err |= TARGET_RM_FAILED;
+	} else {
+		if (remove(old) != 0)
+			err |= TARGET_RM_FAILED;
+		if (rename(new, old) != 0)
+			err |= TARGET_MV_FAILED;
+	}
+
+	return err;
+}
 
 
 int xflag, fflag, sflag, tflag;
@@ -729,9 +644,73 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 		}
 	}
 	fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, dep_err);
-	choose(target, target_new, dep_err);
 
-	return dep_err;
+	return choose(target, target_new, dep_err);
+}
+
+
+static int
+check_record(char *line)
+{
+	int line_len = strlen(line);
+
+	if (line_len < 64 + 1 + 16 + 1 + 1)
+		return 1;
+
+	if (line[line_len - 1] != '\n') {
+		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
+		return 1;
+	}
+
+	line[line_len - 1] = 0; /* strip \n */
+
+	return 0;
+}
+
+
+static int
+dep_changed(char *line)
+{
+	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
+	int fd;
+
+	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
+		return 0;
+
+	fd = open(filename, O_RDONLY);
+	hashstr = hashfile(fd);
+	close(fd);
+
+	return strncmp(line, hashstr, 64) != 0;
+}
+
+
+static int
+write_dep(int dfd, char *file, char *dp, char *updir)
+{
+	int fd;
+	char *prefix = (char *) "";
+
+	if (dfd < 0)
+		return 1;
+
+	fd = open(file, O_RDONLY);
+
+	if (dp && *file != '/') {
+		size_t dp_len = strlen(dp);
+
+		if (strncmp(file, dp, dp_len) == 0)
+			file += dp_len;
+		else
+			prefix = updir;
+	}
+
+	dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
+
+	if (fd > 0)
+		close(fd);
+
+	return 0;
 }
 
 
@@ -840,9 +819,38 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	}
 
 	close(dep_fd);
-	choose(depfile, depfile_new, dep_err);
 
-	return dep_err;
+	return choose(depfile, depfile_new, dep_err);
+}
+
+
+static void
+compute_updir(char *dp, char *u)
+{
+	*u = 0;
+
+	while (dp) {
+		dp = strchr(dp, '/');
+		if (dp) {
+			dp++;
+			*u++ = '.';
+			*u++ = '.';
+			*u++ = '/';
+			*u = 0;
+		}
+	}
+}
+
+
+static int
+keepdir()
+{
+	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (fd < 0) {
+		perror("dir open");
+		exit(-1);
+	}
+	return fd;
 }
 
 
