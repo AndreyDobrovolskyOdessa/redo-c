@@ -562,12 +562,12 @@ static int
 choose(char *old, char *new, int err)
 {
 	if (err) {
-		if (remove(new) != 0)
+		if ((access(new, F_OK) == 0) && (remove(new) != 0))
 			err |= TARGET_RM_FAILED;
 	} else {
-		if (remove(old) != 0)
+		if ((access(old, F_OK) == 0) && (remove(old) != 0))
 			err |= TARGET_RM_FAILED;
-		if (rename(new, old) != 0)
+		if ((access(new, F_OK) == 0) && (rename(new, old) != 0))
 			err |= TARGET_MV_FAILED;
 	}
 
