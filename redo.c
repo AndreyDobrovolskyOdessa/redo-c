@@ -492,10 +492,12 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
-	/* we must avoid doing default*.do files */
+	/* we may avoid doing default*.do files */
+	/*
 	if ((strncmp(target, default_name, sizeof default_name - 1) == 0) &&
 	    (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0))
 		return 0;
+	*/
 
 	if (dofile_free < (strlen(target) + sizeof suffix))
 		return 0;
@@ -508,6 +510,8 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
 			if (access(dofile_rel, F_OK) == 0) {
+				if (strcmp(target, dofile_rel) == 0) /* no self-doing */
+					return 0;
 				if (*s == '.')
 					*s = '\0';
 				return dofile;
