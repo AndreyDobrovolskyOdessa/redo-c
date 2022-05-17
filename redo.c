@@ -769,7 +769,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		return TARGET_BUSY;
 
 
-	fdep = fflag ? NULL : fopen(depfile,"r");
+	fdep = /* fflag ? NULL : */ fopen(depfile,"r");
+
 	if (fdep) {
 		int firstline = 1;
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
@@ -789,7 +790,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				back_chdir(*dir_fd, dep_dir_fd);
 				track(0, 1);
 
-				if (dep_err || dep_changed(line))
+				if (fflag || dep_err || dep_changed(line))
 					break;
 			} else {
 				struct stat dep_st;
