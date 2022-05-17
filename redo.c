@@ -509,9 +509,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 		while (1) {
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
-			if (access(dofile_rel, F_OK) == 0) {
-				if (strcmp(target, dofile_rel) == 0) /* no self-doing */
-					return 0;
+			if ((access(dofile_rel, F_OK) == 0) && (strcmp(target, dofile_rel) != 0 /* no self-doing */ )) {
 				if (*s == '.')
 					*s = '\0';
 				return dofile;
