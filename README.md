@@ -89,15 +89,12 @@ http://www.goredo.cypherpunks.ru
 use more sophisticated though more complicated and not so clear logic, which depends not only on .do files configuration, but on the internal state of the build system too.
 
 
+Non-existing targets are not expected out-of-date unconditionally. If .do script produces no output and exits successfully, then record about an empty (non-existing) file is written into the corresponding .dep file and target is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for "redo-ifcreate" and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
+
+
 #### Less important
 
 stdout of .do scripts is not captured. 
-
-If the .do script writes nothing, empty target is not created.
-
-Empty targets and missing ones are equivalent, as they have the same hashes.
-
-"redo-ifchange" provides "redo-ifcreate" functionality, i.e. writes .dep entries for non-existent targets too and triggers execution in case they will be created and non-empty.
 
 
 #### Unimportant
