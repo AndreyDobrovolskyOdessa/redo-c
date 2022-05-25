@@ -88,6 +88,7 @@ http://www.goredo.cypherpunks.ru
 
 use more sophisticated though more complicated and not so clear logic, which depends not only on .do files configuration, but on the internal state of the build system too.
 
+
 #### Less important
 
 stdout of .do scripts is not captured. 
@@ -98,17 +99,27 @@ Empty targets and missing ones are equivalent, as they have the same hashes.
 
 "redo-ifchange" provides "redo-ifcreate" functionality, i.e. writes .dep entries for non-existent targets too and triggers execution in case they will be created and non-empty.
 
+
 #### Unimportant
 
 No default target.
 
 "redo" doesn't force execution of up-to-date targets' dofiles.
 
-#### Consequences
 
-The project designed to be built with the current implementation (dev2 branch) will be built successfully with any of the above mentioned implementations.
+#### Hints
 
-The project designed to be built with one of the above mentioned redo implementations will fail to build with the current implementation (dev2 branch). 
+If You prefer makefile-like default.do, probably You use "case" selector for distinguishing the recipes. Then the default branch recipe may look like
+
+    *) test -e $1 && mv $1 $3 ;;
+
+In fact current version implements only 2 utilities from redo family: redo-ifchange and redo-always. This short list may be reduced to redo-ifchange only. redo-always may be easily implemented as
+
+    redo-ifchange .dep.$1
+
+using the fact, that dot-files are invisible for default*.do files.
+
+In other words redo-ifchange, redo-icreate and redo-always links are redundant, everything may be done with redo itself.
 
 
 ### "Imaginary" target
