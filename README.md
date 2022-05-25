@@ -94,7 +94,9 @@ Non-existing targets are not expected out-of-date unconditionally. If .do script
 
 #### Less important
 
-stdout of .do scripts is not captured. 
+stdout of .do scripts is not captured. Feel free to start Your recipes with
+
+    exec > $3 
 
 
 #### Unimportant
