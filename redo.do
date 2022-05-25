@@ -16,9 +16,9 @@
 
 OFILE=redo
 
-if $(which redo-ifchange >/dev/null)
+if $(which redo >/dev/null)
 then
-  redo-ifchange redo.c
+  redo redo.c
   OFILE=${3:-redo}
 fi
 
