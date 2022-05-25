@@ -32,7 +32,7 @@ end
 assert(os.execute("test -e " .. CName), "Missing " .. CName .. "\n")
 
 
-assert(os.execute("redo-ifchange " .. RName))
+assert(os.execute("redo " .. RName))
 
 local RUniq = {}
 local DUniq = {}
@@ -54,7 +54,7 @@ if DList ~= "" then
   assert(f:close())
 end
 
-assert(os.execute("redo-ifchange " .. RList))
+assert(os.execute("redo " .. RList))
 assert(os.execute(Linker .. " -o " .. BinName .. " " .. RList .. " " .. Libs))
-assert(os.execute("redo-ifchange " .. BinName))
+assert(os.execute("redo " .. BinName))
 

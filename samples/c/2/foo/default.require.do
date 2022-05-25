@@ -21,7 +21,7 @@ local TNameStart = #TDir + 1
 
 local FName = TDir .. "local.cflags"
 
-assert(os.execute("redo-ifchange " .. FName))
+assert(os.execute("redo " .. FName))
 
 local f = assert(io.open(FName))
 local Cflags = assert(f:read())
@@ -54,7 +54,7 @@ local IList = table.concat(INames, " ")
 local RList = table.concat(RNames, " ")
 local AllDeps = table.concat({CName, OName, IList, RList}, " ")
 
-assert(os.execute("redo-ifchange " .. AllDeps))
+assert(os.execute("redo " .. AllDeps))
 
 
 local Sanitize = function(P)

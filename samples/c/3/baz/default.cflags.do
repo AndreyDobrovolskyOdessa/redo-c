@@ -11,7 +11,7 @@ local Deps = "ncursesw"
 local f
 
 if Deps:match("[^%s]") then
-  assert(os.execute("redo-always"))
+  assert(os.execute("redo .dep." .. arg[1]))
   f = assert(io.popen("pkg-config --cflags " .. Deps))
   Cflags = Cflags .. " " .. f:read()
   assert(f:close())

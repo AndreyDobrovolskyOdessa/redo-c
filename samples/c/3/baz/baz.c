@@ -1,6 +1,6 @@
 #include <curses.h>
 
-#include "../foo/foo.h"
+#include "../../1/foo/foo.h"
 
 int baz(void) {
   WINDOW *W;
