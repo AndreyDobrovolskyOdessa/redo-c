@@ -1,1 +1,1 @@
-redo-ifchange ${1}main.bin
+redo ${1}main.bin
