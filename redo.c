@@ -463,20 +463,6 @@ file_chdir(int *fd, char *name)
 	return slash + 1;
 }
 
-static void
-back_chdir(int to_dir_fd, int from_dir_fd)
-{
-	if (to_dir_fd == from_dir_fd)
-		return;
-
-	if (fchdir(to_dir_fd) < 0) {
-		perror("chdir");
-		exit(-1);
-	}
-
-	close(from_dir_fd);
-}
-
 
 /*
 dir/base.a.b
@@ -551,6 +537,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 
 enum update_target_errors {
 	TARGET_UPTODATE = 0,
+	TARGET_FCHDIR_FAILED = 1,
 	TARGET_WRDEP_FAILED = 2,
 	TARGET_RM_FAILED = 4,
 	TARGET_MV_FAILED = 8,
@@ -560,7 +547,8 @@ enum update_target_errors {
 	TARGET_FORK_FAILED = 0x40,
 	TARGET_WAIT_FAILED = 0x50,
 	TARGET_NODIR = 0x60,
-	TARGET_LOOP = 0x70
+	TARGET_LOOP = 0x70,
+	TARGET_REALPATH_FAILED = 0x71
 };
 
 
@@ -632,7 +620,7 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 		setenvfd("REDO_LEVEL", nlevel + 1);
 		setenv("REDO_DIRPREFIX", dirprefix, 1);
 
-		track("", 0);
+		track("", 0);	/* setenv("REDO_TRACK") */
 
 		if (access(dofile, X_OK) != 0)   /* run -x files with /bin/sh */
 			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
@@ -723,6 +711,29 @@ write_dep(int dfd, char *file, char *dp, char *updir)
 }
 
 
+static int update_target(int *dir_fd, char *target_path, int nlevel);
+
+
+static int
+do_update_target(int dir_fd, char *target_path, int nlevel)
+{
+	int target_dir_fd = dir_fd;
+	int target_err = update_target(&target_dir_fd, target_path, nlevel);
+
+	track(0, 1);
+
+	if (dir_fd != target_dir_fd) {
+		if (fchdir(dir_fd) < 0) {
+			perror("chdir back");
+			target_err |= TARGET_FCHDIR_FAILED;
+		}
+		close(target_dir_fd);
+	}
+
+	return target_err;
+}
+
+
 static int
 update_target(int *dir_fd, char *target_path, int nlevel)
 {
@@ -734,6 +745,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	char depfile[PATH_MAX + 5] = ".dep.";
 	char depfile_new[PATH_MAX + 8] = ".depnew.";
+	char *depfile_new_full;
 
 	int dep_fd, dep_err = 0;
 
@@ -773,10 +785,28 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		return TARGET_UPTODATE;
 
 	strcat(depfile_new,target);
+
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
 	if (dep_fd < 0)
 		return TARGET_BUSY;
 
+	depfile_new_full = realpath(depfile_new, NULL);
+
+/*
+	The purpose of depfile_new_full is to preserve possibility to remove
+	depfile_new (opened as dep_fd) in case if fchdir() in do_update_target()
+	will fail.
+*/
+
+	if (!depfile_new_full) {
+		perror("realpath");
+		close(dep_fd);
+		dep_err = TARGET_REALPATH_FAILED;
+		if (remove(depfile_new) != 0)
+			dep_err |= TARGET_RM_FAILED;
+
+		return dep_err;
+	}
 
 	fdep = /* fflag ? NULL : */ fopen(depfile,"r");
 
@@ -793,11 +823,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 					break;
 
 			if (strcmp(filename, target) != 0) {
-				int dep_dir_fd = *dir_fd;
 
-				dep_err = update_target(&dep_dir_fd, filename, nlevel + 1);
-				back_chdir(*dir_fd, dep_dir_fd);
-				track(0, 1);
+				dep_err = do_update_target(*dir_fd, filename, nlevel + 1);
 
 				if (fflag || dep_err || dep_changed(line))
 					break;
@@ -832,7 +859,11 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	close(dep_fd);
 
-	return choose(depfile, depfile_new, dep_err);
+	dep_err =  choose(depfile, depfile_new_full, dep_err);
+
+	free(depfile_new_full);
+
+	return dep_err;
 }
 
 
@@ -921,11 +952,8 @@ main(int argc, char *argv[])
 	main_dir_fd = keepdir();
 
 	for (i = 0 ; i < argc ; i++) {
-		int dir_fd = main_dir_fd;
 
-		target_err = update_target(&dir_fd, argv[i], level);
-		back_chdir(main_dir_fd, dir_fd);
-		track(0, 1);
+		target_err = do_update_target(main_dir_fd, argv[i], level);
 
 		if(target_err == 0) {
 			if (dep_fd > 0) {
