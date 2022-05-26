@@ -438,24 +438,27 @@ datebuild()
 static char *
 file_chdir(int *fd, char *name)
 {
+	int fd_new;
 	char *slash = strrchr(name, '/');
 
 	if (!slash)
 		return name;
 
 	*slash = 0;
-	*fd = openat(*fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	fd_new = openat(*fd, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 	*slash = '/';
 
-	if (*fd < 0) {
+	if (fd_new < 0) {
 		perror("openat dir");
 		return 0;
 	}
 
-	if (fchdir(*fd) < 0) {
+	if (fchdir(fd_new) < 0) {
 		perror("chdir");
-		exit(-1);
+		return 0;
 	}
+
+	*fd = fd_new;
 
 	return slash + 1;
 }
@@ -548,6 +551,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char
 
 enum update_target_errors {
 	TARGET_UPTODATE = 0,
+	TARGET_WRDEP_FAILED = 2,
 	TARGET_RM_FAILED = 4,
 	TARGET_MV_FAILED = 8,
 	TARGET_BUSY = 0x10,
@@ -617,6 +621,9 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 		char *dofile = file_chdir(dir_fd, dofile_rel);
 		char dirprefix[PATH_MAX];
 		size_t dirprefix_len = target_new - target_new_rel;
+
+		if (!dofile)		/* dofile stolen? */
+			exit(-1);
 
 		memcpy(dirprefix, target_new_rel, dirprefix_len);
 		dirprefix[dirprefix_len] = '\0';
@@ -690,13 +697,10 @@ dep_changed(char *line)
 static int
 write_dep(int dfd, char *file, char *dp, char *updir)
 {
-	int fd;
+	int err = 0;
+	int fd = open(file, O_RDONLY);
 	char *prefix = (char *) "";
 
-	if (dfd < 0)
-		return 1;
-
-	fd = open(file, O_RDONLY);
 
 	if (dp && *file != '/') {
 		size_t dp_len = strlen(dp);
@@ -707,12 +711,15 @@ write_dep(int dfd, char *file, char *dp, char *updir)
 			prefix = updir;
 	}
 
-	dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file);
+	if (dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file) < 0) {
+		perror("dprintf");
+		err = TARGET_WRDEP_FAILED;
+	}
 
 	if (fd > 0)
 		close(fd);
 
-	return 0;
+	return err;
 }
 
 
@@ -813,11 +820,14 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 
 	if (!dep_err) {
-		write_dep(dep_fd, dofile_rel, 0, 0);
+		dep_err = write_dep(dep_fd, dofile_rel, 0, 0);
 
-		dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
+		if (!dep_err) {
+			dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
 
-		write_dep(dep_fd, target, 0, 0);
+			if (!dep_err)
+				dep_err = write_dep(dep_fd, target, 0, 0);
+		}
 	}
 
 	close(dep_fd);
@@ -918,7 +928,11 @@ main(int argc, char *argv[])
 		track(0, 1);
 
 		if(target_err == 0) {
-			write_dep(dep_fd, argv[i], dirprefix, updir);
+			if (dep_fd > 0) {
+				target_err = write_dep(dep_fd, argv[i], dirprefix, updir);
+				if (target_err)
+					return target_err;
+			}
 		} else if(target_err == TARGET_BUSY) {
 			redo_err = TARGET_BUSY;
 		} else
