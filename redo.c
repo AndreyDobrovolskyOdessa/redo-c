@@ -383,7 +383,7 @@ setenvfd(const char *name, int i)
 	setenv(name, buf, 1);
 }
 
-static char *
+static const char *
 datestat(struct stat *st)
 {
 	static char hexdate[17];
@@ -394,7 +394,7 @@ datestat(struct stat *st)
 }
 
 
-static char *
+static const char *
 datefile(int fd)
 {
 	struct stat st = {0};
@@ -405,8 +405,8 @@ datefile(int fd)
 }
 
 
-static char *
-datefilename(char *name)
+static const char *
+datefilename(const char *name)
 {
 	struct stat st = {0};
 
@@ -416,11 +416,11 @@ datefilename(char *name)
 }
 
 
-static char *
+static const char *
 datebuild()
 {
 	static char hexdate[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
-	char *dateptr;
+	const char *dateptr;
 
 	FILE *f;
 
@@ -441,8 +441,8 @@ datebuild()
 }
 
 
-static char *
-file_chdir(int *fd, char *name)
+static const char *
+file_chdir(int *fd, const char *name)
 {
 	int fd_new;
 	char *slash = strrchr(name, '/');
@@ -480,10 +480,10 @@ this function assumes no / in target
 */
 
 static char *
-find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, char *slash)
+find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash)
 {
-	char default_name[] = "default", suffix[] = ".do";
-	char *name = default_name + (sizeof default_name - 1);
+	static const char default_name[] = "default", suffix[] = ".do";
+	const char *name = default_name + (sizeof default_name - 1);
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
@@ -558,7 +558,7 @@ enum update_target_errors {
 
 
 static int
-choose(char *old, char *new, int err)
+choose(const char *old, const char *new, int err)
 {
 	if (err) {
 		if ((access(new, F_OK) == 0) && (remove(new) != 0)) {
@@ -584,7 +584,8 @@ int xflag, fflag, sflag, tflag;
 
 
 static int 
-run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, char *target_base, char *target_full, int uprel)
+run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel,
+	const char *target, const char *target_base, const char *target_full, int uprel)
 {
 	int dep_err = 0;
 
@@ -616,7 +617,7 @@ run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, c
 		dep_err = TARGET_FORK_FAILED;
 	} else if (pid == 0) {
 
-		char *dofile = file_chdir(&dir_fd, dofile_rel);
+		const char *dofile = file_chdir(&dir_fd, dofile_rel);
 		char dirprefix[PATH_MAX];
 		size_t dirprefix_len = target_new - target_new_rel;
 
@@ -676,9 +677,9 @@ check_record(char *line)
 
 
 static int
-dep_changed(char *line)
+dep_changed(const char *line)
 {
-	char *filename = line + 64 + 1 + 16 + 1, *hashstr;
+	const char *filename = line + 64 + 1 + 16 + 1, *hashstr;
 	int fd;
 
 	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
@@ -693,11 +694,11 @@ dep_changed(char *line)
 
 
 static int
-write_dep(int dfd, char *file, char *dp, char *updir)
+write_dep(int dfd, const char *file, const char *dp, const char *updir)
 {
 	int err = 0;
 	int fd = open(file, O_RDONLY);
-	char *prefix = (char *) "";
+	const char *prefix = "";
 
 
 	if (dp && *file != '/') {
@@ -721,11 +722,11 @@ write_dep(int dfd, char *file, char *dp, char *updir)
 }
 
 
-static int update_target(int *dir_fd, char *target_path, int nlevel);
+static int update_target(int *dir_fd, const char *target_path, int nlevel);
 
 
 static int
-do_update_target(int dir_fd, char *target_path, int nlevel)
+do_update_target(int dir_fd, const char *target_path, int nlevel)
 {
 	int target_dir_fd = dir_fd;
 	int target_err = update_target(&target_dir_fd, target_path, nlevel);
@@ -745,16 +746,17 @@ do_update_target(int dir_fd, char *target_path, int nlevel)
 
 
 static int
-update_target(int *dir_fd, char *target_path, int nlevel)
+update_target(int *dir_fd, const char *target_path, int nlevel)
 {
-	char *target, *target_full, target_base[PATH_MAX];
+	const char *target, *target_full;
+	char target_base[PATH_MAX];
 
 	char dofile_rel [PATH_MAX];
 
 	int uprel;
 
-	char depfile    [PATH_MAX + sizeof dep_prefix];
-	char depfile_new[PATH_MAX + sizeof lock_prefix];
+	char depfile [PATH_MAX + sizeof dep_prefix];
+	char lockfile[PATH_MAX + sizeof lock_prefix];
 
 	int dep_fd, dep_err = 0;
 
@@ -793,9 +795,9 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	if (strcmp(datefilename(depfile), datebuild()) >= 0)
 		return TARGET_UPTODATE;
 
-	strcpy(stpcpy(depfile_new, lock_prefix), target);
+	strcpy(stpcpy(lockfile, lock_prefix), target);
 
-	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	dep_fd = open(lockfile, O_CREAT | O_EXCL | O_WRONLY, 0666);
 	if (dep_fd < 0) {
 		fprintf(stderr, "Target busy -- %s\n", target);
 		return TARGET_BUSY;
@@ -806,7 +808,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	if (fdep) {
 		int firstline = 1;
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
-		char *filename = line + 64 + 1 + 16 + 1;
+		const char *filename = line + 64 + 1 + 16 + 1;
 
 		for ( ; fgets(line, sizeof line, fdep) ; firstline = 0) {
 			if (check_record(line) != 0)
@@ -832,8 +834,8 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				chmod(depfile, dep_st.st_mode);	/* freshen up depfile ctime */
 				close(dep_fd);
 
-				if (remove(depfile_new) != 0) {
-					perror("remove dep");
+				if (remove(lockfile) != 0) {
+					perror("remove lock");
 					return TARGET_RM_FAILED;
 				}
 
@@ -859,18 +861,18 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 /*
 	Now we will use target_full residing in track to construct
-	the depfile_new_full. If fchdir() in do_update_target() failed
-	then we need the full depfile_new name.
+	the lockfile_full. If fchdir() in do_update_target() failed
+	then we need the full lockfile name.
 */
 
-	strcpy(base_name(target_full, 0), depfile_new);
+	strcpy(base_name(target_full, 0), lockfile);
 
 	return choose(depfile, target_full, dep_err);
 }
 
 
 static void
-compute_updir(char *dp, char *u)
+compute_updir(const char *dp, char *u)
 {
 	*u = 0;
 
@@ -903,7 +905,8 @@ int
 main(int argc, char *argv[])
 {
 	int opt, i;
-	char *dirprefix, updir[PATH_MAX];
+	const char *dirprefix;
+	char updir[PATH_MAX];
 	int main_dir_fd, dep_fd;
 	int level;
 	int target_err, redo_err = 0;
