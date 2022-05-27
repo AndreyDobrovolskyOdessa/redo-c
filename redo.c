@@ -228,6 +228,11 @@ hashfile(int fd)
 }
 
 
+static const char dep_prefix[] = ".dep.";
+static const char lock_prefix[] = ".lock.";
+static const char target_prefix[] = ".target.";
+
+
 /*
 
 !target && !track_op  -> init
@@ -250,7 +255,7 @@ track(const char *target, int track_op)
 						holding initial REDO_TRACK and current target
 						full path */
 					      
-	int track_len = 0, target_len;
+	int track_len = 0, target_len, track_engaged, target_wd_offset;
 	char *target_wd, *ptr;
 
 	if (!track_buf) {
@@ -260,7 +265,7 @@ track(const char *target, int track_op)
 		track_buf_size = track_len + PATH_MAX;
 		track_buf = malloc (track_buf_size);
 		if (!track_buf) {
-			fprintf(stderr,"track_buf malloc failed.\n");
+			perror("malloc");
 			exit (-1);
 		}
 		*track_buf = 0;
@@ -282,11 +287,11 @@ track(const char *target, int track_op)
 	}
 
 	target_len = strlen(target);
+	target_wd_offset = strlen(track_buf) + 1;
+	track_engaged = target_wd_offset + target_len + sizeof lock_prefix + 2;
 
 	while (1) {
-		track_len = strlen(track_buf);
-		target_wd = getcwd (track_buf + track_len + 1,
-				track_buf_size - track_len - target_len - 3);
+		target_wd = getcwd (track_buf + target_wd_offset, track_buf_size - track_engaged);
 
 		if (target_wd)		/* getcwd successful */
 			break;
@@ -295,12 +300,12 @@ track(const char *target, int track_op)
 			track_buf_size += PATH_MAX;
 			track_buf = realloc (track_buf, track_buf_size);
 			if (!track_buf) {
-				fprintf(stderr,"track_buf realloc failed.\n");
-				exit (-1);
+				perror("realloc");
+				return 0;
 			}
 		} else {
 			perror ("getcwd");
-			exit (-1);
+			return 0;
 		}
 	}
 
@@ -548,7 +553,6 @@ enum update_target_errors {
 	TARGET_WAIT_FAILED = 0x50,
 	TARGET_NODIR = 0x60,
 	TARGET_LOOP = 0x70,
-	TARGET_REALPATH_FAILED = 0x71
 };
 
 
@@ -580,13 +584,13 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 	pid_t pid;
 	char *target_rel, target_base_rel[PATH_MAX];
 
-	char *target_new, target_new_prefix[] = ".targetnew.";
-	char target_new_rel[PATH_MAX + sizeof target_new_prefix];
+	char *target_new;
+	char target_new_rel[PATH_MAX + sizeof target_prefix];
 
 
 	target_rel = base_name(target_full, uprel);
 	if (strlen(target_rel) >= sizeof target_base_rel){
-		fprintf(stderr, "Target relative too long -- %s\n", target_rel);
+		fprintf(stderr, "Target relative name too long -- %s\n", target_rel);
 		return TARGET_REL_TOOLONG;
 	}
 
@@ -595,8 +599,7 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 
 	strcpy(target_new_rel, target_rel);
 	target_new = base_name(target_new_rel, 0);
-	strcpy(target_new, target_new_prefix);
-	strcat(target_new, target);
+	strcpy(stpcpy(target_new, target_prefix), target);
 
 	fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
 
@@ -720,7 +723,7 @@ do_update_target(int dir_fd, char *target_path, int nlevel)
 	int target_dir_fd = dir_fd;
 	int target_err = update_target(&target_dir_fd, target_path, nlevel);
 
-	track(0, 1);
+	track(0, 1);	/* strip the last record */
 
 	if (dir_fd != target_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
@@ -737,15 +740,14 @@ do_update_target(int dir_fd, char *target_path, int nlevel)
 static int
 update_target(int *dir_fd, char *target_path, int nlevel)
 {
-	char *target, *target_full;
-	char target_base[PATH_MAX];
-	char dofile_rel[PATH_MAX];
+	char *target, *target_full, target_base[PATH_MAX];
+
+	char dofile_rel [PATH_MAX];
 
 	int uprel;
 
-	char depfile[PATH_MAX + 5] = ".dep.";
-	char depfile_new[PATH_MAX + 8] = ".depnew.";
-	char *depfile_new_full;
+	char depfile    [PATH_MAX + sizeof dep_prefix];
+	char depfile_new[PATH_MAX + sizeof lock_prefix];
 
 	int dep_fd, dep_err = 0;
 
@@ -766,7 +768,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	}
 
 	if (strlen(target) >= sizeof target_base) {
-		fprintf(stderr, "Target basename too long -- %s\n", target);
+		fprintf(stderr, "Target name too long -- %s\n", target);
 		return TARGET_TOOLONG;
 	}
 
@@ -780,33 +782,15 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	if (tflag)
 		printf("%s\n", target_full);
 
-	strcat(depfile, target);
+	strcpy(stpcpy(depfile, dep_prefix), target);
 	if (strcmp(datefilename(depfile), datebuild()) >= 0)
 		return TARGET_UPTODATE;
 
-	strcat(depfile_new,target);
+	strcpy(stpcpy(depfile_new, lock_prefix), target);
 
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
 	if (dep_fd < 0)
 		return TARGET_BUSY;
-
-	depfile_new_full = realpath(depfile_new, NULL);
-
-/*
-	The purpose of depfile_new_full is to preserve possibility to remove
-	depfile_new (opened as dep_fd) in case if fchdir() in do_update_target()
-	will fail.
-*/
-
-	if (!depfile_new_full) {
-		perror("realpath");
-		close(dep_fd);
-		dep_err = TARGET_REALPATH_FAILED;
-		if (remove(depfile_new) != 0)
-			dep_err |= TARGET_RM_FAILED;
-
-		return dep_err;
-	}
 
 	fdep = /* fflag ? NULL : */ fopen(depfile,"r");
 
@@ -859,11 +843,15 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 
 	close(dep_fd);
 
-	dep_err =  choose(depfile, depfile_new_full, dep_err);
+/*
+	Now we will use target_full residing in track to construct
+	the depfile_new_full. If fchdir() in do_update_target() failed
+	then we need the full depfile_new name.
+*/
 
-	free(depfile_new_full);
+	strcpy(base_name(target_full, 0), depfile_new);
 
-	return dep_err;
+	return choose(depfile, target_full, dep_err);
 }
 
 
