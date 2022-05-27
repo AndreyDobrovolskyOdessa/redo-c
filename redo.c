@@ -286,9 +286,8 @@ track(const char *target, int track_op)
 		return ptr;
 	}
 
-	target_len = strlen(target);
 	target_wd_offset = strlen(track_buf) + 1;
-	track_engaged = target_wd_offset + target_len + sizeof lock_prefix + 2;
+	track_engaged = target_wd_offset + strlen(target) + sizeof lock_prefix + 2;
 
 	while (1) {
 		if (track_buf_size > track_engaged) {
@@ -562,13 +561,19 @@ static int
 choose(char *old, char *new, int err)
 {
 	if (err) {
-		if ((access(new, F_OK) == 0) && (remove(new) != 0))
+		if ((access(new, F_OK) == 0) && (remove(new) != 0)) {
+			perror("remove new");
 			err |= TARGET_RM_FAILED;
+		}
 	} else {
-		if ((access(old, F_OK) == 0) && (remove(old) != 0))
+		if ((access(old, F_OK) == 0) && (remove(old) != 0)) {
+			perror("remove old");
 			err |= TARGET_RM_FAILED;
-		if ((access(new, F_OK) == 0) && (rename(new, old) != 0))
+		}
+		if ((access(new, F_OK) == 0) && (rename(new, old) != 0)) {
+			perror("rename");
 			err |= TARGET_MV_FAILED;
+		}
 	}
 
 	return err;
@@ -791,8 +796,10 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 	strcpy(stpcpy(depfile_new, lock_prefix), target);
 
 	dep_fd = open(depfile_new, O_CREAT | O_EXCL | O_WRONLY, 0666);
-	if (dep_fd < 0)
+	if (dep_fd < 0) {
+		fprintf(stderr, "Target busy -- %s\n", target);
 		return TARGET_BUSY;
+	}
 
 	fdep = /* fflag ? NULL : */ fopen(depfile,"r");
 
@@ -825,7 +832,12 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 				chmod(depfile, dep_st.st_mode);	/* freshen up depfile ctime */
 				close(dep_fd);
 
-				return (remove(depfile_new) == 0) ? TARGET_UPTODATE : TARGET_RM_FAILED;
+				if (remove(depfile_new) != 0) {
+					perror("remove dep");
+					return TARGET_RM_FAILED;
+				}
+
+				return TARGET_UPTODATE;
 			}
 		}
 		fclose(fdep);
