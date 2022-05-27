@@ -29,10 +29,20 @@ if TName == "main" then
 end
 
 
-assert(os.execute("test -e " .. CName), "Missing " .. CName .. "\n")
+local Assert = function(cmd, msg)
+  local success, how, exit_code = os.execute(cmd)
+  if not success then
+    if msg then
+      io.stderr:write(msg .. "\n")
+    end
+    os.exit(exit_code)
+  end
+end
 
 
-assert(os.execute("redo " .. RName))
+Assert("test -e " .. CName, "Missing " .. CName)
+
+Assert("redo " .. RName)
 
 local RUniq = {}
 local DUniq = {}
@@ -54,7 +64,7 @@ if DList ~= "" then
   assert(f:close())
 end
 
-assert(os.execute("redo " .. RList))
-assert(os.execute(Linker .. " -o " .. BinName .. " " .. RList .. " " .. Libs))
-assert(os.execute("redo " .. BinName))
+Assert("redo " .. RList)
+Assert(Linker .. " -o " .. BinName .. " " .. RList .. " " .. Libs)
+Assert("redo " .. BinName)
 

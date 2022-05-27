@@ -21,14 +21,26 @@ local TNameStart = #TDir + 1
 
 local FName = TDir .. "local.cflags"
 
-assert(os.execute("redo " .. FName))
+
+local Assert = function(cmd, msg)
+  local success, how, exit_code = os.execute(cmd)
+  if not success then
+    if msg then
+      io.stderr:write(msg .. "\n")
+    end
+    os.exit(exit_code)
+  end
+end
+
+
+Assert("redo " .. FName)
 
 local f = assert(io.open(FName))
 local Cflags = assert(f:read())
 local Deps = assert(f:read())
 f:close()
 
-assert(os.execute(Compiler .. " -MD " .. Cflags .. " -o " .. OName .. " -c " .. CName))
+Assert(Compiler .. " -MD " .. Cflags .. " -o " .. OName .. " -c " .. CName)
 
 
 local INames = {}
@@ -54,7 +66,7 @@ local IList = table.concat(INames, " ")
 local RList = table.concat(RNames, " ")
 local AllDeps = table.concat({CName, OName, IList, RList}, " ")
 
-assert(os.execute("redo " .. AllDeps))
+Assert("redo " .. AllDeps)
 
 
 local Sanitize = function(P)
