@@ -255,7 +255,7 @@ track(const char *target, int track_op)
 						holding initial REDO_TRACK and current target
 						full path */
 					      
-	int track_len = 0, target_len, track_engaged, target_wd_offset;
+	size_t track_len = 0, target_len, track_engaged, target_wd_offset;
 	char *target_wd, *ptr;
 
 	if (!track_buf) {
@@ -291,10 +291,12 @@ track(const char *target, int track_op)
 	track_engaged = target_wd_offset + target_len + sizeof lock_prefix + 2;
 
 	while (1) {
-		target_wd = getcwd (track_buf + target_wd_offset, track_buf_size - track_engaged);
-
-		if (target_wd)		/* getcwd successful */
-			break;
+		if (track_buf_size > track_engaged) {
+			target_wd = getcwd (track_buf + target_wd_offset, track_buf_size - track_engaged);
+			if (target_wd)		/* getcwd successful */
+				break;
+		} else
+			errno = ERANGE;
 
 		if (errno == ERANGE) {  /* track_buf_size is not sufficient */
 			track_buf_size += PATH_MAX;
@@ -577,7 +579,7 @@ int xflag, fflag, sflag, tflag;
 
 
 static int 
-run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, char *target_base, char *target_full, int uprel)
+run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, char *target_base, char *target_full, int uprel)
 {
 	int dep_err = 0;
 
@@ -609,7 +611,7 @@ run_script(int *dir_fd, int dep_fd, int nlevel, char *dofile_rel, char *target, 
 		dep_err = TARGET_FORK_FAILED;
 	} else if (pid == 0) {
 
-		char *dofile = file_chdir(dir_fd, dofile_rel);
+		char *dofile = file_chdir(&dir_fd, dofile_rel);
 		char dirprefix[PATH_MAX];
 		size_t dirprefix_len = target_new - target_new_rel;
 
@@ -834,7 +836,7 @@ update_target(int *dir_fd, char *target_path, int nlevel)
 		dep_err = write_dep(dep_fd, dofile_rel, 0, 0);
 
 		if (!dep_err) {
-			dep_err = run_script(dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
+			dep_err = run_script(*dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
 
 			if (!dep_err)
 				dep_err = write_dep(dep_fd, target, 0, 0);
