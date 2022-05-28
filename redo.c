@@ -584,10 +584,10 @@ int xflag, fflag, sflag, tflag;
 
 
 static int 
-run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel,
+run_script(int dir_fd, int lock_fd, int nlevel, char *dofile_rel,
 	const char *target, const char *target_base, const char *target_full, int uprel)
 {
-	int dep_err = 0;
+	int target_err = 0;
 
 	pid_t pid;
 	char *target_rel, target_base_rel[PATH_MAX];
@@ -614,7 +614,7 @@ run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel,
 	pid = fork();
 	if (pid < 0) {
 		perror("fork");
-		dep_err = TARGET_FORK_FAILED;
+		target_err = TARGET_FORK_FAILED;
 	} else if (pid == 0) {
 
 		const char *dofile = file_chdir(&dir_fd, dofile_rel);
@@ -627,7 +627,7 @@ run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel,
 		memcpy(dirprefix, target_new_rel, dirprefix_len);
 		dirprefix[dirprefix_len] = '\0';
 
-		setenvfd("REDO_DEP_FD", dep_fd);
+		setenvfd("REDO_LOCK_FD", lock_fd);
 		setenvfd("REDO_LEVEL", nlevel + 1);
 		setenv("REDO_DIRPREFIX", dirprefix, 1);
 
@@ -643,17 +643,17 @@ run_script(int dir_fd, int dep_fd, int nlevel, char *dofile_rel,
 		perror("execl");
 		exit(-1);
 	} else {
-		if (wait(&dep_err) < 0) {
+		if (wait(&target_err) < 0) {
 			perror("wait");
-			dep_err = TARGET_WAIT_FAILED;
+			target_err = TARGET_WAIT_FAILED;
 		} else {
-			if (WIFEXITED(dep_err))
-				dep_err = WEXITSTATUS(dep_err);
+			if (WIFEXITED(target_err))
+				target_err = WEXITSTATUS(target_err);
 		}
 	}
-	fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, dep_err);
+	fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
 
-	return choose(target, target_new, dep_err);
+	return choose(target, target_new, target_err);
 }
 
 
@@ -694,7 +694,7 @@ dep_changed(const char *line)
 
 
 static int
-write_dep(int dfd, const char *file, const char *dp, const char *updir)
+write_dep(int lock_fd, const char *file, const char *dp, const char *updir)
 {
 	int err = 0;
 	int fd = open(file, O_RDONLY);
@@ -710,7 +710,7 @@ write_dep(int dfd, const char *file, const char *dp, const char *updir)
 			prefix = updir;
 	}
 
-	if (dprintf(dfd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file) < 0) {
+	if (dprintf(lock_fd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file) < 0) {
 		perror("dprintf");
 		err = TARGET_WRDEP_FAILED;
 	}
@@ -722,31 +722,31 @@ write_dep(int dfd, const char *file, const char *dp, const char *updir)
 }
 
 
-static int update_target(int *dir_fd, const char *target_path, int nlevel);
+static int update_dep(int *dir_fd, const char *dep_path, int nlevel);
 
 
 static int
-do_update_target(int dir_fd, const char *target_path, int nlevel)
+do_update_dep(int dir_fd, const char *dep_path, int nlevel)
 {
-	int target_dir_fd = dir_fd;
-	int target_err = update_target(&target_dir_fd, target_path, nlevel);
+	int dep_dir_fd = dir_fd;
+	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
 
 	track(0, 1);	/* strip the last record */
 
-	if (dir_fd != target_dir_fd) {
+	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
 			perror("chdir back");
-			target_err |= TARGET_FCHDIR_FAILED;
+			dep_err |= TARGET_FCHDIR_FAILED;
 		}
-		close(target_dir_fd);
+		close(dep_dir_fd);
 	}
 
-	return target_err;
+	return dep_err;
 }
 
 
 static int
-update_target(int *dir_fd, const char *target_path, int nlevel)
+update_dep(int *dir_fd, const char *dep_path, int nlevel)
 {
 	const char *target, *target_full;
 	char target_base[PATH_MAX];
@@ -758,26 +758,26 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
-	int dep_fd, dep_err = 0;
+	int lock_fd, dep_err = 0;
 
-	FILE *fdep;
+	FILE *fredo;
 
 
-	target = file_chdir(dir_fd, target_path);
+	target = file_chdir(dir_fd, dep_path);
 	if (target == 0) {
-		fprintf(stderr, "Missing target directory -- %s\n", target_path);
+		fprintf(stderr, "Missing dependency directory -- %s\n", dep_path);
 		track("", 1);	/* dummy call */
 		return TARGET_NODIR;
 	}
 
 	target_full = track(target, 1);
 	if (target_full == 0){
-		fprintf(stderr, "Infinite loop attempt -- %s\n", target_path);
+		fprintf(stderr, "Infinite loop attempt -- %s\n", dep_path);
 		return TARGET_LOOP;
 	}
 
 	if (strlen(target) >= sizeof target_base) {
-		fprintf(stderr, "Target name too long -- %s\n", target);
+		fprintf(stderr, "Dependency name too long -- %s\n", target);
 		return TARGET_TOOLONG;
 	}
 
@@ -797,20 +797,20 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 
 	strcpy(stpcpy(lockfile, lock_prefix), target);
 
-	dep_fd = open(lockfile, O_CREAT | O_EXCL | O_WRONLY, 0666);
-	if (dep_fd < 0) {
+	lock_fd = open(lockfile, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	if (lock_fd < 0) {
 		fprintf(stderr, "Target busy -- %s\n", target);
 		return TARGET_BUSY;
 	}
 
-	fdep = /* fflag ? NULL : */ fopen(redofile,"r");
+	fredo = /* fflag ? NULL : */ fopen(redofile,"r");
 
-	if (fdep) {
+	if (fredo) {
 		int firstline = 1;
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		const char *filename = line + 64 + 1 + 16 + 1;
 
-		for ( ; fgets(line, sizeof line, fdep) ; firstline = 0) {
+		for ( ; fgets(line, sizeof line, fredo) ; firstline = 0) {
 			if (check_record(line) != 0)
 				break;
 
@@ -819,7 +819,7 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 
 			if (strcmp(filename, target) != 0) {
 
-				dep_err = do_update_target(*dir_fd, filename, nlevel + 1);
+				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
 
 				if (fflag || dep_err || dep_changed(line))
 					break;
@@ -829,10 +829,10 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 				if (dep_changed(line))
 					break;
 
-				fclose(fdep);
-				fstat(dep_fd, &dep_st);		/* read with umask applied */
+				fclose(fredo);
+				fstat(lock_fd, &dep_st);		/* read with umask applied */
 				chmod(redofile, dep_st.st_mode);	/* freshen up redofile ctime */
-				close(dep_fd);
+				close(lock_fd);
 
 				if (remove(lockfile) != 0) {
 					perror("remove lock");
@@ -842,22 +842,22 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 				return TARGET_UPTODATE;
 			}
 		}
-		fclose(fdep);
+		fclose(fredo);
 	}
 
 
 	if (!dep_err) {
-		dep_err = write_dep(dep_fd, dofile_rel, 0, 0);
+		dep_err = write_dep(lock_fd, dofile_rel, 0, 0);
 
 		if (!dep_err) {
-			dep_err = run_script(*dir_fd, dep_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
+			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
 
 			if (!dep_err)
-				dep_err = write_dep(dep_fd, target, 0, 0);
+				dep_err = write_dep(lock_fd, target, 0, 0);
 		}
 	}
 
-	close(dep_fd);
+	close(lock_fd);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -907,9 +907,9 @@ main(int argc, char *argv[])
 	int opt, i;
 	const char *dirprefix;
 	char updir[PATH_MAX];
-	int main_dir_fd, dep_fd;
+	int main_dir_fd, lock_fd;
 	int level;
-	int target_err, redo_err = 0;
+	int dep_err, redo_err = 0;
 
 	char *program = base_name(argv[0], 0);
 
@@ -941,12 +941,12 @@ main(int argc, char *argv[])
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
 
-	dep_fd = envfd("REDO_DEP_FD");
+	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");
 	dirprefix = getenv("REDO_DIRPREFIX");
 
 	if (strcmp(program, "redo-always") == 0)
-		dprintf(dep_fd, "\n");
+		dprintf(lock_fd, "\n");
 
 	compute_updir(dirprefix, updir);
 
@@ -958,18 +958,18 @@ main(int argc, char *argv[])
 
 	for (i = 0 ; i < argc ; i++) {
 
-		target_err = do_update_target(main_dir_fd, argv[i], level);
+		dep_err = do_update_dep(main_dir_fd, argv[i], level);
 
-		if(target_err == 0) {
-			if (dep_fd > 0) {
-				target_err = write_dep(dep_fd, argv[i], dirprefix, updir);
-				if (target_err)
-					return target_err;
+		if(dep_err == 0) {
+			if (lock_fd > 0) {
+				dep_err = write_dep(lock_fd, argv[i], dirprefix, updir);
+				if (dep_err)
+					return dep_err;
 			}
-		} else if(target_err == TARGET_BUSY) {
+		} else if(dep_err == TARGET_BUSY) {
 			redo_err = TARGET_BUSY;
 		} else
-			return target_err;
+			return dep_err;
 	}
 
 	return redo_err;
