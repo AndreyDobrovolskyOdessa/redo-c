@@ -21,7 +21,7 @@ end
 local f
 
 if Deps:match("[^%s]") then
-  Assert("redo .dep." .. arg[1])
+  Assert("redo .redo." .. arg[1])
   f = assert(io.popen("pkg-config --cflags " .. Deps))
   Cflags = Cflags .. " " .. f:read()
   assert(f:close())

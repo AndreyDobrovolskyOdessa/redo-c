@@ -228,9 +228,9 @@ hashfile(int fd)
 }
 
 
-static const char dep_prefix[] = ".dep.";
-static const char lock_prefix[] = ".lock.";
-static const char target_prefix[] = ".target.";
+static const char redo_prefix[] =   ".redo.";
+static const char lock_prefix[] =   ".redo..redo.";
+static const char target_prefix[] = ".redo..redo..redo.";
 
 
 /*
@@ -755,7 +755,7 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 
 	int uprel;
 
-	char depfile [PATH_MAX + sizeof dep_prefix];
+	char redofile[PATH_MAX + sizeof redo_prefix];
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
 	int dep_fd, dep_err = 0;
@@ -791,8 +791,8 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 	if (tflag)
 		printf("%s\n", target_full);
 
-	strcpy(stpcpy(depfile, dep_prefix), target);
-	if (strcmp(datefilename(depfile), datebuild()) >= 0)
+	strcpy(stpcpy(redofile, redo_prefix), target);
+	if (strcmp(datefilename(redofile), datebuild()) >= 0)
 		return TARGET_UPTODATE;
 
 	strcpy(stpcpy(lockfile, lock_prefix), target);
@@ -803,7 +803,7 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 		return TARGET_BUSY;
 	}
 
-	fdep = /* fflag ? NULL : */ fopen(depfile,"r");
+	fdep = /* fflag ? NULL : */ fopen(redofile,"r");
 
 	if (fdep) {
 		int firstline = 1;
@@ -831,7 +831,7 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 
 				fclose(fdep);
 				fstat(dep_fd, &dep_st);		/* read with umask applied */
-				chmod(depfile, dep_st.st_mode);	/* freshen up depfile ctime */
+				chmod(redofile, dep_st.st_mode);	/* freshen up redofile ctime */
 				close(dep_fd);
 
 				if (remove(lockfile) != 0) {
@@ -867,7 +867,7 @@ update_target(int *dir_fd, const char *target_path, int nlevel)
 
 	strcpy(base_name(target_full, 0), lockfile);
 
-	return choose(depfile, target_full, dep_err);
+	return choose(redofile, target_full, dep_err);
 }
 
 
