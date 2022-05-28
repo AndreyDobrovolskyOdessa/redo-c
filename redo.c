@@ -52,7 +52,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <string.h>
 #include <unistd.h>
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------- */
 /* from musl/src/crypt/crypt_sha256.c */
 
 /* public domain sha256 implementation based on fips180-3 */
@@ -195,7 +195,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 	memcpy(s->buf, p, len);
 }
 
-/* ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------- */
 
 static char *
 hashfile(int fd)
@@ -233,16 +233,6 @@ static const char lock_prefix[] =   ".redo..redo.";
 static const char target_prefix[] = ".redo..redo..redo.";
 
 
-/*
-
-!target && !track_op  -> init
-target  && !track_op  -> setenv
-
-!target && tarck_op  -> strip last name
-target  && track_op  -> append name
-
-*/
-
 static char *
 track(const char *target, int track_op)
 {
@@ -259,9 +249,8 @@ track(const char *target, int track_op)
 	char *target_wd, *ptr;
 
 	if (!track_buf) {
-		char *track_ptr = getenv("REDO_TRACK");
-		if (track_ptr)
-			track_len = strlen (track_ptr);
+		if (target)
+			track_len = strlen (target);
 		track_buf_size = track_len + PATH_MAX;
 		track_buf = malloc (track_buf_size);
 		if (!track_buf) {
@@ -269,15 +258,12 @@ track(const char *target, int track_op)
 			exit (-1);
 		}
 		*track_buf = 0;
-		if (track_ptr)
-			strcpy (track_buf, track_ptr);
+		if (target)
+			strcpy (track_buf, target);
 	}
 
-	if (!track_op) {
-		if (target)
-			setenv("REDO_TRACK", track_buf, 1);
-		return 0;
-	}
+	if (!track_op)
+		return track_buf;
 
 	if (!target) {		/* strip last path */
 		ptr = strrchr(track_buf, ':');
@@ -375,12 +361,13 @@ envint(const char *name)
 	return n;
 }
 
-static void
+static int
 setenvfd(const char *name, int i)
 {
 	char buf[16];
 	snprintf(buf, sizeof buf, "%d", i);
-	setenv(name, buf, 1);
+
+	return setenv(name, buf, 1);
 }
 
 static const char *
@@ -621,17 +608,21 @@ run_script(int dir_fd, int lock_fd, int nlevel, char *dofile_rel,
 		char dirprefix[PATH_MAX];
 		size_t dirprefix_len = target_new - target_new_rel;
 
-		if (!dofile)		/* dofile stolen? */
+		if (!dofile) {
+			fprintf(stderr, "Damn! Someone have stolen my favorite dofile %s ...\n", dofile_rel);
 			exit(-1);
+		}
 
 		memcpy(dirprefix, target_new_rel, dirprefix_len);
 		dirprefix[dirprefix_len] = '\0';
 
-		setenvfd("REDO_LOCK_FD", lock_fd);
-		setenvfd("REDO_LEVEL", nlevel + 1);
-		setenv("REDO_DIRPREFIX", dirprefix, 1);
-
-		track("", 0);	/* setenv("REDO_TRACK") */
+		if ((setenvfd("REDO_LOCK_FD", lock_fd) != 0) ||
+		    (setenvfd("REDO_LEVEL", nlevel + 1) != 0) ||
+		    (setenv("REDO_DIRPREFIX", dirprefix, 1) != 0) ||
+		    (setenv("REDO_TRACK", track(0, 0), 1) != 0)) {
+			perror("setenv");
+			exit(-1);
+		}
 
 		if (access(dofile, X_OK) != 0)   /* run -x files with /bin/sh */
 			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
@@ -772,7 +763,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	target_full = track(target, 1);
 	if (target_full == 0){
-		fprintf(stderr, "Infinite loop attempt -- %s\n", dep_path);
+		fprintf(stderr, "Dependency loop attempt -- %s\n", dep_path);
 		return TARGET_LOOP;
 	}
 
@@ -824,14 +815,14 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				if (fflag || dep_err || dep_changed(line))
 					break;
 			} else {
-				struct stat dep_st;
+				struct stat lock_st;
 
 				if (dep_changed(line))
 					break;
 
 				fclose(fredo);
-				fstat(lock_fd, &dep_st);		/* read with umask applied */
-				chmod(redofile, dep_st.st_mode);	/* freshen up redofile ctime */
+				fstat(lock_fd, &lock_st);		/* read with umask applied */
+				chmod(redofile, lock_st.st_mode);	/* freshen up redofile ctime */
 				close(lock_fd);
 
 				if (remove(lockfile) != 0) {
@@ -945,12 +936,12 @@ main(int argc, char *argv[])
 	level = envint("REDO_LEVEL");
 	dirprefix = getenv("REDO_DIRPREFIX");
 
+	track(getenv("REDO_TRACK"), 0);
+
 	if (strcmp(program, "redo-always") == 0)
 		dprintf(lock_fd, "\n");
 
 	compute_updir(dirprefix, updir);
-
-	track(0, 0);
 
 	datebuild();
 
