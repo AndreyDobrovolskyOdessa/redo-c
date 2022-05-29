@@ -154,5 +154,19 @@ Of course such targets can not exist, but they may have the corresponding script
 Are monitored unconditionally and issue error if found.
 
 
+### Troubleshooting
+
+If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
+
+    find -name ".redo..redo.*" -delete
+
+
+If You need to make "hard reset" of Your build tree, then
+
+    find -name ".redo.*" -delete
+
+will help.
+
+
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 
