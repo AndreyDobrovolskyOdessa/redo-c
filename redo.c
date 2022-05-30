@@ -273,6 +273,8 @@ track(const char *target, int track_op)
 		return ptr;
 	}
 
+	/* store cwd in the track_buf */
+
 	target_wd_offset = strlen(track_buf) + 1;
 	track_engaged = target_wd_offset + strlen(target) + sizeof lock_prefix + 2;
 
@@ -297,25 +299,25 @@ track(const char *target, int track_op)
 		}
 	}
 
-	ptr = strchr(target_wd, '\0');
+	ptr = strchr(target_wd, '\0');		/* construct target full path */
 	*ptr++ = '/';
 	strcpy(ptr, target);
 
-	*--target_wd = ':';	/* appending target full path to the track_buf */
+	*--target_wd = ':';			/* join target full path with the track_buf */
 
 	/* searching for target full path inside track_buf */
+
 	ptr = track_buf;
 	target_len = strlen(target_wd);
-	while (1) {
+
+	do {
 		ptr = strstr(ptr, target_wd);
 		if (ptr == target_wd)
-			break;
+			return target_wd + 1;
 		ptr += target_len;
-		if (*ptr == ':')
-			return 0;
-	}
+	} while (*ptr != ':');
 
-	return target_wd + 1;
+	return 0;
 }
 
 
