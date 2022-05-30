@@ -245,13 +245,13 @@ track(const char *target, int track_op)
 						holding initial REDO_TRACK and current target
 						full path */
 					      
-	size_t track_len = 0, target_len, track_engaged, target_wd_offset;
+	size_t target_len, track_engaged, target_wd_offset;
 	char *target_wd, *ptr;
 
-	if (!track_buf) {
-		if (target)
-			track_len = strlen (target);
-		track_buf_size = track_len + PATH_MAX;
+	if (track_buf_size == 0) {				/* the very first invocation */
+		track_buf_size = PATH_MAX;
+		if (target)					/* suppose getenv("REDO_TRACK") */
+			track_buf_size += strlen (target);
 		track_buf = malloc (track_buf_size);
 		if (!track_buf) {
 			perror("malloc");
@@ -260,12 +260,13 @@ track(const char *target, int track_op)
 		*track_buf = 0;
 		if (target)
 			strcpy (track_buf, target);
+		track_op = 0;				/* enough for the first time */
 	}
 
 	if (!track_op)
 		return track_buf;
 
-	if (!target) {		/* strip last path */
+	if (!target) {					/* strip last path */
 		ptr = strrchr(track_buf, ':');
 		if (ptr)
 			*ptr = 0;
