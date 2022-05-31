@@ -321,7 +321,7 @@ track(const char *target, int track_op)
 }
 
 
-static char *
+static const char *
 base_name(const char *name, int uprel)
 {
 	char *ptr = strchr(name, '\0');
@@ -574,13 +574,14 @@ int xflag, fflag, sflag, tflag;
 
 
 static int 
-run_script(int dir_fd, int lock_fd, int nlevel, char *dofile_rel,
+run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 	const char *target, const char *target_base, const char *target_full, int uprel)
 {
 	int target_err = 0;
 
 	pid_t pid;
-	char *target_rel, target_base_rel[PATH_MAX];
+	const char *target_rel; 
+	char target_base_rel[PATH_MAX];
 
 	char *target_new;
 	char target_new_rel[PATH_MAX + sizeof target_prefix];
@@ -593,10 +594,10 @@ run_script(int dir_fd, int lock_fd, int nlevel, char *dofile_rel,
 	}
 
 	strcpy(target_base_rel, target_rel);
-	strcpy(base_name(target_base_rel, 0), target_base);
+	strcpy((char *) base_name(target_base_rel, 0), target_base);
 
 	strcpy(target_new_rel, target_rel);
-	target_new = base_name(target_new_rel, 0);
+	target_new = (char *) base_name(target_new_rel, 0);
 	strcpy(stpcpy(target_new, target_prefix), target);
 
 	fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
@@ -742,8 +743,8 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel)
 static int
 update_dep(int *dir_fd, const char *dep_path, int nlevel)
 {
-	const char *target, *target_full;
-	char target_base[PATH_MAX];
+	const char *target;
+	char *target_full, target_base[PATH_MAX];
 
 	char dofile_rel [PATH_MAX];
 
@@ -859,7 +860,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	then we need the full lockfile name.
 */
 
-	strcpy(base_name(target_full, 0), lockfile);
+	strcpy((char *) base_name(target_full, 0), lockfile);
 
 	return choose(redofile, target_full, dep_err);
 }
@@ -905,7 +906,7 @@ main(int argc, char *argv[])
 	int level;
 	int dep_err, redo_err = 0;
 
-	char *program = base_name(argv[0], 0);
+	const char *program = base_name(argv[0], 0);
 
 
 	while ((opt = getopt(argc, argv, "+xfst")) != -1) {
