@@ -338,31 +338,25 @@ base_name(const char *name, int uprel)
 
 
 static int
+envint(const char *name)
+{
+	char *s = getenv(name);
+
+	return s ? strtol(s, 0, 10) : 0;
+}
+
+
+static int
 envfd(const char *name)
 {
-	long fd;
+	int fd = envint(name);
 
-	char *s = getenv(name);
-	if (!s)
-		return -1;
-
-	fd = strtol(s, 0, 10);
-	if (fd < 0 || fd > 1023)
+	if (fd <= 0 || fd >= sysconf(_SC_OPEN_MAX))
 		fd = -1;
 
 	return fd;
 }
 
-static int
-envint(const char *name)
-{
-	int n = envfd(name);
-
-	if (n < 0)
-		n = 0;
-
-	return n;
-}
 
 static int
 setenvfd(const char *name, int i)
@@ -372,6 +366,7 @@ setenvfd(const char *name, int i)
 
 	return setenv(name, buf, 1);
 }
+
 
 static const char *
 datestat(struct stat *st)
