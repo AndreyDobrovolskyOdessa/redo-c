@@ -197,11 +197,14 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 /* ------------------------------------------------------------------------- */
 
+
+static char asciihash[65];
+
+
 static char *
 hashfile(int fd)
 {
 	static char hex[16] = "0123456789abcdef";
-	static char asciihash[65];
 
 	struct sha256 ctx;
 	char buf[4096];
@@ -347,11 +350,12 @@ setenvfd(const char *name, int i)
 }
 
 
+static char hexdate[17];
+
+
 static const char *
 datestat(struct stat *st)
 {
-	static char hexdate[17];
-
 	snprintf(hexdate, sizeof hexdate, "%016" PRIx64, (uint64_t)st->st_ctime);
 
 	return hexdate;
@@ -505,7 +509,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 }
 
 
-enum update_target_errors {
+enum update_dep_errors {
 	TARGET_UPTODATE = 0,
 	TARGET_FCHDIR_FAILED = 1,
 	TARGET_WRDEP_FAILED = 2,
@@ -518,7 +522,12 @@ enum update_target_errors {
 	TARGET_WAIT_FAILED = 0x50,
 	TARGET_NODIR = 0x60,
 	TARGET_LOOP = 0x70,
+	IS_SOURCE = 0x80
 };
+
+#define FATAL_ERROR 0x7f
+
+#define UPDATED_RECENTLY 0x100
 
 
 static int
@@ -645,30 +654,85 @@ check_record(char *line)
 }
 
 
+static char redoline[64 + 1 + 16 + 1 + PATH_MAX + 1];
+
+
 static int
-dep_changed(const char *line)
+find_record(const char *filename)
 {
-	const char *filename = line + 64 + 1 + 16 + 1, *hashstr;
+	char redofile[PATH_MAX + sizeof redo_prefix];
+	char *target = (char *) base_name(filename, 0);
+	int find_err = 1;
+
+
+	strcpy(redofile, filename);
+	strcpy((char *) base_name(redofile, 0), redo_prefix);
+	strcat(redofile, target);
+
+        FILE *f = fopen(redofile, "r");
+
+        if (f) {
+
+                while (fgets(redoline, sizeof redoline, f)) {
+                        if (check_record(redoline) == 0)
+                                break;
+
+                        if (strcmp(target, redoline + 64 + 1 + 16 + 1) == 0) {
+				memcpy(asciihash, redoline, 64);
+				asciihash[64] = '\0';
+				memcpy(hexdate, redoline + 64 + 1, 16);
+				hexdate[16] = '\0';
+
+				find_err = 0;
+				break;
+                        }
+                }
+
+                fclose(f);
+        }
+
+        return find_err;
+}
+
+
+
+static int
+dep_changed(const char *line, int hint)
+{
+	const char *filename = line + 64 + 1 + 16 + 1;
 	int fd;
 
-	if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
-		return 0;
+	if ((hint & IS_SOURCE) || (((hint & UPDATED_RECENTLY) == 0) && (find_record(filename) != 0))){
+		if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
+			return 0;
 
-	fd = open(filename, O_RDONLY);
-	hashstr = hashfile(fd);
-	close(fd);
+		fd = open(filename, O_RDONLY);
+		hashfile(fd);
+		close(fd);
+	} else {
+		if (strncmp(line + 64 + 1, hexdate, 16) == 0)
+			return 0;
+	}
 
-	return strncmp(line, hashstr, 64) != 0;
+	return strncmp(line, asciihash, 64) != 0;
 }
 
 
 static int
-write_dep(int lock_fd, const char *file, const char *dp, const char *updir)
+write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int hint)
 {
 	int err = 0;
-	int fd = open(file, O_RDONLY);
+	int fd;
 	const char *prefix = "";
 
+
+	if ((hint & IS_SOURCE) || (((hint & UPDATED_RECENTLY) == 0) && (find_record(file) != 0))){
+		fd = open(file, O_RDONLY);
+		hashfile(fd);
+		datefile(fd);
+		if (fd > 0)
+			close(fd);
+	}
 
 	if (dp && *file != '/') {
 		size_t dp_len = strlen(dp);
@@ -679,13 +743,10 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir)
 			prefix = updir;
 	}
 
-	if (dprintf(lock_fd, "%s %s %s%s\n", hashfile(fd), datefile(fd), prefix, file) < 0) {
+	if (dprintf(lock_fd, "%s %s %s%s\n", asciihash, hexdate, prefix, file) < 0) {
 		perror("dprintf");
 		err = TARGET_WRDEP_FAILED;
 	}
-
-	if (fd > 0)
-		close(fd);
 
 	return err;
 }
@@ -754,7 +815,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full)) {
 		if (sflag)
 			printf("%s\n", target_full);
-		return TARGET_UPTODATE;
+		return IS_SOURCE;
 	}
 
 	if (tflag)
@@ -778,10 +839,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		const char *filename = line + 64 + 1 + 16 + 1;
 		struct stat lock_st;
+		int hint;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			if (strcmp(filename, target) == 0) {	/* last line in .redo. file */
-				if (dep_changed(line))
+				if (dep_changed(line, IS_SOURCE))
 					break;
 
 				fclose(fredo);
@@ -798,8 +860,10 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			}
 
 			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
+			hint = dep_err & (~FATAL_ERROR);
+			dep_err &= FATAL_ERROR;
 
-			if (fflag || dep_err || dep_changed(line))
+			if (fflag || dep_err || dep_changed(line, hint))
 				break;
 		}
 		fclose(fredo);
@@ -807,13 +871,13 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 
 	if (!dep_err) {
-		dep_err = write_dep(lock_fd, dofile_rel, 0, 0);
+		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
 
 		if (!dep_err) {
 			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
 
 			if (!dep_err)
-				dep_err = write_dep(lock_fd, target, 0, 0);
+				dep_err = write_dep(lock_fd, target, 0, 0, IS_SOURCE);
 		}
 	}
 
@@ -827,7 +891,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	strcpy((char *) base_name(target_full, 0), lockfile);
 
-	return choose(redofile, target_full, dep_err);
+	return choose(redofile, target_full, dep_err) | UPDATED_RECENTLY;
 }
 
 
@@ -890,7 +954,7 @@ main(int argc, char *argv[])
 	char updir[PATH_MAX];
 	int main_dir_fd, lock_fd;
 	int level;
-	int dep_err, redo_err = 0;
+	int dep_err, redo_err = 0, hint;
 
 	const char *program = base_name(argv[0], 0);
 
@@ -940,10 +1004,12 @@ main(int argc, char *argv[])
 	for (i = 0 ; i < argc ; i++) {
 
 		dep_err = do_update_dep(main_dir_fd, argv[i], level);
-
+		hint = dep_err & (~FATAL_ERROR);
+		dep_err &= FATAL_ERROR;
+		
 		if(dep_err == 0) {
 			if (lock_fd > 0) {
-				dep_err = write_dep(lock_fd, argv[i], dirprefix, updir);
+				dep_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
 				if (dep_err)
 					return dep_err;
 			}
