@@ -338,27 +338,6 @@ base_name(const char *name, int uprel)
 
 
 static int
-envint(const char *name)
-{
-	char *s = getenv(name);
-
-	return s ? strtol(s, 0, 10) : 0;
-}
-
-
-static int
-envfd(const char *name)
-{
-	int fd = envint(name);
-
-	if (fd <= 0 || fd >= sysconf(_SC_OPEN_MAX))
-		fd = -1;
-
-	return fd;
-}
-
-
-static int
 setenvfd(const char *name, int i)
 {
 	char buf[16];
@@ -609,7 +588,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 
 		if (!dofile) {
 			fprintf(stderr, "Damn! Someone have stolen my favorite dofile %s ...\n", dofile_rel);
-			exit(-1);
+			exit(TARGET_FCHDIR_FAILED);
 		}
 
 		memcpy(dirprefix, target_new_rel, dirprefix_len);
@@ -653,16 +632,16 @@ check_record(char *line)
 	int line_len = strlen(line);
 
 	if (line_len < 64 + 1 + 16 + 1 + 1)
-		return 1;
+		return 0;
 
 	if (line[line_len - 1] != '\n') {
 		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
-		return 1;
+		return 0;
 	}
 
 	line[line_len - 1] = 0; /* strip \n */
 
-	return 0;
+	return 1;
 }
 
 
@@ -796,26 +775,12 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	fredo = /* fflag ? NULL : */ fopen(redofile,"r");
 
 	if (fredo) {
-		int firstline = 1;
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		const char *filename = line + 64 + 1 + 16 + 1;
+		struct stat lock_st;
 
-		for ( ; fgets(line, sizeof line, fredo) ; firstline = 0) {
-			if (check_record(line) != 0)
-				break;
-
-			if (firstline && strcmp(filename, dofile_rel) != 0)
-					break;
-
-			if (strcmp(filename, target) != 0) {
-
-				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
-
-				if (fflag || dep_err || dep_changed(line))
-					break;
-			} else {
-				struct stat lock_st;
-
+		while (fgets(line, sizeof line, fredo) && check_record(line)) {
+			if (strcmp(filename, target) == 0) {	/* last line in .redo. file */
 				if (dep_changed(line))
 					break;
 
@@ -831,6 +796,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 				return TARGET_UPTODATE;
 			}
+
+			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
+
+			if (fflag || dep_err || dep_changed(line))
+				break;
 		}
 		fclose(fredo);
 	}
@@ -858,6 +828,27 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	strcpy((char *) base_name(target_full, 0), lockfile);
 
 	return choose(redofile, target_full, dep_err);
+}
+
+
+static int
+envint(const char *name)
+{
+	char *s = getenv(name);
+
+	return s ? strtol(s, 0, 10) : 0;
+}
+
+
+static int
+envfd(const char *name)
+{
+	int fd = envint(name);
+
+	if (fd <= 0 || fd >= sysconf(_SC_OPEN_MAX))
+		fd = -1;
+
+	return fd;
 }
 
 
