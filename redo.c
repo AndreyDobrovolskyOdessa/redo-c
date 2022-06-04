@@ -383,25 +383,25 @@ datefilename(const char *name)
 static const char *
 datebuild()
 {
-	static char hexdate[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
+	static char build_date[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
 	const char *dateptr;
 
 	FILE *f;
 
-	if (hexdate[0])
-		return hexdate;
+	if (build_date[0])
+		return build_date;
 
 	dateptr = getenv("REDO_BUILD_DATE");
 	if (dateptr)
-		return memcpy(hexdate, dateptr, 16);
+		return memcpy(build_date, dateptr, 16);
 
 	f = tmpfile();
-	memcpy(hexdate, datefile(fileno(f)), 16);
+	memcpy(build_date, datefile(fileno(f)), 16);
 	fclose(f);
 
-	setenv("REDO_BUILD_DATE", hexdate, 1);
+	setenv("REDO_BUILD_DATE", build_date, 1);
 
-	return hexdate;
+	return build_date;
 }
 
 
