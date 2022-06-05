@@ -198,39 +198,6 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-static char asciihash[65];
-
-
-static char *
-hashfile(int fd)
-{
-	static char hex[16] = "0123456789abcdef";
-
-	struct sha256 ctx;
-	char buf[4096];
-	char *a;
-	unsigned char hash[32];
-	int i;
-	ssize_t r;
-
-	sha256_init(&ctx);
-
-	while ((r = read(fd, buf, sizeof buf)) > 0) {
-		sha256_update(&ctx, buf, r);
-	}
-
-	sha256_sum(&ctx, hash);
-
-	for (i = 0, a = asciihash; i < 32; i++) {
-		*a++ = hex[hash[i] / 16];
-		*a++ = hex[hash[i] % 16];
-	}
-	*a = 0;
-
-	return asciihash;
-}
-
-
 static const char redo_prefix[] =   ".redo.";
 static const char lock_prefix[] =   ".redo..redo.";
 static const char target_prefix[] = ".redo..redo..redo.";
@@ -350,13 +317,48 @@ setenvfd(const char *name, int i)
 }
 
 
-static char hexdate[17];
+static char redoline[64 + 1 + 16 + 1 + PATH_MAX + 1];
+
+static char * const asciihash = redoline;
+static char * const hexdate = redoline + 64 + 1;
+/*
+static char * const namebuf = redoline + 64 + 1 + 16 + 1;
+*/
+
+static char *
+hashfile(int fd)
+{
+	static char hex[16] = "0123456789abcdef";
+
+	struct sha256 ctx;
+	char buf[4096];
+	char *a;
+	unsigned char hash[32];
+	int i;
+	ssize_t r;
+
+	sha256_init(&ctx);
+
+	while ((r = read(fd, buf, sizeof buf)) > 0) {
+		sha256_update(&ctx, buf, r);
+	}
+
+	sha256_sum(&ctx, hash);
+
+	for (i = 0, a = asciihash; i < 32; i++) {
+		*a++ = hex[hash[i] / 16];
+		*a++ = hex[hash[i] % 16];
+	}
+	/* *a = 0; */
+
+	return asciihash;
+}
 
 
 static const char *
 datestat(struct stat *st)
 {
-	snprintf(hexdate, sizeof hexdate, "%016" PRIx64, (uint64_t)st->st_ctime);
+	snprintf(hexdate, 16 + 1, "%016" PRIx64, (uint64_t)st->st_ctime);
 
 	return hexdate;
 }
@@ -659,9 +661,6 @@ check_record(char *line)
 }
 
 
-static char redoline[64 + 1 + 16 + 1 + PATH_MAX + 1];
-
-
 static int
 find_record(const char *filename)
 {
@@ -680,11 +679,6 @@ find_record(const char *filename)
 
                 while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
                         if (strcmp(target, redoline + 64 + 1 + 16 + 1) == 0) {
-				memcpy(asciihash, redoline, 64);
-				asciihash[64] = '\0';
-				memcpy(hexdate, redoline + 64 + 1, 16);
-				hexdate[16] = '\0';
-
 				find_err = 0;
 				break;
                         }
@@ -745,6 +739,8 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int 
 			prefix = updir;
 	}
 
+	asciihash[64] = 0;
+	hexdate[16] = 0;
 	if (dprintf(lock_fd, "%s %s %s%s\n", asciihash, hexdate, prefix, file) < 0) {
 		perror("dprintf");
 		err = TARGET_WRDEP_FAILED;
@@ -850,7 +846,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 					break;
 
 				memcpy(asciihash, line, 64);
-				asciihash[64] = '\0';
 
 				dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 				if (!dep_err)
@@ -865,7 +860,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				break;
 
 			memcpy(asciihash, line, 64);
-			asciihash[64] = '\0';
 
 			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (dep_err)
