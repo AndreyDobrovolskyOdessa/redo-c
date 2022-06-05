@@ -521,13 +521,18 @@ enum update_dep_errors {
 	TARGET_FORK_FAILED = 0x40,
 	TARGET_WAIT_FAILED = 0x50,
 	TARGET_NODIR = 0x60,
-	TARGET_LOOP = 0x70,
-	IS_SOURCE = 0x80
+	TARGET_LOOP = 0x70
 };
 
-#define FATAL_ERROR 0x7f
+#define DEP_ERRORS 0x7f
 
-#define UPDATED_RECENTLY 0x100
+
+enum hints {
+	IS_SOURCE = 0x80,
+	UPDATED_RECENTLY = 0x100
+};
+
+#define HINTS (~DEP_ERRORS)
 
 
 static int
@@ -753,7 +758,7 @@ static int update_dep(int *dir_fd, const char *dep_path, int nlevel);
 
 
 static int
-do_update_dep(int dir_fd, const char *dep_path, int nlevel)
+do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 {
 	int dep_dir_fd = dir_fd;
 	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
@@ -768,7 +773,9 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel)
 		close(dep_dir_fd);
 	}
 
-	return dep_err;
+	*hint = dep_err & HINTS;
+
+	return dep_err & DEP_ERRORS;
 }
 
 
@@ -852,9 +859,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				break;
 			}
 
-			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
-			hint = dep_err & (~FATAL_ERROR);
-			dep_err &= FATAL_ERROR;
+			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 
 			if (fflag || dep_err || dep_changed(line, hint))
 				break;
@@ -1005,9 +1010,7 @@ main(int argc, char *argv[])
 
 	for (i = 0 ; i < argc ; i++) {
 
-		dep_err = do_update_dep(main_dir_fd, argv[i], level);
-		hint = dep_err & (~FATAL_ERROR);
-		dep_err &= FATAL_ERROR;
+		dep_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
 		
 		if(dep_err == 0) {
 			if (lock_fd > 0) {
