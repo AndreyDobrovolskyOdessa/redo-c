@@ -673,10 +673,7 @@ find_record(const char *filename)
 
         if (f) {
 
-                while (fgets(redoline, sizeof redoline, f)) {
-                        if (check_record(redoline) == 0)
-                                break;
-
+                while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
                         if (strcmp(target, redoline + 64 + 1 + 16 + 1) == 0) {
 				memcpy(asciihash, redoline, 64);
 				asciihash[64] = '\0';
@@ -788,7 +785,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
-	int lock_fd, dep_err = 0;
+	int lock_fd, dep_err = 0, done = 0;
 
 	FILE *fredo;
 
@@ -838,7 +835,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	if (fredo) {
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		const char *filename = line + 64 + 1 + 16 + 1;
-		struct stat lock_st;
 		int hint;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
@@ -846,17 +842,14 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				if (dep_changed(line, IS_SOURCE))
 					break;
 
-				fclose(fredo);
-				fstat(lock_fd, &lock_st);		/* read with umask applied */
-				chmod(redofile, lock_st.st_mode);	/* freshen up redofile ctime */
-				close(lock_fd);
+				memcpy(asciihash, line, 64);
+				asciihash[64] = '\0';
 
-				if (remove(lockfile) != 0) {
-					perror("remove lock");
-					return TARGET_RM_FAILED;
-				}
+				dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
+				if (!dep_err)
+					done = 1;
 
-				return TARGET_UPTODATE;
+				break;
 			}
 
 			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
@@ -865,12 +858,21 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 			if (fflag || dep_err || dep_changed(line, hint))
 				break;
+
+			memcpy(asciihash, line, 64);
+			asciihash[64] = '\0';
+
+			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
+			if (dep_err)
+				break;
 		}
 		fclose(fredo);
 	}
 
 
-	if (!dep_err) {
+	if (!done && !dep_err) {
+		lseek(lock_fd, 0, SEEK_SET);
+
 		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
 
 		if (!dep_err) {
