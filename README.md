@@ -105,6 +105,9 @@ stdout of .do scripts is not captured. Feel free to start Your recipes with
     exec > $3 
 
 
+The current version never create or delete directories.
+
+
 #### Unimportant
 
 No default target.
