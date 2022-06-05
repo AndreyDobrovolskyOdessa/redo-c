@@ -129,7 +129,7 @@ In other words redo-ifchange, redo-icreate and redo-always links are redundant, 
 
 The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the personal .do scripts, looking like one already seen above:
 
-    test -e $1 && mv $1 $3 ;;
+    test -e $1 && mv $1 $3
 
 
 ### "Imaginary" target
