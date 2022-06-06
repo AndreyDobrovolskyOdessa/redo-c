@@ -316,14 +316,17 @@ setenvfd(const char *name, int i)
 	return setenv(name, buf, 1);
 }
 
+#define HASH_LEN 32
+#define HEXHASH_LEN (2 * HASH_LEN)
+#define HEXDATE_LEN 16
 
-static char redoline[64 + 1 + 16 + 1 + PATH_MAX + 1];
+
+static char redoline[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 
 static char * const asciihash = redoline;
-static char * const hexdate = redoline + 64 + 1;
-/*
-static char * const namebuf = redoline + 64 + 1 + 16 + 1;
-*/
+static char * const hexdate = redoline + HEXHASH_LEN + 1;
+static char * const namebuf = redoline + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+
 
 static char *
 hashfile(int fd)
@@ -345,20 +348,22 @@ hashfile(int fd)
 
 	sha256_sum(&ctx, hash);
 
-	for (i = 0, a = asciihash; i < 32; i++) {
+	for (i = 0, a = asciihash; i < HASH_LEN; i++) {
 		*a++ = hex[hash[i] / 16];
 		*a++ = hex[hash[i] % 16];
 	}
-	/* *a = 0; */
 
 	return asciihash;
 }
 
 
+#define stringize(s) stringyze(s)
+#define stringyze(s) #s
+
 static const char *
 datestat(struct stat *st)
 {
-	snprintf(hexdate, 16 + 1, "%016" PRIx64, (uint64_t)st->st_ctime);
+	snprintf(hexdate, HEXDATE_LEN + 1, "%0" stringize(HEXDATE_LEN) PRIx64, (uint64_t)st->st_ctime);
 
 	return hexdate;
 }
@@ -389,7 +394,7 @@ datefilename(const char *name)
 static const char *
 datebuild()
 {
-	static char build_date[17] = {'\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0','\0'};
+	static char build_date[HEXDATE_LEN + 1] = {'\0'};
 	const char *dateptr;
 
 	FILE *f;
@@ -397,12 +402,14 @@ datebuild()
 	if (build_date[0])
 		return build_date;
 
+	build_date[HEXDATE_LEN] = '\0';
+
 	dateptr = getenv("REDO_BUILD_DATE");
 	if (dateptr)
-		return memcpy(build_date, dateptr, 16);
+		return memcpy(build_date, dateptr, HEXDATE_LEN);
 
 	f = tmpfile();
-	memcpy(build_date, datefile(fileno(f)), 16);
+	memcpy(build_date, datefile(fileno(f)), HEXDATE_LEN);
 	fclose(f);
 
 	setenv("REDO_BUILD_DATE", build_date, 1);
@@ -647,7 +654,7 @@ check_record(char *line)
 {
 	int line_len = strlen(line);
 
-	if (line_len < 64 + 1 + 16 + 1 + 1)
+	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1)
 		return 0;
 
 	if (line[line_len - 1] != '\n') {
@@ -673,21 +680,21 @@ find_record(const char *filename)
 	strcpy((char *) base_name(redofile, 0), redo_prefix);
 	strcat(redofile, target);
 
-        FILE *f = fopen(redofile, "r");
+	FILE *f = fopen(redofile, "r");
 
-        if (f) {
+	if (f) {
 
-                while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
-                        if (strcmp(target, redoline + 64 + 1 + 16 + 1) == 0) {
+		while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
+			if (strcmp(target, namebuf) == 0) {
 				find_err = 0;
 				break;
-                        }
-                }
+			}
+		}
 
-                fclose(f);
-        }
+		fclose(f);
+	}
 
-        return find_err;
+	return find_err;
 }
 
 
@@ -695,22 +702,22 @@ find_record(const char *filename)
 static int
 dep_changed(const char *line, int hint)
 {
-	const char *filename = line + 64 + 1 + 16 + 1;
+	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
 
 	if ((hint & IS_SOURCE) || (((hint & UPDATED_RECENTLY) == 0) && (find_record(filename) != 0))){
-		if (strncmp(line + 64 + 1, datefilename(filename), 16) == 0)
+		if (strncmp(line + HEXHASH_LEN + 1, datefilename(filename), HEXDATE_LEN) == 0)
 			return 0;
 
 		fd = open(filename, O_RDONLY);
 		hashfile(fd);
 		close(fd);
 	} else {
-		if (strncmp(line + 64 + 1, hexdate, 16) == 0)
+		if (strncmp(line + HEXHASH_LEN + 1, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 	}
 
-	return strncmp(line, asciihash, 64) != 0;
+	return strncmp(line, asciihash, HEXHASH_LEN) != 0;
 }
 
 
@@ -739,8 +746,8 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int 
 			prefix = updir;
 	}
 
-	asciihash[64] = 0;
-	hexdate[16] = 0;
+	asciihash[HEXHASH_LEN] = 0;
+	hexdate[HEXDATE_LEN] = 0;
 	if (dprintf(lock_fd, "%s %s %s%s\n", asciihash, hexdate, prefix, file) < 0) {
 		perror("dprintf");
 		err = TARGET_WRDEP_FAILED;
@@ -836,8 +843,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	fredo = /* fflag ? NULL : */ fopen(redofile,"r");
 
 	if (fredo) {
-		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
-		const char *filename = line + 64 + 1 + 16 + 1;
+		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
+		const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 		int hint;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
@@ -845,7 +852,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				if (dep_changed(line, IS_SOURCE))
 					break;
 
-				memcpy(asciihash, line, 64);
+				memcpy(asciihash, line, HEXHASH_LEN);
 
 				dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 				if (!dep_err)
@@ -859,7 +866,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (fflag || dep_err || dep_changed(line, hint))
 				break;
 
-			memcpy(asciihash, line, 64);
+			memcpy(asciihash, line, HEXHASH_LEN);
 
 			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (dep_err)
