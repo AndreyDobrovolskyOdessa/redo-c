@@ -323,7 +323,7 @@ setenvfd(const char *name, int i)
 
 static char redoline[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 
-static char * const asciihash = redoline;
+static char * const hexhash = redoline;
 static char * const hexdate = redoline + HEXHASH_LEN + 1;
 static char * const namebuf = redoline + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 
@@ -336,7 +336,7 @@ hashfile(int fd)
 	struct sha256 ctx;
 	char buf[4096];
 	char *a;
-	unsigned char hash[32];
+	unsigned char hash[HASH_LEN];
 	int i;
 	ssize_t r;
 
@@ -348,12 +348,12 @@ hashfile(int fd)
 
 	sha256_sum(&ctx, hash);
 
-	for (i = 0, a = asciihash; i < HASH_LEN; i++) {
+	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
 		*a++ = hex[hash[i] / 16];
 		*a++ = hex[hash[i] % 16];
 	}
 
-	return asciihash;
+	return hexhash;
 }
 
 
@@ -717,7 +717,7 @@ dep_changed(const char *line, int hint)
 			return 0;
 	}
 
-	return strncmp(line, asciihash, HEXHASH_LEN) != 0;
+	return strncmp(line, hexhash, HEXHASH_LEN) != 0;
 }
 
 
@@ -746,9 +746,9 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int 
 			prefix = updir;
 	}
 
-	asciihash[HEXHASH_LEN] = 0;
+	hexhash[HEXHASH_LEN] = 0;
 	hexdate[HEXDATE_LEN] = 0;
-	if (dprintf(lock_fd, "%s %s %s%s\n", asciihash, hexdate, prefix, file) < 0) {
+	if (dprintf(lock_fd, "%s %s %s%s\n", hexhash, hexdate, prefix, file) < 0) {
 		perror("dprintf");
 		err = TARGET_WRDEP_FAILED;
 	}
@@ -852,7 +852,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				if (dep_changed(line, IS_SOURCE))
 					break;
 
-				memcpy(asciihash, line, HEXHASH_LEN);
+				memcpy(hexhash, line, HEXHASH_LEN);
 
 				dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 				if (!dep_err)
@@ -866,7 +866,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (fflag || dep_err || dep_changed(line, hint))
 				break;
 
-			memcpy(asciihash, line, HEXHASH_LEN);
+			memcpy(hexhash, line, HEXHASH_LEN);
 
 			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (dep_err)
