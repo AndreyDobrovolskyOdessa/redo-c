@@ -79,7 +79,7 @@ Improve performance avoiding unnecessary targets scripts' execution. As deep as 
 
 #### Important
 
-The current implementation (dev2 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding .do files, while sources - don't. KISS.
+The current implementation (dev3 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding .do files, while sources - don't. KISS.
 
 Actively used nowadays implementations:
 
