@@ -202,6 +202,8 @@ static const char redo_prefix[] =   ".redo.";
 static const char lock_prefix[] =   ".redo..redo.";
 static const char target_prefix[] = ".redo..redo..redo.";
 
+static const char updir[] = "../";
+
 
 static char *
 track(const char *target, int track_op)
@@ -331,7 +333,7 @@ static char * const namebuf = redoline + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 static char *
 hashfile(int fd)
 {
-	static char hex[16] = "0123456789abcdef";
+	static char hex[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 	struct sha256 ctx;
 	char buf[4096];
@@ -349,8 +351,8 @@ hashfile(int fd)
 	sha256_sum(&ctx, hash);
 
 	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hex[hash[i] / 16];
-		*a++ = hex[hash[i] % 16];
+		*a++ = hex[hash[i] / sizeof hex];
+		*a++ = hex[hash[i] % sizeof hex];
 	}
 
 	return hexhash;
@@ -460,7 +462,7 @@ static char *
 find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash)
 {
 	static const char default_name[] = "default", suffix[] = ".do";
-	const char *name = default_name + (sizeof default_name - 1);
+	const char *name = "";
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
@@ -504,14 +506,11 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 			}
 		}
 
-		if (dofile_free < 3)
+		if (dofile_free < (sizeof updir - 1))
 			return 0;
-		dofile_free -= 3;
+		dofile_free -= sizeof updir - 1;
 
-		*dofile++ = '.';
-		*dofile++ = '.';
-		*dofile++ = '/';
-		*dofile = 0;
+		dofile = stpcpy(dofile, updir);
 	}
 
 	return 0;
@@ -933,10 +932,7 @@ compute_updir(const char *dp, char *u)
 		dp = strchr(dp, '/');
 		if (dp) {
 			dp++;
-			*u++ = '.';
-			*u++ = '.';
-			*u++ = '/';
-			*u = 0;
+			u = stpcpy(u, updir);
 		}
 	}
 }
