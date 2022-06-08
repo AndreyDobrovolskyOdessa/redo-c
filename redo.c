@@ -543,10 +543,13 @@ enum hints {
 #define HINTS (~DEP_ERRORS)
 
 
+int xflag, fflag, sflag, tflag, oflag;
+
+
 static int
 choose(const char *old, const char *new, int err)
 {
-	if (err) {
+	if (err || oflag) {
 		if ((access(new, F_OK) == 0) && (remove(new) != 0)) {
 			perror("remove new");
 			err |= TARGET_RM_FAILED;
@@ -564,9 +567,6 @@ choose(const char *old, const char *new, int err)
 
 	return err;
 }
-
-
-int xflag, fflag, sflag, tflag;
 
 
 static int 
@@ -715,8 +715,19 @@ dep_changed(const char *line, int hint)
 		if (strncmp(line + HEXHASH_LEN + 1, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 	}
-
+/*
 	return strncmp(line, hexhash, HEXHASH_LEN) != 0;
+*/
+	if (strncmp(line, hexhash, HEXHASH_LEN) == 0)
+		return 0;
+
+	if (oflag) {
+		if (hint == IS_SOURCE)
+			fprintf(stdout, "%s\n", filename);
+		return 0;
+	}
+
+	return 1;
 }
 
 
@@ -833,7 +844,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	strcpy(stpcpy(lockfile, lock_prefix), target);
 
-	lock_fd = open(lockfile, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (fflag ? 0 : O_EXCL), 0666);
 	if (lock_fd < 0) {
 		fprintf(stderr, "Target busy -- %s\n", target);
 		return TARGET_BUSY;
@@ -862,7 +873,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 
-			if (fflag || dep_err || dep_changed(line, hint))
+			if ((fflag && !oflag) || dep_err || dep_changed(line, hint))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
@@ -875,7 +886,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 
-	if (!done && !dep_err) {
+	if (!oflag && !done && !dep_err) {
 		lseek(lock_fd, 0, SEEK_SET);
 
 		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
@@ -963,7 +974,7 @@ main(int argc, char *argv[])
 	const char *program = base_name(argv[0], 0);
 
 
-	while ((opt = getopt(argc, argv, "+xfst")) != -1) {
+	while ((opt = getopt(argc, argv, "+xfsto")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -977,8 +988,11 @@ main(int argc, char *argv[])
 		case 't':
 			setenvfd("REDO_LIST_TARGETS", 1);
 			break;
+		case 'o':
+			setenvfd("REDO_LIST_OUTDATED", 1);
+			break;
 		default:
-			fprintf(stderr, "usage: redo [-fxst]  [TARGETS...]\n");
+			fprintf(stderr, "usage: redo [-xsoft]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -989,6 +1003,7 @@ main(int argc, char *argv[])
 	xflag = envint("REDO_TRACE");
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
+	oflag = envint("REDO_LIST_OUTDATED");
 
 	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");

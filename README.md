@@ -150,13 +150,17 @@ Of course such targets can not exist, but they may have the corresponding script
 
 ### Options available
 
--f
+-f	all targets are considered outdated\
+	all locks are cleared - be watchful and handle with care
 
 -x
 
--s list source files' full paths to stdout
+-s	list source files' full paths to stdout
 
--t list target files' full paths to stdout
+-t	list target files' full paths to stdout
+
+-o	list outdated files' relative paths to stdout\
+	inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed
 
 
 ### Loop dependencies
@@ -168,14 +172,13 @@ Are monitored unconditionally and issue error if found.
 
 If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
 
-    find -name ".redo..redo.*" -delete
+    redo -of ''
 
 
-If You need to make "hard reset" of Your build tree, then
+The best way to apply "hard reset" at Your build tree is:
 
-    find -name ".redo.*" -delete
+    redo -f ''
 
-will help.
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
