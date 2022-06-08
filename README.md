@@ -115,39 +115,6 @@ No default target.
 "redo" doesn't force execution of up-to-date targets' dofiles.
 
 
-#### Hints
-
-If You prefer makefile-like default.do, probably You use "case" selector for distinguishing the recipes. Then the default branch recipe may look like
-
-    *) test -e $1 && mv $1 $3 ;;
-
-
-In fact current version implements only 2 utilities from redo family: redo-ifchange and redo-always. This short list may be reduced to redo-ifchange only. redo-always may be easily implemented as
-
-    redo .redo.$1
-
-using the fact, that dot-files are invisible for default*.do files.
-
-In other words redo-ifchange, redo-icreate and redo-always links are redundant, everything may be done with redo itself.
-
-The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the personal .do scripts, looking like one already seen above:
-
-    test -e $1 && mv $1 $3
-
-
-### "Imaginary" target
-
-The current version of redo supports the nameless targets such as :
-
-    redo ''
-
-    redo ./
-
-    redo some-dir/
-
-Of course such targets can not exist, but they may have the corresponding script, named ".do". If You want to build "" target, then ".do" script will be looked for in the target directory and all upper dirs, without any "default" prefixes applicable. Such "imaginary" target may be an interesting replace for "all" target. The difference is in "default" rules, which are applicable for "all" target, but are ignored for "" target.
-
-
 ### Options available
 
 * `-f` All targets are considered outdated. All locks are cleared - be watchful and handle with care
@@ -176,6 +143,45 @@ If for some reason Your build was interrupted and You suffer of fake "Target bus
 The best way to apply "hard reset" at Your build tree is:
 
     redo -f ''
+
+
+### "Imaginary" target
+
+The current version of redo supports the nameless targets such as :
+
+    redo ''
+
+    redo ./
+
+    redo some-dir/
+
+Of course such targets can not exist, but they may have the corresponding script, named ".do". If You want to build "" target, then ".do" script will be looked for in the target directory and all upper dirs, without any "default" prefixes applicable. Such "imaginary" target may be an interesting replace for "all" target. The difference is in "default" rules, which are applicable for "all" target, but are ignored for "" target.
+
+
+#### Hints
+
+If You prefer makefile-like default.do, probably You use "case" selector for distinguishing the recipes. Then the default branch recipe may look like
+
+    *) test -e $1 && mv $1 $3 ;;
+
+
+In fact current version implements only 2 utilities from redo family: redo-ifchange and redo-always. This short list may be reduced to redo-ifchange only. redo-always may be easily implemented as
+
+    redo .redo.$1
+
+using the fact, that dot-files are invisible for default*.do files.
+
+In other words redo-ifchange, redo-icreate and redo-always links are redundant, everything may be done with redo itself.
+
+
+The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the personal .do scripts, looking like one already seen above:
+
+    test -e $1 && mv $1 $3
+
+
+If You implement "redo-always" as "redo .redo.$1" then You can obtain the list of redone-always targets with:
+
+    redo -s '' 2>/dev/null | sort | uniq | grep '.redo.' | sed 's/.redo.//'
 
 
 
