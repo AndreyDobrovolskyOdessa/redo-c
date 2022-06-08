@@ -133,18 +133,6 @@ No default target.
 Are monitored unconditionally and issue error if found.
 
 
-### Troubleshooting
-
-If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
-
-    redo -of ''
-
-
-The best way to apply "hard reset" at Your build tree is:
-
-    redo -f ''
-
-
 ### "Imaginary" target
 
 The current version of redo supports the nameless targets such as :
@@ -158,7 +146,19 @@ The current version of redo supports the nameless targets such as :
 Of course such targets can not exist, but they may have the corresponding script, named ".do". If You want to build "" target, then ".do" script will be looked for in the target directory and all upper dirs, without any "default" prefixes applicable. Such "imaginary" target may be an interesting replace for "all" target. The difference is in "default" rules, which are applicable for "all" target, but are ignored for "" target.
 
 
-#### Hints
+### Troubleshooting
+
+If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
+
+    redo -of ''
+
+
+The best way to apply "hard reset" at Your build tree is:
+
+    redo -f ''
+
+
+### Hints
 
 If You prefer makefile-like default.do, probably You use "case" selector for distinguishing the recipes. Then the default branch recipe may look like
 
