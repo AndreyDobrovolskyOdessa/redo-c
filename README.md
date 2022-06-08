@@ -150,17 +150,15 @@ Of course such targets can not exist, but they may have the corresponding script
 
 ### Options available
 
--f	all targets are considered outdated\
-	all locks are cleared - be watchful and handle with care
+-f      All targets are considered outdated. All locks are cleared - be watchful and handle with care
 
 -x
 
--s	list source files' full paths to stdout
+-s      List source files' full paths to stdout
 
--t	list target files' full paths to stdout
+-t      List target files' full paths to stdout
 
--o	list outdated files' relative paths to stdout\
-	inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed
+-o      List outdated files' relative paths to stdout. Inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed
 
 
 ### Loop dependencies
