@@ -543,13 +543,13 @@ enum hints {
 #define HINTS (~DEP_ERRORS)
 
 
-int xflag, fflag, sflag, tflag, oflag, iflag;
+int xflag, fflag, sflag, tflag, oflag, iflag, nflag;
 
 
 static int
 choose(const char *old, const char *new, int err)
 {
-	if (err || oflag) {
+	if (err || nflag) {
 		if ((access(new, F_OK) == 0) && (remove(new) != 0)) {
 			perror("remove new");
 			err |= TARGET_RM_FAILED;
@@ -881,7 +881,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 
-	if (!oflag && !dep_err && wanted) {
+	if (!nflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
 		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
@@ -969,7 +969,7 @@ main(int argc, char *argv[])
 	const char *program = base_name(argv[0], 0);
 
 
-	while ((opt = getopt(argc, argv, "+softix")) != -1) {
+	while ((opt = getopt(argc, argv, "+softnix")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -989,8 +989,11 @@ main(int argc, char *argv[])
 		case 'i':
 			setenvfd("REDO_IGNORE_LOCKS", 1);
 			break;
+		case 'n':
+			setenvfd("REDO_NOEXEC", 1);
+			break;
 		default:
-			fprintf(stderr, "usage: redo [-softix]  [TARGETS...]\n");
+			fprintf(stderr, "usage: redo [-sixfont]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1001,9 +1004,11 @@ main(int argc, char *argv[])
 	xflag = envint("REDO_TRACE");
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
+	nflag = envint("REDO_NOEXEC");
 	oflag = envint("REDO_LIST_OUTDATED");
-	if (oflag)
-		fflag = 0;
+	if (oflag) {
+		nflag = 1;
+	}
 	iflag = envint("REDO_IGNORE_LOCKS");
 
 	lock_fd = envfd("REDO_LOCK_FD");

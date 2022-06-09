@@ -119,13 +119,15 @@ No default target.
 
 * `-f` All targets are considered outdated. Usefulness doubtful.
 
+* `-n` Inhibits .do files execution. Supersedes "-f".
+
 * `-x`
 
 * `-s` List source files' full paths to stdout.
 
 * `-t` List target files' full paths to stdout.
 
-* `-o` List outdated files' relative paths to stdout. Inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed.
+* `-o` List outdated files' relative paths to stdout. Implies "-n".
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable.
 
