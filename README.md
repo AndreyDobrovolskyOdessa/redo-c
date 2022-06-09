@@ -117,15 +117,17 @@ No default target.
 
 ### Options available
 
-* `-f` All targets are considered outdated. All locks are cleared - be watchful and handle with care
+* `-f` All targets are considered outdated. Usefulness doubtful.
 
 * `-x`
 
-* `-s` List source files' full paths to stdout
+* `-s` List source files' full paths to stdout.
 
-* `-t` List target files' full paths to stdout
+* `-t` List target files' full paths to stdout.
 
-* `-o` List outdated files' relative paths to stdout. Inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed
+* `-o` List outdated files' relative paths to stdout. Inhibits .do files execution, supersedes -f notion to build everything, thus unbuilt yet parts of the build tree remain unreacheable and are not listed.
+
+* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable.
 
 
 ### Loop dependencies
@@ -150,12 +152,9 @@ Of course such targets can not exist, but they may have the corresponding script
 
 If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
 
-    redo -of ''
+    redo -i ''
 
-
-The best way to apply "hard reset" at Your build tree is:
-
-    redo -f ''
+remembering, that use of this option is permitted only if possibility of parallel build is absolutely obviated. 
 
 
 ### Hints
