@@ -715,9 +715,7 @@ dep_changed(const char *line, int hint)
 		if (strncmp(line + HEXHASH_LEN + 1, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 	}
-/*
-	return strncmp(line, hexhash, HEXHASH_LEN) != 0;
-*/
+
 	if (strncmp(line, hexhash, HEXHASH_LEN) == 0)
 		return 0;
 

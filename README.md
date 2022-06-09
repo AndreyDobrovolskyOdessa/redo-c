@@ -119,7 +119,7 @@ No default target.
 
 * `-f` All targets are considered outdated. Usefulness doubtful.
 
-* `-n` Inhibits .do files execution. Supersedes "-f".
+* `-n` Inhibits .do files execution. Supersedes `-f`.
 
 * `-x`
 
@@ -127,7 +127,7 @@ No default target.
 
 * `-t` List target files' full paths to stdout.
 
-* `-o` List outdated files' relative paths to stdout. Implies "-n".
+* `-o` List outdated files' relative paths to stdout. Implies `-n`.
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable.
 
@@ -156,7 +156,7 @@ If for some reason Your build was interrupted and You suffer of fake "Target bus
 
     redo -i ''
 
-remembering, that use of this option is permitted only if possibility of parallel build is absolutely obviated. 
+keeping in mind that use of this option is safe only if possibility of parallel build is absolutely obviated. 
 
 
 ### Hints
