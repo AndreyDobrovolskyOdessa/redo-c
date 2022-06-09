@@ -805,7 +805,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
-	int lock_fd, dep_err = 0, done = 0;
+	int lock_fd, dep_err = 0, wanted = 1;
 
 	FILE *fredo;
 
@@ -855,25 +855,15 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 		const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
-		int hint;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
-			if (strcmp(filename, target) == 0) {	/* last line in .redo. file */
-				if (dep_changed(line, IS_SOURCE))
-					break;
+			int last = !strcmp(filename, target);
+			int hint = IS_SOURCE;
 
-				memcpy(hexhash, line, HEXHASH_LEN);
+			if (!last)
+				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 
-				dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
-				if (!dep_err)
-					done = 1;
-
-				break;
-			}
-
-			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
-
-			if (fflag || dep_err || dep_changed(line, hint))
+			if (dep_err || dep_changed(line, hint))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
@@ -881,12 +871,17 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (dep_err)
 				break;
+
+			if (last) {
+				wanted = fflag;
+				break;
+			}
 		}
 		fclose(fredo);
 	}
 
 
-	if (!oflag && !done && !dep_err) {
+	if (!oflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
 		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
