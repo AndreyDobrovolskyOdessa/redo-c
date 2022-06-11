@@ -449,6 +449,9 @@ file_chdir(int *fd, const char *name)
 }
 
 
+int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0;
+
+
 /*
 dir/base.a.b
 	will look for dir/base.a.b.do,
@@ -482,6 +485,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 		while (1) {
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
+
+			if (wflag)
+				fprintf(stdout, "%s\n", dofile_rel);
 
 			if ((access(dofile_rel, F_OK) == 0) && (strcmp(target, dofile_rel) != 0 /* no self-doing */ )) {
 				if (*s == '.')
@@ -541,9 +547,6 @@ enum hints {
 };
 
 #define HINTS (~DEP_ERRORS)
-
-
-int xflag, fflag, sflag, tflag, oflag, iflag, nflag;
 
 
 static int
@@ -967,7 +970,7 @@ main(int argc, char *argv[])
 	const char *program = base_name(argv[0], 0);
 
 
-	while ((opt = getopt(argc, argv, "+softnix")) != -1) {
+	while ((opt = getopt(argc, argv, "+softwnix")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -982,16 +985,20 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LIST_TARGETS", 1);
 			break;
 		case 'o':
-			setenvfd("REDO_LIST_OUTDATED", 1);
+			oflag = 1;
+			nflag = 1;
 			break;
 		case 'i':
 			setenvfd("REDO_IGNORE_LOCKS", 1);
 			break;
 		case 'n':
-			setenvfd("REDO_NOEXEC", 1);
+			nflag = 1;
+			break;
+		case 'w':
+			wflag = 1;
 			break;
 		default:
-			fprintf(stderr, "usage: redo [-sixfont]  [TARGETS...]\n");
+			fprintf(stderr, "usage: redo [-swiftnox]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1002,11 +1009,6 @@ main(int argc, char *argv[])
 	xflag = envint("REDO_TRACE");
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
-	nflag = envint("REDO_NOEXEC");
-	oflag = envint("REDO_LIST_OUTDATED");
-	if (oflag) {
-		nflag = 1;
-	}
 	iflag = envint("REDO_IGNORE_LOCKS");
 
 	lock_fd = envfd("REDO_LOCK_FD");

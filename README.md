@@ -129,6 +129,8 @@ No default target.
 
 * `-o` List outdated files' relative paths to stdout. Implies `-n`.
 
+* `-w` Log find_dofile() steps to stdout.
+
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable.
 
 
