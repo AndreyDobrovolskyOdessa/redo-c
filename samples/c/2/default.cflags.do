@@ -21,7 +21,9 @@ end
 local f
 
 if Deps:match("[^%s]") then
-  Assert("redo .redo." .. arg[1])
+  local TDir, TName = arg[1]:match("(.-)([^/]*)$")
+
+  Assert("redo " .. TDir .. ".redo." .. TName)
   f = assert(io.popen("pkg-config --cflags " .. Deps))
   Cflags = Cflags .. " " .. f:read()
   assert(f:close())
