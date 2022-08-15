@@ -856,12 +856,18 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 		const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
-			int last = !strcmp(filename, target);
+			int is_target = !strcmp(filename, target);
 			int hint = IS_SOURCE;
 
-			if (!last)
+			if (is_dofile && strcmp(filename, dofile_rel))
+				break;
+
+			is_dofile = 0;
+
+			if (!is_target)
 				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 
 			if (dep_err || dep_changed(line, hint))
@@ -873,7 +879,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (dep_err)
 				break;
 
-			if (last) {
+			if (is_target) {
 				wanted = fflag;
 				break;
 			}
