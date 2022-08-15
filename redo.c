@@ -778,6 +778,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		char line[64 + 1 + 16 + 1 + PATH_MAX + 1];
 		const char *filename = line + 64 + 1 + 16 + 1;
 		struct stat lock_st;
+		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			if (strcmp(filename, target) == 0) {	/* last line in .redo. file */
@@ -796,6 +797,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 				return TARGET_UPTODATE;
 			}
+
+			if (is_dofile && strcmp(filename, dofile_rel))
+				break;
+
+			is_dofile = 0;
 
 			dep_err = do_update_dep(*dir_fd, filename, nlevel + 1);
 
