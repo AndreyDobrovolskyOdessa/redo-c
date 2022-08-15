@@ -100,7 +100,7 @@ Non-existing targets are not expected out-of-date unconditionally. If for exampl
 
 #### Less important
 
-stdout of .do scripts is not captured. Feel free to start Your recipes with
+stdout of `.do` scripts is not captured. Feel free to start Your recipes with
 
     exec > $3 
 
@@ -119,7 +119,7 @@ No default target.
 
 * `-f` All targets are considered outdated. Usefulness doubtful.
 
-* `-n` Inhibits .do files execution. Supersedes `-f`.
+* `-n` Inhibits `.do` files execution. Supersedes `-f`.
 
 * `-x`
 
