@@ -975,6 +975,7 @@ main(int argc, char *argv[])
 
 	const char *program = base_name(argv[0], 0);
 
+	opterr = 0;
 
 	while ((opt = getopt(argc, argv, "+softwnix")) != -1) {
 		switch (opt) {
@@ -1004,7 +1005,7 @@ main(int argc, char *argv[])
 			wflag = 1;
 			break;
 		default:
-			fprintf(stderr, "usage: redo [-swiftnox]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-foxtwins]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
