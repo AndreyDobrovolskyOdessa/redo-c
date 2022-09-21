@@ -22,7 +22,7 @@ else # bootstrapping
   cc -o redo redo.c &&
   {
     test -z "$1" &&
-    PATH=$PWD:$PATH ||
+    { test "$(which redo)" = "$PWD"/redo || PATH=$PWD:$PATH; } ||
     { test -d "$1" && mv -i redo "$1"; } &&
     (
       cd "${1:-.}"
