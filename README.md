@@ -68,11 +68,11 @@ Improve performance avoiding unnecessary targets scripts' execution. As deep as 
 
 ### Test-drive
 
-    DESTDIR= ; . ./redo.do
+    . ./redo.do
 
 ### Kick-start
 
-    (DESTDIR=$HOME/.local/bin ; . ./redo.do)
+    . ./redo.do $HOME/.local/bin
 
 
 ### Compatibility notes
