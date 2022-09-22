@@ -16,8 +16,9 @@
 
 if test -n "$REDO_LEVEL"
 then # driven by redo
-  redo redo.c
-  cc -o "$3" redo.c
+  redo redo.c local.cflags
+  test -f local.cflags && CFLAGS="$(cat local.cflags)"
+  cc $CFLAGS -o "$3" redo.c
 else # bootstrapping
   cc -o redo redo.c &&
   {
