@@ -449,7 +449,7 @@ file_chdir(int *fd, const char *name)
 }
 
 
-int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = -1;
+int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = 0;
 
 
 /*
@@ -1013,7 +1013,7 @@ main(int argc, char *argv[])
 				setenvfd("REDO_DOFILES", ++eflag);
 			break;
 		default:
-			fprintf(stderr, "Usage: redo [-neetwisefox]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-tenwisefox]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
