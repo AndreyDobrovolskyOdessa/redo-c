@@ -449,7 +449,7 @@ file_chdir(int *fd, const char *name)
 }
 
 
-int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0;
+int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = -1;
 
 
 /*
@@ -469,12 +469,16 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
-	/* we may avoid doing default*.do files */
-	/*
-	if ((strncmp(target, default_name, sizeof default_name - 1) == 0) &&
-	    (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0))
-		return 0;
-	*/
+	/* we can suppress *.do or default*.do files doing */
+
+	if (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0) {
+		if (eflag < 1)
+			return 0;
+		if (strncmp(target, default_name, sizeof default_name - 1) == 0) {
+			if (eflag < 2)
+				return 0;
+		}
+	}
 
 	if (dofile_free < (strlen(target) + sizeof suffix))
 		return 0;
@@ -851,7 +855,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return TARGET_BUSY;
 	}
 
-	fredo = /* fflag ? NULL : */ fopen(redofile,"r");
+	fredo = fopen(redofile,"r");
 
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
@@ -977,7 +981,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+softwnix")) != -1) {
+	while ((opt = getopt(argc, argv, "+fewtoxins")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1004,8 +1008,12 @@ main(int argc, char *argv[])
 		case 'w':
 			wflag = 1;
 			break;
+		case 'e':
+			if (eflag < 2)
+				setenvfd("REDO_DOFILES", ++eflag);
+			break;
 		default:
-			fprintf(stderr, "Usage: redo [-foxtwins]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-neetwisefox]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1017,6 +1025,7 @@ main(int argc, char *argv[])
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
 	iflag = envint("REDO_IGNORE_LOCKS");
+	eflag = envint("REDO_DOFILES");
 
 	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");

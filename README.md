@@ -66,13 +66,22 @@ dev3 branch attempts to minimize hashing expenses.
 
 Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `.redo.A` file.
 
+
 ### Test-drive
 
     . ./redo.do
 
+
 ### Kick-start
 
     . ./redo.do $HOME/.local/bin
+
+
+### Standalone build
+
+Add `redo.c` and `redo.do` files to Your project and build with
+
+    (. ./redo.do; redo <target>)
 
 
 ### Compatibility notes
@@ -117,21 +126,23 @@ No default target.
 
 ### Options available
 
-* `-f` All targets are considered outdated. Usefulness doubtful.
+* `-f` All targets are considered outdated. Usefulness doubtful. `REDO_FORCE={0,1}`
 
 * `-n` Inhibits `.do` files execution. Supersedes `-f`.
 
-* `-x`
+* `-x` See above. `REDO_TRACE={0,1}`
 
-* `-s` List source files' full paths to stdout.
+* `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1}`
 
-* `-t` List target files' full paths to stdout.
+* `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1}`
 
 * `-o` List outdated files' relative paths to stdout. Implies `-n`.
 
 * `-w` Log find_dofile() steps to stdout.
 
-* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable.
+* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
+
+* `-e`, `-ee`, `-eee` Fine tune .do files doing. `REDO_DOFILES={0,1,2}`. 0 (`-e`) suppress doing of `*.do` files, 1 (`-ee`) suppress doing of `default*.do` files, 2 (`-eee`) allows attempts to do anything but self-doing. Default is 0.
 
 
 ### Loop dependencies
