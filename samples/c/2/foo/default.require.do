@@ -99,9 +99,13 @@ end
 
 for i, rn in ipairs(RNames) do
   local RDir = rn:match(".*/", TNameStart) or ""
-  for r in io.lines(rn) do
-    local n = r:match("%.o$") and Sanitize(RDir .. r) or r
-    DepNames[n] = true
+  local fr = io.open(rn)
+  if fr then
+    for r in fr:lines() do
+      local n = r:match("%.o$") and Sanitize(RDir .. r) or r
+      DepNames[n] = true
+    end
+    fr:close()
   end
 end
 
