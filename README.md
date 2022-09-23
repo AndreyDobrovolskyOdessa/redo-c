@@ -144,10 +144,12 @@ No default target.
 
 * `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything but self-doing.
 
+* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
+
 
 ### Loop dependencies
 
-Are monitored unconditionally and issue error if found.
+Are monitored unconditionally and issue error or warning if found.
 
 
 ### "Imaginary" target

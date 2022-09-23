@@ -449,7 +449,7 @@ file_chdir(int *fd, const char *name)
 }
 
 
-int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = 0;
+int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = 0, lflag;
 
 
 /*
@@ -825,7 +825,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	target_full = track(target, 1);
 	if (target_full == 0){
 		fprintf(stderr, "Dependency loop attempt -- %s\n", dep_path);
-		return TARGET_LOOP;
+		return lflag ? IS_SOURCE : TARGET_LOOP;
 	}
 
 	if (strlen(target) >= sizeof target_base) {
@@ -981,7 +981,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+fewtoxins")) != -1) {
+	while ((opt = getopt(argc, argv, "+owlfixnest")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1012,8 +1012,11 @@ main(int argc, char *argv[])
 			if (eflag < 2)
 				setenvfd("REDO_DOFILES", ++eflag);
 			break;
+		case 'l':
+			setenvfd("REDO_LOOP_WARN", 1);
+			break;
 		default:
-			fprintf(stderr, "Usage: redo [-tenwisefox]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-steelfoxwin]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1026,6 +1029,7 @@ main(int argc, char *argv[])
 	tflag = envint("REDO_LIST_TARGETS");
 	iflag = envint("REDO_IGNORE_LOCKS");
 	eflag = envint("REDO_DOFILES");
+	lflag = envint("REDO_LOOP_WARN");
 
 	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");
