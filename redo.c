@@ -469,6 +469,11 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
+	/* ".redo.*" can not be the target */ 
+
+	if (strncmp(target, redo_prefix, sizeof redo_prefix - 1) == 0)
+		return 0;
+
 	/* we can suppress *.do or default*.do files doing */
 
 	if (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0) {
