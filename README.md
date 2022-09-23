@@ -189,15 +189,31 @@ using the fact, that dot-files are invisible for `default*.do` files.
 
 In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
 
+The rule of thumb for placing `redo-always` in the dofile is to make it the last `redo` invocation. In case You use `.redo.$1` for redo-always purposes it is nice to make it the last argument of the last `redo` inside dofile. Following this rule will guarantee the correctness of
 
-The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
+    redo -sn ''
 
-    test -e $1 && mv $1 $3
+or
+
+    redo -tn ''
+
+output for already built projects.
 
 
 If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
 
-    redo -s '' 2>/dev/null | sort | uniq | sed -n 's/\.redo\.//p'
+    redo -s '' > sources ; cat sources | sed -n 's/\.redo\.//p' | sort | uniq
+
+along with project building, or
+
+    redo -sn '' | sed -n 's/\.redo\.//p' | sort | uniq
+
+for the project already built.
+
+
+The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
+
+    test -e $1 && mv $1 $3
 
 
 

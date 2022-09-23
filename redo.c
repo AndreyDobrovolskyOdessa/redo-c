@@ -1042,9 +1042,6 @@ main(int argc, char *argv[])
 
 	track(getenv("REDO_TRACK"), 0);
 
-	if (strcmp(program, "redo-always") == 0)
-		dprintf(lock_fd, "\n");
-
 	compute_updir(dirprefix, updir);
 
 	datebuild();
@@ -1066,6 +1063,9 @@ main(int argc, char *argv[])
 		} else
 			return dep_err;
 	}
+
+	if (strcmp(program, "redo-always") == 0)
+		dprintf(lock_fd, "\n");
 
 	return redo_err;
 }
