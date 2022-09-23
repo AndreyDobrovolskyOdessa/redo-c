@@ -197,7 +197,7 @@ The current version optimizes targets' hahsing while sources are hashed one time
 
 If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
 
-    redo -s '' 2>/dev/null | sort | uniq | sed 's/\.redo\.//p'
+    redo -s '' 2>/dev/null | sort | uniq | sed -n 's/\.redo\.//p'
 
 
 
