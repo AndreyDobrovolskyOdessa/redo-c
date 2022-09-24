@@ -1026,7 +1026,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOOP_WARN", 1);
 			break;
 		default:
-			fprintf(stderr, "Usage: redo [-steelfoxwin]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-loftsexwine]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
