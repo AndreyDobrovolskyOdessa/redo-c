@@ -188,7 +188,7 @@ keeping in mind that use of this option is safe only if possibility of parallel 
 
 If You prefer makefile-like `default.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
 
-    *) test -e $1 && mv $1 $3 ;;
+    *) test -f $1 && mv $1 $3 ;;
 
 
 If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
@@ -198,9 +198,9 @@ If You implement `redo-always` as `redo .redo.$1` then You can obtain the list o
 for the project already built.
 
 
-The current version optimizes targets' hahsing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
+The current version optimizes targets' hashing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
 
-    test -e $1 && mv $1 $3
+    test -f $1 && mv $1 $3
 
 
 
