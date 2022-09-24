@@ -136,7 +136,7 @@ No default target.
 
 * `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1}`
 
-* `-o` List outdated files' relative paths to stdout. Implies `-n`.
+* `-o` List outdated files' full paths to stdout. Implies `-n`. Makes sense in conjunction with `-s` or (and) `-t` options.
 
 * `-w` Log find_dofile() steps to stdout.
 

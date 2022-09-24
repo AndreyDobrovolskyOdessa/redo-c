@@ -711,7 +711,7 @@ find_record(const char *filename)
 
 
 static int
-dep_changed(const char *line, int hint)
+dep_changed(const char *line, int hint, int is_target)
 {
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
@@ -732,8 +732,13 @@ dep_changed(const char *line, int hint)
 		return 0;
 
 	if (oflag) {
-		if (hint == IS_SOURCE)
-			fprintf(stdout, "%s\n", filename);
+		if (hint == IS_SOURCE) {
+			filename = track(0, 0);
+			if (is_target && tflag)
+				fprintf(stdout, "%s\n", strrchr(filename, ':') + 1);
+			if ((!is_target) && sflag)
+				fprintf(stdout, "%s\n", strchr(filename, '\0') + 1);
+		}
 		return 0;
 	}
 
@@ -840,12 +845,12 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	strcpy(target_base, target);
 	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full)) {
-		if (sflag)
+		if (sflag && (!oflag))
 			printf("%s\n", target_full);
 		return IS_SOURCE;
 	}
 
-	if (tflag)
+	if (tflag && (!oflag))
 		printf("%s\n", target_full);
 
 	strcpy(stpcpy(redofile, redo_prefix), target);
@@ -879,7 +884,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (!is_target)
 				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 
-			if (dep_err || dep_changed(line, hint))
+			if (dep_err || dep_changed(line, hint, is_target))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
