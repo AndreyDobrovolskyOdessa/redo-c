@@ -1070,7 +1070,7 @@ main(int argc, char *argv[])
 	}
 
 	if (strcmp(program, "redo-always") == 0)
-		dprintf(lock_fd, "\n");
+		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever       .redo..redo..redo..redo.\n");
 
 	return redo_err;
 }

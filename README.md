@@ -66,6 +66,18 @@ dev3 branch attempts to minimize hashing expenses.
 
 Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `.redo.A` file.
 
+The current implementation (dev3 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding `.do` files, while sources - don't. KISS.
+
+Actively used nowadays implementations:
+
+https://github.com/apenwarr/redo
+
+https://github.com/leahneukirchen/redo-c
+
+http://www.goredo.cypherpunks.ru
+
+use more sophisticated though more complicated and not so clear logic. The current `redo` version is an attempt to make it fully controllable with sources and `.do` files, which means, that `redo` internals are pure derivatives of sources and `.do` files and don't require any user attention or interventions.
+
 
 ### Test-drive
 
@@ -88,23 +100,10 @@ Add `redo.c` and `redo.do` files to Your project and build with
 
 #### Important
 
-The current implementation (dev3 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding `.do` files, while sources - don't. KISS.
-
-Actively used nowadays implementations:
-
-https://github.com/apenwarr/redo
-
-https://github.com/leahneukirchen/redo-c
-
-http://www.goredo.cypherpunks.ru
-
-use more sophisticated though more complicated and not so clear logic. The current `redo` version is an attempt to make it fully controllable with sources and `.do` files, which means, that `redo` internals are pure derivatives of sources and `.do` files and don't require any user attention or interventions.
-
-
 Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.redo.foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
 
 
-`.redo.` prefix is reserved for redo purposes. Files named `.redo.*` shouldn't be used in the current version builds as targets, sources or recipes.
+`.redo.` prefix is reserved for redo purposes. Files named `.redo.*` shouldn't be used in the current version builds as targets or recipes, but for some special purpose may be sources - see "Redo-always" section.
 
 
 #### Less important
@@ -114,14 +113,14 @@ stdout of `.do` scripts is not captured. Feel free to start Your recipes with
     exec > $3 
 
 
-The current version never create or delete directories.
+The 'redo' binary itself never create or delete directories. Let dofiles do this job.
 
 
 #### Unimportant
 
 No default target.
 
-`redo` doesn't force execution of up-to-date targets' dofiles.
+`redo` force rebuild of up-to-date targets only being told `-f`.
 
 
 ### Options available
@@ -150,6 +149,17 @@ No default target.
 ### Loop dependencies
 
 Are monitored unconditionally and issue error or warning if found.
+
+
+### Redo-always
+
+In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
+
+    redo .redo.$1
+
+using the fact, that `.redo.*` files are not allowed to have `*.do` files and can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
+
+In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
 
 
 ### "Imaginary" target
@@ -181,32 +191,9 @@ If You prefer makefile-like `default.do`, probably You use `case` selector for d
     *) test -e $1 && mv $1 $3 ;;
 
 
-In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
-
-    redo .redo.$1
-
-using the fact, that dot-files are invisible for `default*.do` files.
-
-In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
-
-The rule of thumb for placing `redo-always` in the dofile is to make it the last `redo` invocation. In case You use `.redo.$1` for redo-always purposes it is nice to make it the last argument of the last `redo` inside dofile. Following this rule will guarantee the correctness of
-
-    redo -sn ''
-
-or
-
-    redo -tn ''
-
-output for already built projects.
-
-
 If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
 
-    redo -s '' > sources ; cat sources | sed -n 's/\.redo\.//p' | sort | uniq
-
-along with project building, or
-
-    redo -sn '' | sed -n 's/\.redo\.//p' | sort | uniq
+    redo -os '' | sed -n 's/\.redo\.//p' | sort | uniq
 
 for the project already built.
 
