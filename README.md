@@ -127,7 +127,7 @@ No default target.
 
 * `-f` All targets are considered outdated. Usefulness doubtful. `REDO_FORCE={0,1}`
 
-* `-n` Inhibits `.do` files execution. Supersedes `-f`.
+* `-n` Inhibits `.do` files execution. Supersedes `-f`. Suppress dependency files' refreshing.
 
 * `-x` See above. `REDO_TRACE={0,1}`
 
@@ -135,7 +135,7 @@ No default target.
 
 * `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1}`
 
-* `-o` List outdated files' full paths to stdout. Implies `-n`. Makes sense in conjunction with `-s` or (and) `-t` options.
+* `-o` Already built targets are faked as up-to-date. Implies `-n`. In conjunction with `-s` or (and) `-t` options lists outdated files' full paths to stdout.
 
 * `-w` Log find_dofile() steps to stdout.
 
@@ -201,6 +201,11 @@ for the project already built.
 The current version optimizes targets' hashing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
 
     test -f $1 && mv $1 $3
+
+
+Test Your project for warnings without touching targets and refreshing dependency records
+
+    redo -ol ''
 
 
 
