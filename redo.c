@@ -665,8 +665,10 @@ check_record(char *line)
 {
 	int line_len = strlen(line);
 
-	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1)
+	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1) {
+		fprintf(stderr, "Warning: dependency record too short. Target will be rebuilt.\n");
 		return 0;
+	}
 
 	if (line[line_len - 1] != '\n') {
 		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
