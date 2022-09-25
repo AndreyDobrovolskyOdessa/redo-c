@@ -18,6 +18,15 @@
 */
 
 /*
+This redo-c version can be found at:
+
+https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/dev3
+
+which is the fork of:
+
+https://github.com/leahneukirchen/redo-c
+
+
 The purpose of this redo-c version is to fully unfold all advantages of hashed
 dpendencies records. It means that for the dependency tree a -> b -> c changing
 "c" must trigger execution of "b.do", but if the resulting "b" has the same
