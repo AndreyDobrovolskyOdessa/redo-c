@@ -458,16 +458,40 @@ file_chdir(int *fd, const char *name)
 }
 
 
-int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag = 0, lflag;
+int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag, lflag;
 
 
-/*
-dir/base.a.b
-	will look for dir/base.a.b.do,
-	dir/default.a.b.do, dir/default.b.do, dir/default.do,
-	default.a.b.do, default.b.do, and default.do.
+/*	find_dofile() logs
 
-this function assumes no / in target
+$ redo -w x.y
+x.y.do
+default.y.do
+default.do
+../default.y.do
+../default.do
+
+$ redo -we x.y.do.do
+x.y.do.do.do
+default.y.do.do.do
+default.do.do.do
+../default.y.do.do.do
+../default.do.do.do
+
+$ redo -wee default.y.do.do.do
+default.y.do.do.do.do
+default.y.do.do.do.do
+default.do.do.do.do
+../default.y.do.do.do.do
+../default.do.do.do.do
+
+$ redo -w .x.y.z
+.x.y.z.do
+../.x.y.z.do
+
+$ redo -w ''
+.do
+../.do
+
 */
 
 static char *
@@ -478,14 +502,34 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	char *ext  = target; 
 	char *dofile = dofile_rel;
 
-	/* ".redo.*" can not be the target */ 
+	char *target_end = strchr(target, '\0');
+	char *target_tail = target_end;
+	char *do_tail = target_tail;
+	const char *suffix_tail = suffix + sizeof suffix -1;
+
+
+	/* ".redo.*" can not be the target */
 
 	if (strncmp(target, redo_prefix, sizeof redo_prefix - 1) == 0)
 		return 0;
 
+
+	/* rewind .do tail inside target */
+
+	while (target_tail > target) {
+		target_tail--;
+		suffix_tail--;
+		if (*target_tail != *suffix_tail)
+			break;
+		if (suffix_tail == suffix) {
+			do_tail = target_tail;
+			suffix_tail += sizeof suffix - 1;
+		}
+	}
+
 	/* we can suppress *.do or default*.do files doing */
 
-	if (strcmp(strchr(target,'\0') - sizeof suffix + 1, suffix) == 0) {
+	if (do_tail != target_end) {
 		if (eflag < 1)
 			return 0;
 		if (strncmp(target, default_name, sizeof default_name - 1) == 0) {
@@ -507,16 +551,16 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 			if (wflag)
 				fprintf(stdout, "%s\n", dofile_rel);
 
-			if ((access(dofile_rel, F_OK) == 0) && (strcmp(target, dofile_rel) != 0 /* no self-doing */ )) {
+			if (access(dofile_rel, F_OK) == 0) {
 				if (*s == '.')
 					*s = '\0';
 				return dofile;
 			}
 
-			if ((*s == 0) || ((name != default_name) && (*s == '.')))
+			if ((s == do_tail) || ((name != default_name) && (*s == '.')))
 				break;
 
-			while (*++s && (*s != '.'));
+			while ((++s < do_tail) && (*s != '.'));
 
 			if (name != default_name) {
 				size_t required = (sizeof default_name - 1) + strlen(s);
@@ -1037,7 +1081,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOOP_WARN", 1);
 			break;
 		default:
-			fprintf(stderr, "Usage: redo [-loftsexwine]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-letfoxeswin]  [TARGETS...]\n");
 			exit(1);
 		}
 	}

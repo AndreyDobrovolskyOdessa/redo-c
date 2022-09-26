@@ -141,7 +141,7 @@ No default target.
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
 
-* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything but self-doing.
+* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything.
 
 * `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
 
