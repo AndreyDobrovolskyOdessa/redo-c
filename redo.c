@@ -470,19 +470,19 @@ default.do
 ../default.y.do
 ../default.do
 
-$ redo -we x.y.do.do
-x.y.do.do.do
-default.y.do.do.do
-default.do.do.do
-../default.y.do.do.do
-../default.do.do.do
+$ redo -we x.y.do
+x.y.do.do
+default.y.do.do
+default.do.do
+../default.y.do.do
+../default.do.do
 
-$ redo -wee default.y.do.do.do
-default.y.do.do.do.do
-default.y.do.do.do.do
-default.do.do.do.do
-../default.y.do.do.do.do
-../default.do.do.do.do
+$ redo -wee default.y.do
+default.y.do.do
+default.y.do.do
+default.do.do
+../default.y.do.do
+../default.do.do
 
 $ redo -w .x.y.z
 .x.y.z.do
@@ -503,9 +503,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	char *dofile = dofile_rel;
 
 	char *target_end = strchr(target, '\0');
-	char *target_tail = target_end;
-	char *do_tail = target_tail;
-	const char *suffix_tail = suffix + sizeof suffix -1;
+	char *target_ptr = target_end;
+	char *target_tail = target_ptr;
+	const char *suffix_ptr = suffix + sizeof suffix -1;
 
 
 	/* ".redo.*" can not be the target */
@@ -516,20 +516,18 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 	/* rewind .do tail inside target */
 
-	while (target_tail > target) {
-		target_tail--;
-		suffix_tail--;
-		if (*target_tail != *suffix_tail)
+	while (target_ptr > target) {
+		if (*--target_ptr != *--suffix_ptr)
 			break;
-		if (suffix_tail == suffix) {
-			do_tail = target_tail;
-			suffix_tail += sizeof suffix - 1;
+		if (suffix_ptr == suffix) {
+			target_tail = target_ptr;
+			suffix_ptr += sizeof suffix - 1;
 		}
 	}
 
 	/* we can suppress *.do or default*.do files doing */
 
-	if (do_tail != target_end) {
+	if (target_tail != target_end) {
 		if (eflag < 1)
 			return 0;
 		if (strncmp(target, default_name, sizeof default_name - 1) == 0) {
@@ -537,6 +535,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 				return 0;
 		}
 	}
+
+	if (*target == '.')
+		target_tail = target;
 
 	if (dofile_free < (strlen(target) + sizeof suffix))
 		return 0;
@@ -557,10 +558,10 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 				return dofile;
 			}
 
-			if ((s == do_tail) || ((name != default_name) && (*s == '.')))
+			if (s == target_tail)
 				break;
 
-			while ((++s < do_tail) && (*s != '.'));
+			while ((++s < target_tail) && (*s != '.'));
 
 			if (name != default_name) {
 				size_t required = (sizeof default_name - 1) + strlen(s);
