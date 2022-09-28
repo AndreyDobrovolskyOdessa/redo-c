@@ -131,19 +131,48 @@ No default target.
 
 * `-x` See above. `REDO_TRACE={0,1}`
 
-* `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1}`
+* `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1,2}`
 
-* `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1}`
+* `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1,2}`
 
-* `-o` In conjunction with `-s` or (and) `-t` options lists outdated files' full paths to stdout. Implies `-n`. Already built targets are faked as up-to-date.
+* `-o` "outdated" modifier for `-st` options. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date but outputing the outdated and selected ones' names.
 
-* `-w` Log find_dofile() steps to stdout.
+* `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-o` modifier.
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
 
 * `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything.
 
 * `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
+
+
+### Semi-targets
+
+Semi-targets are the targets without dependencies (hashed sources). Output options `-st` can be combined in order to achieve desired output:
+
+* `-s` sources only
+
+* `-st` semi-targets only
+
+* `-sst` sources and semi-targets
+
+* `-t` full targets only
+
+* `-stt` all targets
+
+* `-sstt` all files
+
+Targets are hashed once per build, while sources ae hashed once per dependence. If Your project includes big source files required by more than one target, converting this sources into semi-tagets will speed-up build and update.
+
+Conversion can be provided with the help of the following simple dofile:
+
+    test -f $1 && mv $1 $3
+
+Adding to Your project `default.do` file consisting of above shown command will convert all sources except `default.do` to semi-targets. Such conversion may slow-down projects with lot of small sources.
+
+If You prefer makefile-like `default.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
+
+    *) test -f $1 && mv $1 $3 ;;
 
 
 ### Loop dependencies
@@ -186,21 +215,11 @@ keeping in mind that use of this option is safe only if possibility of parallel 
 
 ### Hints
 
-If You prefer makefile-like `default.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
-
-    *) test -f $1 && mv $1 $3 ;;
-
-
 If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
 
     redo -os '' | sed -n 's/\.redo\.//p' | sort | uniq
 
 for the project already built.
-
-
-The current version optimizes targets' hashing while sources are hashed one time per dependency. If Your project includes big source files which appear to be multiple targets dependency, You can avoid their rehashing simply turning them into targets, for example with the help of the dedicated `.do` scripts, looking like one already seen above:
-
-    test -f $1 && mv $1 $3
 
 
 Test Your project for warnings without touching targets and refreshing dependency records

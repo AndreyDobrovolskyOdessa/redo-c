@@ -458,7 +458,10 @@ file_chdir(int *fd, const char *name)
 }
 
 
-int xflag, fflag, sflag, tflag, iflag, oflag = 0, nflag = 0, wflag = 0, eflag, lflag;
+/*	Flags      */
+
+int xflag, fflag, iflag, lflag, eflag = 0, sflag = 0, tflag = 0; /* exported */
+int oflag = 0, nflag = 0, wflag = 0, stflag;
 
 
 /*	find_dofile() logs
@@ -767,7 +770,7 @@ find_record(const char *filename)
 
 
 static int
-dep_changed(const char *line, int hint, int is_target)
+dep_changed(const char *line, int hint, int is_target, int has_deps)
 {
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
@@ -789,11 +792,14 @@ dep_changed(const char *line, int hint, int is_target)
 
 	if (oflag) {
 		if (hint == IS_SOURCE) {
-			filename = track(0, 0);
-			if (is_target && tflag)
-				fprintf(stdout, "%s\n", strrchr(filename, ':') + 1);
-			if ((!is_target) && sflag)
-				fprintf(stdout, "%s\n", strchr(filename, '\0') + 1);
+			const char *track_buf = track(0, 0);
+			if (is_target) {
+				if ((tflag && has_deps) || (stflag && (!has_deps)))
+					fprintf(stdout, "%s\n", strrchr(track_buf, ':') + 1);
+			} else {
+				if (sflag)
+					fprintf(stdout, "%s\n", strchr(track_buf, '\0') + 1);
+			}
 		}
 		return 0;
 	}
@@ -876,7 +882,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
-	int lock_fd, dep_err = 0, wanted = 1;
+	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0;
 
 	FILE *fredo;
 
@@ -906,9 +912,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return IS_SOURCE;
 	}
 
-	if (tflag && (!oflag))
-		printf("%s\n", target_full);
-
 	strcpy(stpcpy(redofile, redo_prefix), target);
 	if (strcmp(datefilename(redofile), datebuild()) >= 0)
 		return TARGET_UPTODATE;
@@ -932,15 +935,18 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			int is_target = !strcmp(filename, target);
 			int hint = IS_SOURCE;
 
-			if (is_dofile && strcmp(filename, dofile_rel))
+			if (is_dofile && (!oflag) && strcmp(filename, dofile_rel))
 				break;
+
+			if (!is_target) {
+				if (!is_dofile)
+					has_deps = 1;
+				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
+			}
 
 			is_dofile = 0;
 
-			if (!is_target)
-				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
-
-			if (dep_err || dep_changed(line, hint, is_target))
+			if (dep_err || dep_changed(line, hint, is_target, has_deps))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
@@ -957,6 +963,10 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		fclose(fredo);
 	}
 
+	if (!oflag) {
+		if ((tflag && has_deps) || (stflag && (!has_deps)))
+			printf("%s\n", target_full);
+	}
 
 	if (!nflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
@@ -1056,10 +1066,12 @@ main(int argc, char *argv[])
 			setenvfd("REDO_FORCE", 1);
 			break;
 		case 's':
-			setenvfd("REDO_LIST_SOURCES", 1);
+			if (sflag < 2)
+				setenvfd("REDO_LIST_SOURCES", ++sflag);
 			break;
 		case 't':
-			setenvfd("REDO_LIST_TARGETS", 1);
+			if (tflag < 2)
+				setenvfd("REDO_LIST_TARGETS", ++tflag);
 			break;
 		case 'o':
 			oflag = 1;
@@ -1082,7 +1094,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOOP_WARN", 1);
 			break;
 		default:
-			fprintf(stderr, "Usage: redo [-letfoxeswin]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-existentflows]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1096,6 +1108,12 @@ main(int argc, char *argv[])
 	iflag = envint("REDO_IGNORE_LOCKS");
 	eflag = envint("REDO_DOFILES");
 	lflag = envint("REDO_LOOP_WARN");
+
+	stflag = sflag && tflag;
+	if (stflag) {
+		sflag--;
+		tflag--;
+	}
 
 	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");
