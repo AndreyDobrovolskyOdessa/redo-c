@@ -135,7 +135,7 @@ No default target.
 
 * `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1,2}`
 
-* `-o` "outdated" modifier for `-st` options. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date but outputing the outdated and selected ones' names.
+* `-o` "outdated" modifier for `-st` options. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date but outputing the outdated and selected ones' names. Implicit `-n` means that omly the branches already built are scanned.
 
 * `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-o` modifier.
 
@@ -168,7 +168,7 @@ Conversion can be provided with the help of the following simple dofile:
 
     test -f $1 && mv $1 $3
 
-Adding to Your project `default.do` file consisting of above shown command will convert all sources except `default.do` to semi-targets. Such conversion may slow-down projects with lot of small sources.
+Adding to Your project `default.do` file consisting of above shown command will convert all sources excepts active dofiles to semi-targets. Such conversion may slow-down projects with lot of small sources.
 
 If You prefer makefile-like `default.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
 
