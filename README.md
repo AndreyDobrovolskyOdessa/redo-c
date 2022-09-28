@@ -125,25 +125,32 @@ No default target.
 
 ### Options available
 
+#### Build options
+
 * `-f` All targets are considered outdated. Usefulness doubtful. `REDO_FORCE={0,1}`
+
+* `-x` See above. `REDO_TRACE={0,1}`
+
+* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything.
+
+* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
+
+* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
+
+
+#### Diagnostic output options
 
 * `-n` Inhibits `.do` files execution. Supersedes `-f`. Suppress dependency files' refreshing.
 
-* `-x` See above. `REDO_TRACE={0,1}`
+* `-u` "up-to-date" imitation. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date. Implicit `-n` means that omly the branches already built are scanned.
 
 * `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1,2}`
 
 * `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1,2}`
 
-* `-o` "outdated" modifier for `-st` options. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date but outputing the outdated and selected ones' names. Implicit `-n` means that omly the branches already built are scanned.
+* `-o` "outdated" modifier for `-st` options. Implies `-u`.
 
-* `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-o` modifier.
-
-* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
-
-* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything.
-
-* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
+* `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-u` modifier.
 
 
 ### Semi-targets
@@ -162,7 +169,7 @@ Semi-targets are the targets without dependencies (hashed sources). Output optio
 
 * `-sstt` all files
 
-Targets are hashed once per build, while sources ae hashed once per dependence. If Your project includes big source files required by more than one target, converting this sources into semi-tagets will speed-up build and update.
+Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into semi-tagets will speed-up build and update.
 
 Conversion can be provided with the help of the following simple dofile:
 

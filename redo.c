@@ -461,7 +461,7 @@ file_chdir(int *fd, const char *name)
 /*	Flags      */
 
 int xflag, fflag, iflag, lflag, eflag = 0, sflag = 0, tflag = 0; /* exported */
-int oflag = 0, nflag = 0, wflag = 0, stflag;
+int oflag = 0, nflag = 0, uflag = 0, wflag = 0, stflag;
 
 
 /*	find_dofile() logs
@@ -790,6 +790,9 @@ dep_changed(const char *line, int hint, int is_target, int has_deps)
 	if (strncmp(line, hexhash, HEXHASH_LEN) == 0)
 		return 0;
 
+	if (!uflag)
+		return 1;
+
 	if (oflag) {
 		if (hint == IS_SOURCE) {
 			const char *track_buf = track(0, 0);
@@ -801,10 +804,9 @@ dep_changed(const char *line, int hint, int is_target, int has_deps)
 					fprintf(stdout, "%s\n", strchr(track_buf, '\0') + 1);
 			}
 		}
-		return 0;
 	}
 
-	return 1;
+	return 0;
 }
 
 
@@ -935,7 +937,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			int is_target = !strcmp(filename, target);
 			int hint = IS_SOURCE;
 
-			if (is_dofile && (!oflag) && strcmp(filename, dofile_rel))
+			if (is_dofile && (!uflag) && strcmp(filename, dofile_rel))
 				break;
 
 			if (!is_target) {
@@ -1057,7 +1059,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+owlfixnest")) != -1) {
+	while ((opt = getopt(argc, argv, "+fineslowtux")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1075,12 +1077,17 @@ main(int argc, char *argv[])
 			break;
 		case 'o':
 			oflag = 1;
+			uflag = 1;
 			nflag = 1;
 			break;
 		case 'i':
 			setenvfd("REDO_IGNORE_LOCKS", 1);
 			break;
 		case 'n':
+			nflag = 1;
+			break;
+		case 'u':
+			uflag = 1;
 			nflag = 1;
 			break;
 		case 'w':
@@ -1094,7 +1101,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOOP_WARN", 1);
 			break;
 		default:
-			fprintf(stderr, "Usage: redo [-existentflows]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-tuxlifesnowset]  [TARGETS...]\n");
 			exit(1);
 		}
 	}
