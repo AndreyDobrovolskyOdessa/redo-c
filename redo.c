@@ -1111,8 +1111,6 @@ main(int argc, char *argv[])
 		case 'd':
 			dflag = strtol(optarg, &tail, 10);
 			if (tail != optarg) {
-				uflag = 1;
-				nflag = 1;
 				setenvfd("REDO_DEPTH", dflag);
 				break;
 			}

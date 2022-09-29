@@ -152,7 +152,7 @@ No default target.
 
 * `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-u` modifier.
 
-* `-d depth` limit of dependency tree scanning. Implies `-u`.
+* `-d depth` limit of dependency tree nodes full names to be printed.
 
 ### Semi-targets
 
