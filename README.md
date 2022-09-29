@@ -135,7 +135,7 @@ No default target.
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
 
-* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children.
+* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_LOOP_WARN={0,1}`
 
 
 #### Diagnostic output options
