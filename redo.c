@@ -965,18 +965,18 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		fclose(fredo);
 	}
 
-	if (!oflag) {
-		if ((tflag && has_deps) || (stflag && (!has_deps)))
-			printf("%s\n", target_full);
-	}
-
 	if (!nflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
 		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
 
 		if (!dep_err) {
+			off_t deps_pos = lseek(lock_fd, 0, SEEK_CUR);
+
 			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
+
+			if (lseek(lock_fd, 0, SEEK_CUR) != deps_pos)
+				has_deps = 1;
 
 			if (!dep_err)
 				dep_err = write_dep(lock_fd, target, 0, 0, IS_SOURCE);
@@ -984,6 +984,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 	close(lock_fd);
+
+	if (!oflag) {
+		if ((tflag && has_deps) || (stflag && (!has_deps)))
+			printf("%s\n", target_full);
+	}
 
 /*
 	Now we will use target_full residing in track to construct
