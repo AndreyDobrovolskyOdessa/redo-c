@@ -498,7 +498,7 @@ $ redo -w ''
 */
 
 static char *
-find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash)
+find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash, int visible)
 {
 	static const char default_name[] = "default", suffix[] = ".do";
 	const char *name = "";
@@ -552,7 +552,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		while (1) {
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
-			if (wflag)
+			if (wflag && visible)
 				fprintf(stdout, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
@@ -909,7 +909,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 	strcpy(target_base, target);
-	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full)) {
+	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full, visible)) {
 		if (sflag && (!oflag) && visible)
 			printf("%s\n", target_full);
 		return IS_SOURCE;
