@@ -770,7 +770,7 @@ find_record(const char *filename)
 
 
 static int
-dep_changed(const char *line, int hint, int is_target, int has_deps)
+dep_changed(const char *line, int hint, int is_target, int has_deps, int visible)
 {
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
@@ -793,7 +793,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps)
 	if (!uflag)
 		return 1;
 
-	if (oflag) {
+	if (oflag && visible) {
 		if (hint == IS_SOURCE) {
 			const char *track_buf = track(0, 0);
 			if (is_target) {
@@ -885,6 +885,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char lockfile[PATH_MAX + sizeof lock_prefix];
 
 	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0;
+	int  visible = (!dflag) || (nlevel < dflag);
 
 	FILE *fredo;
 
@@ -909,7 +910,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	strcpy(target_base, target);
 	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full)) {
-		if (sflag && (!oflag))
+		if (sflag && (!oflag) && visible)
 			printf("%s\n", target_full);
 		return IS_SOURCE;
 	}
@@ -943,13 +944,12 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (!is_target) {
 				if (!is_dofile)
 					has_deps = 1;
-				if ((!dflag) || (nlevel < dflag))
-					dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
+				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 			}
 
 			is_dofile = 0;
 
-			if (dep_err || dep_changed(line, hint, is_target, has_deps))
+			if (dep_err || dep_changed(line, hint, is_target, has_deps, visible))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
@@ -986,7 +986,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	close(lock_fd);
 
-	if (!oflag) {
+	if ((!oflag) && visible) {
 		if ((tflag && has_deps) || (stflag && (!has_deps)))
 			printf("%s\n", target_full);
 	}
