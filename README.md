@@ -113,7 +113,7 @@ stdout of `.do` scripts is not captured. Feel free to start Your recipes with
     exec > $3 
 
 
-The 'redo' binary itself never create or delete directories. Let dofiles do this job.
+The `redo` binary itself never create or delete directories. Let dofiles do this job.
 
 
 #### Unimportant
@@ -152,6 +152,7 @@ No default target.
 
 * `-w` Log find_dofile() steps to stdout. If dependency tree includes redone-always targets this option may taste better with `-u` modifier.
 
+* `-d depth` limit of dependency tree scanning. Implies `-u`.
 
 ### Semi-targets
 

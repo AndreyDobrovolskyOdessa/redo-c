@@ -460,7 +460,7 @@ file_chdir(int *fd, const char *name)
 
 /*	Flags      */
 
-int xflag, fflag, iflag, lflag, eflag = 0, sflag = 0, tflag = 0; /* exported */
+int xflag, fflag, iflag, lflag, eflag = 0, sflag = 0, tflag = 0, dflag = 0; /* exported */
 int oflag = 0, nflag = 0, uflag = 0, wflag = 0, stflag;
 
 
@@ -943,7 +943,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (!is_target) {
 				if (!is_dofile)
 					has_deps = 1;
-				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
+				if ((!dflag) || (nlevel < dflag))
+					dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
 			}
 
 			is_dofile = 0;
@@ -1064,7 +1065,9 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+fineslowtux")) != -1) {
+	while ((opt = getopt(argc, argv, "+fineslowtuxd:")) != -1) {
+		char *tail;
+
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1105,8 +1108,17 @@ main(int argc, char *argv[])
 		case 'l':
 			setenvfd("REDO_LOOP_WARN", 1);
 			break;
+		case 'd':
+			dflag = strtol(optarg, &tail, 10);
+			if (tail != optarg) {
+				uflag = 1;
+				nflag = 1;
+				setenvfd("REDO_DEPTH", dflag);
+				break;
+			}
+		case '?':
 		default:
-			fprintf(stderr, "Usage: redo [-tuxlifesnowset]  [TARGETS...]\n");
+			fprintf(stderr, "Usage: redo [-lonesttuxswife] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1120,6 +1132,7 @@ main(int argc, char *argv[])
 	iflag = envint("REDO_IGNORE_LOCKS");
 	eflag = envint("REDO_DOFILES");
 	lflag = envint("REDO_LOOP_WARN");
+	dflag = envint("REDO_DEPTH");
 
 	stflag = sflag && tflag;
 	if (stflag) {
