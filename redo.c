@@ -546,13 +546,15 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		return 0;
 	dofile_free -= sizeof suffix;
 
+	visible = visible && wflag;
+
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = ext;
 
 		while (1) {
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
-			if (wflag && visible)
+			if (visible)
 				fprintf(stdout, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
@@ -768,6 +770,8 @@ find_record(const char *filename)
 }
 
 
+#define may_need_rehash(f,h) ((h & IS_SOURCE) || ((!(h & UPDATED_RECENTLY)) && find_record(f)))
+
 
 static int
 dep_changed(const char *line, int hint, int is_target, int has_deps, int visible)
@@ -775,7 +779,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
 
-	if ((hint & IS_SOURCE) || (((hint & UPDATED_RECENTLY) == 0) && (find_record(filename) != 0))){
+	if (may_need_rehash(filename, hint)) {
 		if (strncmp(line + HEXHASH_LEN + 1, datefilename(filename), HEXDATE_LEN) == 0)
 			return 0;
 
@@ -793,17 +797,17 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (!uflag)
 		return 1;
 
-	if (oflag && visible) {
-		if (hint == IS_SOURCE) {
-			const char *track_buf = track(0, 0);
-			if (is_target) {
-				if ((tflag && has_deps) || (stflag && (!has_deps)))
-					fprintf(stdout, "%s\n", strrchr(track_buf, ':') + 1);
-			} else {
-				if (sflag)
-					fprintf(stdout, "%s\n", strchr(track_buf, '\0') + 1);
-			}
-		}
+	if (
+		(is_target ? (has_deps ? tflag : stflag) : sflag) &&
+		oflag &&
+		visible &&
+		(hint == IS_SOURCE)	)
+	{
+		const char *track_buf = track(0, 0);
+		char *name = is_target ?
+				strrchr(track_buf, ':') :
+				strchr(track_buf, '\0');
+		fprintf(stdout, "%s\n", name + 1);
 	}
 
 	return 0;
@@ -818,7 +822,7 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int 
 	const char *prefix = "";
 
 
-	if ((hint & IS_SOURCE) || (((hint & UPDATED_RECENTLY) == 0) && (find_record(file) != 0))){
+	if (may_need_rehash(file, hint)) {
 		fd = open(file, O_RDONLY);
 		hashfile(fd);
 		datefile(fd);
@@ -986,10 +990,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	close(lock_fd);
 
-	if ((!oflag) && visible) {
-		if ((tflag && has_deps) || (stflag && (!has_deps)))
-			printf("%s\n", target_full);
-	}
+	if ((has_deps ? tflag : stflag) && (!oflag) && visible)
+		printf("%s\n", target_full);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -1065,7 +1067,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+fineslowtuxd:")) != -1) {
+	while ((opt = getopt(argc, argv, "+tuxownsfield:")) != -1) {
 		char *tail;
 
 		switch (opt) {
@@ -1076,34 +1078,26 @@ main(int argc, char *argv[])
 			setenvfd("REDO_FORCE", 1);
 			break;
 		case 's':
-			if (sflag < 2)
-				setenvfd("REDO_LIST_SOURCES", ++sflag);
+			setenvfd("REDO_LIST_SOURCES", ++sflag);
 			break;
 		case 't':
-			if (tflag < 2)
-				setenvfd("REDO_LIST_TARGETS", ++tflag);
+			setenvfd("REDO_LIST_TARGETS", ++tflag);
 			break;
 		case 'o':
 			oflag = 1;
+		case 'u':
 			uflag = 1;
+		case 'n':
 			nflag = 1;
 			break;
 		case 'i':
 			setenvfd("REDO_IGNORE_LOCKS", 1);
 			break;
-		case 'n':
-			nflag = 1;
-			break;
-		case 'u':
-			uflag = 1;
-			nflag = 1;
-			break;
 		case 'w':
 			wflag = 1;
 			break;
 		case 'e':
-			if (eflag < 2)
-				setenvfd("REDO_DOFILES", ++eflag);
+			setenvfd("REDO_DOFILES", ++eflag);
 			break;
 		case 'l':
 			setenvfd("REDO_LOOP_WARN", 1);
