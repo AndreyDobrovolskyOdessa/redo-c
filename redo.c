@@ -563,7 +563,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
 
 			if (visible)
-				fprintf(stdout, "%s\n", dofile_rel);
+				dprintf(1, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
 				if (*s == '.')
@@ -664,7 +664,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 
 	target_rel = base_name(target_full, uprel);
 	if (strlen(target_rel) >= sizeof target_base_rel){
-		fprintf(stderr, "Target relative name too long -- %s\n", target_rel);
+		dprintf(2, "Target relative name too long -- %s\n", target_rel);
 		return TARGET_REL_TOOLONG;
 	}
 
@@ -675,7 +675,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 	target_new = (char *) base_name(target_new_rel, 0);
 	strcpy(stpcpy(target_new, target_prefix), target);
 
-	fprintf(stderr, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
+	dprintf(2, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
 
 	pid = fork();
 	if (pid < 0) {
@@ -688,7 +688,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 		size_t dirprefix_len = target_new - target_new_rel;
 
 		if (!dofile) {
-			fprintf(stderr, "Damn! Someone have stolen my favorite dofile %s ...\n", dofile_rel);
+			dprintf(2, "Damn! Someone have stolen my favorite dofile %s ...\n", dofile_rel);
 			exit(TARGET_FCHDIR_FAILED);
 		}
 
@@ -721,7 +721,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 				target_err = WEXITSTATUS(target_err);
 		}
 	}
-	fprintf(stderr, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
+	dprintf(2, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
 
 	return choose(target, target_new, target_err);
 }
@@ -733,12 +733,12 @@ check_record(char *line)
 	int line_len = strlen(line);
 
 	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1) {
-		fprintf(stderr, "Warning: dependency record too short. Target will be rebuilt.\n");
+		dprintf(2, "Warning: dependency record too short. Target will be rebuilt.\n");
 		return 0;
 	}
 
 	if (line[line_len - 1] != '\n') {
-		fprintf(stderr, "Warning: dependency record truncated. Target will be rebuilt.\n");
+		dprintf(2, "Warning: dependency record truncated. Target will be rebuilt.\n");
 		return 0;
 	}
 
@@ -815,7 +815,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 		char *name = is_target ?
 				strrchr(track_buf, ':') :
 				strchr(track_buf, '\0');
-		fprintf(stdout, "%s\n", name + 1);
+		dprintf(1, "%s\n", name + 1);
 	}
 
 	return 0;
@@ -904,26 +904,26 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	target = file_chdir(dir_fd, dep_path);
 	if (target == 0) {
-		fprintf(stderr, "Missing dependency directory -- %s\n", dep_path);
+		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
 		track("", 1);	/* dummy call */
 		return TARGET_NODIR;
 	}
 
 	target_full = track(target, 1);
 	if (target_full == 0){
-		fprintf(stderr, "Dependency loop attempt -- %s\n", dep_path);
+		dprintf(2, "Dependency loop attempt -- %s\n", dep_path);
 		return lflag ? IS_SOURCE : TARGET_LOOP;
 	}
 
 	if (strlen(target) >= sizeof target_base) {
-		fprintf(stderr, "Dependency name too long -- %s\n", target);
+		dprintf(2, "Dependency name too long -- %s\n", target);
 		return TARGET_TOOLONG;
 	}
 
 	strcpy(target_base, target);
 	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full, visible)) {
 		if (sflag && (!oflag) && visible)
-			printf("%s\n", target_full);
+			dprintf(1, "%s\n", target_full);
 		return IS_SOURCE;
 	}
 
@@ -935,7 +935,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
 	if (lock_fd < 0) {
-		fprintf(stderr, "Target busy -- %s\n", target);
+		dprintf(2, "Target busy -- %s\n", target);
 		return TARGET_BUSY;
 	}
 
@@ -999,7 +999,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	close(lock_fd);
 
 	if ((has_deps ? tflag : stflag) && (!oflag) && visible)
-		printf("%s\n", target_full);
+		dprintf(1, "%s\n", target_full);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -1118,7 +1118,7 @@ main(int argc, char *argv[])
 			}
 		case '?':
 		default:
-			fprintf(stderr, "Usage: redo [-lonesttuxswife] [-d depth] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-lonesttuxswife] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}
