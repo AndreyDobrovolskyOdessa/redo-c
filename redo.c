@@ -556,6 +556,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 	visible = visible && wflag;
 
+	if (visible)
+		dprintf(1, ">>>> %s\n", slash);
+
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = ext;
 
