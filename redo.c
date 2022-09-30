@@ -457,24 +457,23 @@ file_chdir(int *fd, const char *name)
 	return slash + 1;
 }
 
-/******* Flags **********/
 
-/*	exported	*/
+/*-------------------------------- Flags ------------------------------------*/
 
-int xflag, fflag, iflag, wflag, lflag, eflag = 0, sflag = 0, tflag = 0, dflag = 0;
+int eflag = 0, sflag = 0, iflag, wflag, lflag;                   /* exported */
+int tflag = 0, dflag = 0, xflag, fflag;
 
-/*	derived		*/
+int nflag = 0, uflag = 0, oflag = 0;      /* suppress sub-processes spawning */
 
-int stflag;	/* sflag && tflag */
+int stflag;                                                       /* derived */
 
-/*	suppressing sub-processes spawning	*/
-
-int nflag = 0, uflag = 0, oflag = 0;
+/*---------------------------------------------------------------------------*/
 
 
-/*	find_dofile() logs
+/*-------------------- find_dofile() logs examples --------------------------**
 
 $ redo -w x.y
+>>>> /tmp/x.y
 x.y.do
 default.y.do
 default.do
@@ -482,6 +481,7 @@ default.do
 ../default.do
 
 $ redo -we x.y.do
+>>>> /tmp/x.y.do
 x.y.do.do
 default.y.do.do
 default.do.do
@@ -489,6 +489,7 @@ default.do.do
 ../default.do.do
 
 $ redo -wee default.y.do
+>>>> /tmp/default.y.do
 default.y.do.do
 default.y.do.do
 default.do.do
@@ -496,14 +497,17 @@ default.do.do
 ../default.do.do
 
 $ redo -w .x.y.z
+>>>> /tmp/.x.y.z
 .x.y.z.do
 ../.x.y.z.do
 
 $ redo -w ''
+>>>> /tmp/
 .do
 ../.do
 
-*/
+**---------------------------------------------------------------------------*/
+
 
 static char *
 find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash, int visible)
