@@ -457,11 +457,19 @@ file_chdir(int *fd, const char *name)
 	return slash + 1;
 }
 
+/******* Flags **********/
 
-/*	Flags      */
+/*	exported	*/
 
-int xflag, fflag, iflag, lflag, eflag = 0, sflag = 0, tflag = 0, dflag = 0; /* exported */
-int oflag = 0, nflag = 0, uflag = 0, wflag = 0, stflag;
+int xflag, fflag, iflag, wflag, lflag, eflag = 0, sflag = 0, tflag = 0, dflag = 0;
+
+/*	derived		*/
+
+int stflag;	/* sflag && tflag */
+
+/*	suppressing sub-processes spawning	*/
+
+int nflag = 0, uflag = 0, oflag = 0;
 
 
 /*	find_dofile() logs
@@ -1094,7 +1102,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_IGNORE_LOCKS", 1);
 			break;
 		case 'w':
-			wflag = 1;
+			setenvfd("REDO_WHICH_DO", 1);
 			break;
 		case 'e':
 			setenvfd("REDO_DOFILES", ++eflag);
@@ -1122,6 +1130,7 @@ main(int argc, char *argv[])
 	sflag = envint("REDO_LIST_SOURCES");
 	tflag = envint("REDO_LIST_TARGETS");
 	iflag = envint("REDO_IGNORE_LOCKS");
+	wflag = envint("REDO_WHICH_DO");
 	eflag = envint("REDO_DOFILES");
 	lflag = envint("REDO_LOOP_WARN");
 	dflag = envint("REDO_DEPTH");
