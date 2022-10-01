@@ -150,7 +150,7 @@ No default target.
 
 * `-o` "outdated" modifier for `-st` options. Implies `-u`.
 
-* `-w` Log find_dofile() steps to stdout.
+* `-w` Log find_dofile() steps to stdout. `REDO_WHICH_DO={0,1}`
 
 * `-d depth` limit of dependency tree nodes full names to be printed.
 
