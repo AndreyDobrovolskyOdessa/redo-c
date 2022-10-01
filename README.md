@@ -213,6 +213,24 @@ The current version of redo supports the nameless targets such as :
 Of course such targets can not exist, but they may have the corresponding script, named `.do`. If You want to build `''` target, then `.do` script will be looked for in the target directory and all upper dirs, without any `default` prefixes applicable. Such "imaginary" target may be an interesting replace for `all` target. The difference is in `default` rules, which are applicable for `all` target, but are ignored for `''` target.
 
 
+### Doing dofiles
+
+`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? Current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
+
+The rule of doing dofiles is that file belonging to the Nth do-layer can be done by (N+1)th do-layer file only. Technically it means that `default` can not replace any trailing `.do` suffix in the filename during the search for an appropriate dofile.
+
+
+### Dotfiles doing
+
+Dotfiles are not the subject for `default` substitution procedure, they are expected to have the only one corresponding dofile name:
+
+    $ redo -w .dot
+    >>>> /tmp/somedir/.dot
+    .dot.do
+    ../.dot.do
+    ../../.dot.do
+
+
 ### Troubleshooting
 
 If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
@@ -233,7 +251,7 @@ for the project already built.
 
 Test Your project for warnings without touching targets and refreshing dependency records
 
-    redo -ol ''
+    redo -ul ''
 
 
 
