@@ -812,16 +812,16 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (!uflag)
 		return 1;
 
-	if (
-		(is_target ? (has_deps ? tflag : stflag) : sflag) &&
+	if (	(is_target ? (has_deps ? tflag : stflag) : sflag) &&
 		oflag &&
 		visible &&
 		(hint == IS_SOURCE)	)
 	{
 		const char *track_buf = track(0, 0);
-		char *name = is_target ?
-				strrchr(track_buf, ':') :
-				strchr(track_buf, '\0');
+		const char *name = is_target ?
+					strrchr(track_buf, ':') :
+					strchr(track_buf, '\0');
+
 		dprintf(1, "%s\n", name + 1);
 	}
 
