@@ -60,6 +60,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 /* ------------------------------------------------------------------------- */
 /* from musl/src/crypt/crypt_sha256.c */
@@ -463,6 +464,8 @@ file_chdir(int *fd, const char *name)
 int eflag = 0, sflag = 0, iflag, wflag, lflag;                   /* exported */
 int tflag = 0, dflag = 0, xflag, fflag;
 
+int  qflag;                                                      /* imported */
+
 int nflag = 0, uflag = 0, oflag = 0;      /* suppress sub-processes spawning */
 
 int stflag;                                                       /* derived */
@@ -682,7 +685,8 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 	target_new = (char *) base_name(target_new_rel, 0);
 	strcpy(stpcpy(target_new, target_prefix), target);
 
-	dprintf(2, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
+	if (!qflag)
+		dprintf(2, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
 
 	pid = fork();
 	if (pid < 0) {
@@ -728,7 +732,9 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 				target_err = WEXITSTATUS(target_err);
 		}
 	}
-	dprintf(2, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
+
+	if (!qflag)
+		dprintf(2, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
 
 	return choose(target, target_new, target_err);
 }
@@ -942,7 +948,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
 	if (lock_fd < 0) {
-		dprintf(2, "Target busy -- %s\n", target);
+		/* dprintf(2, "Target busy -- %s\n", target); */
 		return TARGET_BUSY;
 	}
 
@@ -1068,6 +1074,10 @@ keepdir()
 }
 
 
+#define MSEC_PER_SEC  1000
+#define NSEC_PER_MSEC 1000000
+
+
 int
 main(int argc, char *argv[])
 {
@@ -1076,9 +1086,15 @@ main(int argc, char *argv[])
 	char updir[PATH_MAX];
 	int main_dir_fd, lock_fd;
 	int level;
-	int dep_err, redo_err = 0, hint;
+	int redo_err = 0, hint;
+	int deps_done, progress;
+	int retries, attempts, night = 0;
+
 
 	const char *program = base_name(argv[0], 0);
+
+	int *exit_code;
+
 
 	opterr = 0;
 
@@ -1125,12 +1141,23 @@ main(int argc, char *argv[])
 			}
 		case '?':
 		default:
-			dprintf(2, "Usage: redo [-lonesttuxswife] [-d depth] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-fueltownsexist] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}
 	argc -= optind;
 	argv += optind;
+
+	if (argc > 0) {
+		exit_code = malloc(argc * sizeof (int));
+		if (!exit_code) {
+			perror("malloc");
+			exit(-1);
+		}
+
+		for (i = 0; i < argc; i++)
+			exit_code[i] = TARGET_BUSY;
+	}
 
 	fflag = envint("REDO_FORCE");
 	xflag = envint("REDO_TRACE");
@@ -1142,11 +1169,16 @@ main(int argc, char *argv[])
 	lflag = envint("REDO_LOOP_WARN");
 	dflag = envint("REDO_DEPTH");
 
+	qflag = envint("REDO_SILENT");
+
 	stflag = sflag && tflag;
 	if (stflag) {
 		sflag--;
 		tflag--;
 	}
+
+	attempts = retries = envint("REDO_RETRIES");
+	unsetenv("REDO_RETRIES");
 
 	lock_fd = envfd("REDO_LOCK_FD");
 	level = envint("REDO_LEVEL");
@@ -1160,20 +1192,56 @@ main(int argc, char *argv[])
 
 	main_dir_fd = keepdir();
 
-	for (i = 0 ; i < argc ; i++) {
+	srand(getpid());
 
-		dep_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
+	for (deps_done = 0; deps_done < argc; deps_done += progress) {
+		progress = 0;
+
+		if (night) {
+			struct timespec sleep_time, remaining;
+
+			sleep_time.tv_sec  =   night / MSEC_PER_SEC; 
+			sleep_time.tv_nsec =  (night % MSEC_PER_SEC) * NSEC_PER_MSEC;
+			sleep_time.tv_nsec += rand() % NSEC_PER_MSEC;
+
+			night *= 2;
+
+			nanosleep(&sleep_time, &remaining);
+		} else {
+			night = 1 /* ms */;
+		}
+
+		for (i = 0 ; i < argc ; i++) {
+			if (exit_code[i]) {
+				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
 		
-		if(dep_err == 0) {
-			if (lock_fd > 0) {
-				dep_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
-				if (dep_err)
-					return dep_err;
+				if ((redo_err == 0) && (lock_fd > 0))
+					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
+
+				if (redo_err & (~TARGET_BUSY))
+					break;
+
+				if (redo_err == 0) {
+					exit_code[i] = 0;
+					progress++;
+				}
 			}
-		} else if(dep_err == TARGET_BUSY) {
-			redo_err = TARGET_BUSY;
-		} else
-			return dep_err;
+		}
+
+		if (redo_err & (~TARGET_BUSY))
+			break;
+
+		if (progress) {
+			attempts = retries;
+			night = 0;
+		} else {
+			/* redo_err = TARGET_BUSY; */ /* implicit */
+
+			if (!attempts)
+				break;
+
+			attempts--;
+		}
 	}
 
 	if (strcmp(program, "redo-always") == 0)
