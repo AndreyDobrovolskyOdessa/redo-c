@@ -1,4 +1,4 @@
-# Building targets in paralleli examples
+# Building targets in parallel examples
 
 ## Simple
 
@@ -11,6 +11,11 @@ Starting in redo-c git directory:
     time redo sequential
     echo 2 > seed
     time redo sequential
+    rm .redo.*
+    echo 1 > seed
+    time redo parallel
+    echo 2 > seed
+    time redo parallel
 
 
 ## Complex
@@ -24,5 +29,10 @@ Starting in redo-c git directory:
     time redo sequential
     echo 2 > seed
     time redo sequential
+    rm .redo.*
+    echo 1 > seed
+    time redo parallel
+    echo 2 > seed
+    time redo parallel
 
 
