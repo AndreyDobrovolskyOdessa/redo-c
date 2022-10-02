@@ -1,4 +1,4 @@
-# Building targets in parallel examples
+# Parallel builds examples
 
 ## Simple
 
@@ -35,4 +35,13 @@ Starting in redo-c git directory:
     echo 2 > seed
     time redo parallel
 
+## Loop dependencies
+
+This example demonstrates how lock-free approach allows to locate and avoid loop dependencies even in parallel builds.
+
+Starting in redo-c git directory:
+
+    . ./redo.do
+    cd samples/parallel/loop
+    redo parallel
 
