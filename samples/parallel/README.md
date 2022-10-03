@@ -35,7 +35,7 @@ Starting in redo-c git directory:
     echo 2 > seed
     time redo parallel
 
-## Loop dependencies
+## Loop
 
 This example demonstrates how lock-free approach allows to locate and avoid loop dependencies even in parallel builds.
 
