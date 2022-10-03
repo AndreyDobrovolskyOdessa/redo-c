@@ -39,10 +39,11 @@ returns with TARGET_BUSY exit code and releases the dependency tree to
 make loop analysis possible for another process, and probably re-starting
 build process after the random delay, attempting to crawl over the whole tree
 when it will be released by another build processes.
-This will be available after job server implementation.
+The current version successfully solves this problem too.
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 */
+
 
 #define _GNU_SOURCE 1
 
