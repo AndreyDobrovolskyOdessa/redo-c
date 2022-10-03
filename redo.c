@@ -1089,7 +1089,8 @@ main(int argc, char *argv[])
 	int level;
 	int redo_err = 0, hint;
 	int deps_done, progress;
-	int retries, attempts, night = 0;
+	int retries, attempts, night = 0, asleep;
+	struct timespec sleep_time, remaining;
 
 
 	const char *program = base_name(argv[0], 0);
@@ -1199,17 +1200,15 @@ main(int argc, char *argv[])
 		progress = 0;
 
 		if (night) {
-			struct timespec sleep_time, remaining;
-
-			sleep_time.tv_sec  =   night / MSEC_PER_SEC; 
-			sleep_time.tv_nsec =  (night % MSEC_PER_SEC) * NSEC_PER_MSEC;
-			sleep_time.tv_nsec += rand() % NSEC_PER_MSEC;
+			asleep = (rand() % night) + 1;
+			sleep_time.tv_sec  =   asleep / MSEC_PER_SEC; 
+			sleep_time.tv_nsec =  (asleep % MSEC_PER_SEC) * NSEC_PER_MSEC;
 
 			night *= 2;
 
 			nanosleep(&sleep_time, &remaining);
 		} else {
-			night = 1 /* ms */;
+			night = 10 /* ms */;
 		}
 
 		for (i = 0 ; i < argc ; i++) {
