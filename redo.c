@@ -617,6 +617,7 @@ enum update_dep_errors {
 	TARGET_RM_FAILED = 4,
 	TARGET_MV_FAILED = 8,
 	TARGET_BUSY = 0x10,
+	TARGET_FAILURE = 0x18,
 	TARGET_TOOLONG = 0x20,
 	TARGET_REL_TOOLONG = 0x30,
 	TARGET_FORK_FAILED = 0x40,
@@ -729,8 +730,9 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 			perror("wait");
 			target_err = TARGET_WAIT_FAILED;
 		} else {
-			if (WIFEXITED(target_err))
-				target_err = WEXITSTATUS(target_err);
+			target_err = WIFEXITED(target_err) ?
+					WEXITSTATUS(target_err) :
+					TARGET_FAILURE ;
 		}
 	}
 
@@ -827,7 +829,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 		const char *track_buf = track(0, 0);
 		const char *name = is_target ?
 					strrchr(track_buf, ':') :
-					strchr(track_buf, '\0');
+					strchr(track_buf, '\0') ;
 
 		dprintf(1, "%s\n", name + 1);
 	}
