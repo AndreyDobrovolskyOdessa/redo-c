@@ -104,8 +104,7 @@ Add `redo.c` and `redo.do` files to Your project and build with
 
 Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.redo.foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
 
-
-`.redo.` prefix is reserved for redo purposes. Files named `.redo.*` shouldn't be used in the current version builds as targets or recipes, but for some special purpose may be sources - see "Redo-always" section.
+`.do` is traditionally used as the suffix for dofiles. For use with the current `redo` version it is recommended to avoid the `..do.` sequence inside the filenames of targets and recipes. The mentioned sequence interrupts `find_dofile()` process. Though sources with the names `..do..*` may be used for special purposes - see "Redo-always" section.
 
 
 #### Less important
@@ -191,9 +190,9 @@ Are monitored unconditionally and issue error or warning if found.
 
 In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
 
-    redo .redo.$1
+    redo ..do..$1
 
-using the fact, that `.redo.*` files are not allowed to have `*.do` files and can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
+using the fact, that `..do.*` files are not allowed to have `*.do` files and can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
 
 In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
 
@@ -256,9 +255,9 @@ keeping in mind that use of this option is safe only if possibility of parallel 
 
 ### Hints
 
-If You implement `redo-always` as `redo .redo.$1` then You can obtain the list of redone-always targets with:
+If You implement `redo-always` as `redo ..do..$1` then You can obtain the list of redone-always targets with:
 
-    redo -os '' | sed -n 's/\.redo\.//p' | sort | uniq
+    redo -os '' | sed -n 's/\.\.do\.\.//p' | sort | uniq
 
 for the project already built.
 

@@ -209,11 +209,11 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-static const char redo_prefix[] =   ".redo.";
-static const char lock_prefix[] =   ".redo..redo.";
-static const char target_prefix[] = ".redo..redo..redo.";
+static const char redo_suffix[] =   ".do";
 
-static const char suffix[] = ".do";
+static const char redo_prefix[] =   "..do..";
+static const char lock_prefix[] =   "..do....do..";
+static const char target_prefix[] = "..do....do....do..";
 
 static const char updir[] = "../";
 
@@ -526,13 +526,8 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	char *target_end = strchr(target, '\0');
 	char *target_ptr = target_end;
 	char *target_tail = target_ptr;
-	const char *suffix_ptr = suffix + sizeof suffix -1;
+	const char *suffix_ptr = redo_suffix + sizeof redo_suffix -1;
 
-
-	/* ".redo.*" can not be the target */
-
-	if (strncmp(target, redo_prefix, sizeof redo_prefix - 1) == 0)
-		return 0;
 
 
 	/* rewind .do tail inside target */
@@ -540,9 +535,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	while (target_ptr > target) {
 		if (*--target_ptr != *--suffix_ptr)
 			break;
-		if (suffix_ptr == suffix) {
+		if (suffix_ptr == redo_suffix) {
 			target_tail = target_ptr;
-			suffix_ptr += sizeof suffix - 1;
+			suffix_ptr += sizeof redo_suffix - 1;
 		}
 	}
 
@@ -557,9 +552,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		}
 	}
 
-	if (dofile_free < (strlen(target) + sizeof suffix))
+	if (dofile_free < (strlen(target) + sizeof redo_suffix))
 		return 0;
-	dofile_free -= sizeof suffix;
+	dofile_free -= sizeof redo_suffix;
 
 	visible = visible && wflag;
 
@@ -570,7 +565,12 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		char *s = target;
 
 		while (1) {
-			strcpy(stpcpy(dofile, s), suffix);
+			/* finding redo_prefix inside target stops the search */
+
+			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0)
+				return 0;
+
+			strcpy(stpcpy(dofile, s), redo_suffix);
 
 			if (visible)
 				dprintf(1, "%s\n", dofile_rel);
@@ -1135,7 +1135,7 @@ main(int argc, char *argv[])
 			}
 		case '?':
 		default:
-			dprintf(2, "Usage: redo [-westfueltoxins] [-d depth] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-sweetflutoxins] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}
@@ -1237,7 +1237,7 @@ main(int argc, char *argv[])
 	}
 
 	if (strcmp(program, "redo-always") == 0)
-		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever       .redo..redo..redo..redo.\n");
+		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever       %s%s\n", target_prefix, redo_prefix);
 
 	return redo_err;
 }
