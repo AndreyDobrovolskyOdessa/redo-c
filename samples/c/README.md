@@ -6,8 +6,8 @@ Allow to build projects with correctly written headers.
 
 ### 1
 
-`int bar(int)` squares the integer
-`int foo(int, int)` returns the sum of arguments' squares - calling `bar()`
+`int bar(int)` squares the integer\
+`int foo(int, int)` returns the sum of arguments' squares - calling `bar()`\
 `int main()` returns 1's and 2's squares sum - calling `foo()`
 
 Starting from redo-c git directory You can build this example with
