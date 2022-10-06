@@ -11,8 +11,6 @@
 # Build redo with redo:
 #
 #	redo redo
-#
-#	redo ''
 
 if test -n "$REDO_LEVEL"
 then # driven by redo

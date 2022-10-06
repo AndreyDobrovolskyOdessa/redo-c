@@ -59,7 +59,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## Appendix
 
-dev3 branch attempts to minimize hashing expenses.  
+dev4 is an experimental still full-functional branch. Its purpose is to lower the number of reserved words used by `redo`. `default` first filename is now regular word and have no special meaning. Dotdofiles play the role of default dofiles. Such approach expected to be more consistent.
 
 
 ### Motivation
@@ -110,7 +110,7 @@ Non-existing targets are not expected out-of-date unconditionally. If for exampl
 
 #### Less important
 
-stdout of `.do` scripts is not captured. Feel free to start Your recipes with
+stdout of `*.do` scripts is not captured. Feel free to start Your recipes with
 
     exec > $3 
 
@@ -133,7 +133,7 @@ No default target.
 
 * `-x` See above. `REDO_TRACE={0,1}`
 
-* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of `*.do` files, 1 (`-e`) suppress doing of `default*.do` files, 2 (`-ee`) allows to do anything.
+* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of dofiles, 1 (`-e`) suppress doing of dotdofiles, 2 (`-ee`) allows to do anything.
 
 * `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
 
@@ -142,7 +142,7 @@ No default target.
 
 #### Diagnostic output options
 
-* `-n` Inhibits `.do` files execution. Supersedes `-f`. Suppresses dependency files' refreshing.
+* `-n` Inhibits `*.do` files execution. Supersedes `-f`. Suppresses dependency files' refreshing.
 
 * `-u` "up-to-date" imitation. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date. Implicit `-n` means that only the branches already built can be scanned.
 
@@ -157,15 +157,15 @@ No default target.
 * `-d depth` limit of dependency tree nodes full names to be printed.
 
 
-### Semi-targets
+### Hashed sources aka self-targets or semi-targets.
 
-Semi-targets are the targets without dependencies (hashed sources). Output options `-st` can be combined in order to achieve desired output:
+Output options `-st` can be combined in order to achieve desired output:
 
 * `-s` sources only
 
-* `-st` semi-targets only
+* `-st` self-targets only
 
-* `-sst` sources and semi-targets
+* `-sst` sources and self-targets
 
 * `-t` full targets only
 
@@ -173,17 +173,13 @@ Semi-targets are the targets without dependencies (hashed sources). Output optio
 
 * `-sstt` all files
 
-Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into semi-tagets will speed-up build and update.
+Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
 
 Conversion can be provided with the help of the following simple dofile:
 
     test -f $1 && mv $1 $3
 
-Adding to Your project `default.do` file consisting of above shown command will convert all sources excepts active dofiles to semi-targets. Such conversion may slow-down projects with lot of small sources.
-
-If You prefer makefile-like `default.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
-
-    *) test -f $1 && mv $1 $3 ;;
+Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active dofiles to self-targets. Such conversion may slow-down projects with lot of small sources.
 
 
 ### Loop dependencies
@@ -202,6 +198,32 @@ using the fact, that `.redo.*` files are not allowed to have `*.do` files and ca
 In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
 
 
+### Dotdofiles
+
+Dotdofiles do the job which `default*.do` files do in majority of `redo` implementations.
+
+    $ redo -w x.y
+    >>>> /tmp/x.y
+    x.y.do
+    .y.do
+    .do
+    ../.y.do
+    ../.do
+
+Compatibility of traditional `default*.do` files with the current version can be provided with the help of copying them with `default` replaced with `''`:
+
+    cp default.o.do .o.do
+    cp default.bin.do .bin.do
+    cp default.do .do
+
+
+### Doing dofiles
+
+`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? Current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
+
+The rule of doing dofiles is that file belonging to the Nth do-layer can be done by (N+1)th do-layer file only. Technically it means that `default` can not replace any trailing `.do` suffix in the filename during the search for an appropriate dofile.
+
+
 ### "Imaginary" target
 
 The current version of redo supports the nameless targets such as :
@@ -212,32 +234,22 @@ The current version of redo supports the nameless targets such as :
 
     redo some-dir/
 
-Of course such targets can not exist, but they may have the corresponding script, named `.do`. If You want to build `''` target, then `.do` script will be looked for in the target directory and all upper dirs, without any `default` prefixes applicable. Such "imaginary" target may be an interesting replace for `all` target. The difference is in `default` rules, which are applicable for `all` target, but are ignored for `''` target.
+Of course such targets can not exist, but they may have the corresponding script, and its name is `.do`.
 
+Please keep in mind that `.do` in the current version is reincarnation of `default.do` and attempts to do everything, and must contain the recipe for converting pure sources into self-targets:
 
-### Doing dofiles
+    test -f "$1" && mv "$1" "$3"
 
-`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? Current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
+If You prefer makefile-like `.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
 
-The rule of doing dofiles is that file belonging to the Nth do-layer can be done by (N+1)th do-layer file only. Technically it means that `default` can not replace any trailing `.do` suffix in the filename during the search for an appropriate dofile.
-
-
-### Dotfiles doing
-
-Dotfiles are not the subject for `default` substitution procedure, they are expected to have the only one corresponding dofile name:
-
-    $ redo -w .dot
-    >>>> /tmp/somedir/.dot
-    .dot.do
-    ../.dot.do
-    ../../.dot.do
+    *) test -f "$1" && mv "$1" "$3" ;;
 
 
 ### Troubleshooting
 
 If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
 
-    redo -i ''
+    redo -ui ''
 
 keeping in mind that use of this option is safe only if possibility of parallel build is absolutely obviated. 
 

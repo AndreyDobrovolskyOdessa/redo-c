@@ -213,6 +213,8 @@ static const char redo_prefix[] =   ".redo.";
 static const char lock_prefix[] =   ".redo..redo.";
 static const char target_prefix[] = ".redo..redo..redo.";
 
+static const char suffix[] = ".do";
+
 static const char updir[] = "../";
 
 
@@ -479,31 +481,34 @@ int stflag;                                                       /* derived */
 $ redo -w x.y
 >>>> /tmp/x.y
 x.y.do
-default.y.do
-default.do
-../default.y.do
-../default.do
+.y.do
+.do
+../.y.do
+../.do
 
 $ redo -we x.y.do
 >>>> /tmp/x.y.do
 x.y.do.do
-default.y.do.do
-default.do.do
-../default.y.do.do
-../default.do.do
+.y.do.do
+.do.do
+../.y.do.do
+../.do.do
 
-$ redo -wee default.y.do
->>>> /tmp/default.y.do
-default.y.do.do
-default.y.do.do
-default.do.do
-../default.y.do.do
-../default.do.do
+$ redo -wee .y.do
+>>>> /tmp/.y.do
+.y.do.do
+.do.do
+../.y.do.do
+../.do.do
 
-$ redo -w .x.y.z
->>>> /tmp/.x.y.z
-.x.y.z.do
-../.x.y.z.do
+$ redo -w .x.y
+>>>> /tmp/.x.y
+.x.y.do
+.y.do
+.do
+../.x.y.do
+../.y.do
+../.do
 
 $ redo -w ''
 >>>> /tmp/
@@ -516,9 +521,6 @@ $ redo -w ''
 static char *
 find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash, int visible)
 {
-	static const char default_name[] = "default", suffix[] = ".do";
-	const char *name = "";
-	char *ext  = target; 
 	char *dofile = dofile_rel;
 
 	char *target_end = strchr(target, '\0');
@@ -544,19 +546,16 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		}
 	}
 
-	/* we can suppress *.do or default*.do files doing */
+	/* we can suppress dofiles or dotdofiles doing */
 
 	if (target_tail != target_end) {
 		if (eflag < 1)
 			return 0;
-		if (strncmp(target, default_name, sizeof default_name - 1) == 0) {
+		if (*target == '.') {
 			if (eflag < 2)
 				return 0;
 		}
 	}
-
-	if (*target == '.')
-		target_tail = target;
 
 	if (dofile_free < (strlen(target) + sizeof suffix))
 		return 0;
@@ -568,17 +567,16 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		dprintf(1, ">>>> %s\n", slash);
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
-		char *s = ext;
+		char *s = target;
 
 		while (1) {
-			strcpy(stpcpy(stpcpy(dofile, name), s), suffix);
+			strcpy(stpcpy(dofile, s), suffix);
 
 			if (visible)
 				dprintf(1, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
-				if (*s == '.')
-					*s = '\0';
+				*s = '\0';
 				return dofile;
 			}
 
@@ -587,16 +585,8 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 			while ((++s < target_tail) && (*s != '.'));
 
-			if (name != default_name) {
-				size_t required = (sizeof default_name - 1) + strlen(s);
-
-				if (dofile_free < required)
-					return 0;
-				dofile_free -= required;
-
-				name = default_name;
-				ext = s;
-			}
+			if (*target != '.')
+				target = s;
 		}
 
 		if (dofile_free < (sizeof updir - 1))
@@ -1145,7 +1135,7 @@ main(int argc, char *argv[])
 			}
 		case '?':
 		default:
-			dprintf(2, "Usage: redo [-fueltownsexist] [-d depth] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-westfueltoxins] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}
