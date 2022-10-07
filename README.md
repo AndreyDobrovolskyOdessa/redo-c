@@ -100,12 +100,21 @@ Add `redo.c` and `redo.do` files to Your project and build with
 
 ### Compatibility notes
 
+#### Major
+
+`default` prefix has no special meaning in conjunction with `.do` suffix. Sequence `default` can be used without any limitations in sources', targets' and recipes' names and follows common dofiles' search rules.
+
+Dotdofiles (like `.o.do`, `.x.do.do`, `.do`) are able to build groups of files with corresponding extensions:
+
+* `.o.do` builds all `*.o` files
+
+* `.x.do.do` builds all `*.x.do` files
+
+* `.do` builds all `*` files
+
 #### Important
 
 Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.redo.foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
-
-`.do` is traditionally used as the suffix for dofiles. For use with the current `redo` version it is recommended to avoid the `..do.` sequence inside the filenames of targets and recipes. The mentioned sequence interrupts `find_dofile()` process. Though sources with the names `..do..*` may be used for special purposes - see "Redo-always" section.
-
 
 #### Less important
 
@@ -113,15 +122,19 @@ stdout of `*.do` scripts is not captured. Feel free to start Your recipes with
 
     exec > $3 
 
-
 The `redo` binary itself never create or delete directories. Let dofiles do this job.
-
 
 #### Unimportant
 
 No default target.
 
 `redo` forces rebuild of up-to-date targets only being told `-f`.
+
+#### Implementation specific
+
+Sources with the names `..do..*` may be used for special purposes only - see "Redo-always" section.
+
+Sequence `..do.` inside the target name has special purpose (see "Tricks" section) and is not recommended for use somewhere inside the filenames.
 
 
 ### Options available
@@ -266,6 +279,27 @@ Test Your project for warnings without touching targets and refreshing dependenc
 
     redo -ul ''
 
+
+### Tricks
+
+As it was noted above the sequence `..do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search.
+
+Searching in cwd and updirs, involves `.do`:
+
+    $ redo -w x.cwd-n-upper
+    >>>> /tmp/x.cwd-n-upper
+    x.cwd-n-upper.do
+    .cwd-n-upper.do
+    .do
+    ../.cwd-n-upper.do
+    ../.do
+
+Searching in cwd only, `.do` rests:
+
+    $ redo -w x.cwd-only..do.
+    >>>> /tmp/x.cwd-only..do.
+    x.cwd-only..do..do
+    .cwd-only..do..do
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
