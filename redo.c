@@ -20,7 +20,7 @@
 /*
 This redo-c version can be found at:
 
-https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/dev3
+https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/dev4
 
 which is the fork of:
 
@@ -793,6 +793,9 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
 
+	if (uflag && (!oflag))
+		return 0;
+
 	if (may_need_rehash(filename, hint)) {
 		if (strncmp(line + HEXHASH_LEN + 1, datefilename(filename), HEXDATE_LEN) == 0)
 			return 0;
@@ -812,7 +815,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 		return 1;
 
 	if (	(is_target ? (has_deps ? tflag : stflag) : sflag) &&
-		oflag &&
+		/* oflag && */ /* implicit */
 		visible &&
 		(hint == IS_SOURCE)	)
 	{
