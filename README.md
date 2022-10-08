@@ -59,16 +59,16 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## Appendix
 
-dev4 is an experimental still full-functional branch. Its purpose is to lower the number of reserved words used by `redo`. `default` first filename is now regular word and have no special meaning. Dotdofiles play the role of default dofiles. Such approach expected to be more consistent.
+dev4 is an experimental still full-functional branch. Its purpose is to lower the number of reserved words used by `redo`. `default` first filename is now regular word and have no special meaning. Dotdofiles play the role of default dofiles. Such approach is expected to be more consistent.
 
 
 ### Motivation
 
-Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `.redo.A` file.
+Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `..do..A` file.
 
 Implement lock-free loop dependencies detection, allowing safe `redo` parallelizing.
 
-The current implementation (dev3 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding `.do` files, while sources - don't. KISS.
+The current implementation (dev4 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding `.do` files, while sources - don't. KISS.
 
 Actively used nowadays implementations:
 
@@ -114,7 +114,7 @@ Dotdofiles (like `.o.do`, `.x.do.do`, `.do`) are able to build groups of files w
 
 #### Important
 
-Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.redo.foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
+Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `..do..foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
 
 #### Less important
 
@@ -282,7 +282,7 @@ Test Your project for warnings without touching targets and refreshing dependenc
 
 ### Tricks
 
-As it was noted above the sequence `..do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search.
+As it was noted above the sequence `..do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
 
 Searching in cwd and updirs, involves `.do`:
 
