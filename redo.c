@@ -889,18 +889,21 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 }
 
 
+#define NAME_MAX 255
+
+
 static int
 update_dep(int *dir_fd, const char *dep_path, int nlevel)
 {
 	const char *target;
-	char *target_full, target_base[PATH_MAX];
+	char *target_full, target_base[NAME_MAX + 1];
 
-	char dofile_rel [PATH_MAX];
+	char dofile_rel[PATH_MAX];
 
 	int uprel;
 
-	char redofile[PATH_MAX + sizeof redo_prefix];
-	char lockfile[PATH_MAX + sizeof lock_prefix];
+	char redofile[NAME_MAX + 1];
+	char lockfile[NAME_MAX + 1];
 
 	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0;
 	int  visible = (!dflag) || (nlevel < dflag);
@@ -921,7 +924,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return lflag ? IS_SOURCE : TARGET_LOOP;
 	}
 
-	if (strlen(target) >= sizeof target_base) {
+	if (strlen(target) > (sizeof target_base - sizeof target_prefix)) {
 		dprintf(2, "Dependency name too long -- %s\n", target);
 		return TARGET_TOOLONG;
 	}
