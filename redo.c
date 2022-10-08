@@ -1243,7 +1243,7 @@ main(int argc, char *argv[])
 	}
 
 	if (strcmp(program, "redo-always") == 0)
-		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever       %s%s\n", target_prefix, redo_prefix);
+		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever ...   %s%s..always!\n", target_prefix, redo_prefix);
 
 	return redo_err;
 }
