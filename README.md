@@ -166,7 +166,7 @@ Sequence `..do.` inside the target name has special purpose (see "Tricks" sectio
 
 * `-w` Log find_dofile() steps to stdout. `REDO_WHICH_DO={0,1}`
 
-* `-d depth` limit of dependency tree nodes full names to be printed.
+* `-d depth` of the nodes to be displayed. `depth` equal to 0 means "display all". Positive `depth` means "equal to". Negative `depth` means "less or equal".
 
 
 ### Hashed sources aka self-targets or semi-targets.

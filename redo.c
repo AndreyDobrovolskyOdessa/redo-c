@@ -909,9 +909,17 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char lockfile[NAME_MAX + 1];
 
 	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0;
-	int  visible = (!dflag) || (nlevel < dflag);
 
 	FILE *fredo;
+
+	int  visible = !dflag;
+
+
+	if (dflag > 0)
+		visible = (nlevel == (dflag - 1));
+
+	if (dflag < 0)
+		visible = (nlevel < (-dflag));
 
 
 	target = file_chdir(dir_fd, dep_path);
