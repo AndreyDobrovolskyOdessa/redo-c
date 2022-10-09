@@ -218,6 +218,8 @@ static const char target_prefix[] = "..do....do....do..";
 static const char updir[] = "../";
 
 
+#define TRACK_DELIMITER ':'
+
 static char *
 track(const char *target, int track_op)
 {
@@ -252,7 +254,7 @@ track(const char *target, int track_op)
 		return track_buf;
 
 	if (!target) {					/* strip last path */
-		ptr = strrchr(track_buf, ':');
+		ptr = strrchr(track_buf, TRACK_DELIMITER);
 		if (ptr)
 			*ptr = 0;
 		return ptr;
@@ -288,7 +290,7 @@ track(const char *target, int track_op)
 	*ptr++ = '/';
 	strcpy(ptr, target);
 
-	*--target_wd = ':';			/* join target full path with the track_buf */
+	*--target_wd = TRACK_DELIMITER;		/* join target full path with the track_buf */
 
 	/* searching for target full path inside track_buf */
 
@@ -300,7 +302,7 @@ track(const char *target, int track_op)
 		if (ptr == target_wd)
 			return target_wd + 1;
 		ptr += target_len;
-	} while (*ptr != ':');
+	} while (*ptr != TRACK_DELIMITER);
 
 	return 0;
 }
@@ -701,7 +703,6 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 		dirprefix[dirprefix_len] = '\0';
 
 		if ((setenvfd("REDO_LOCK_FD", lock_fd) != 0) ||
-		    (setenvfd("REDO_LEVEL", nlevel + 1) != 0) ||
 		    (setenv("REDO_DIRPREFIX", dirprefix, 1) != 0) ||
 		    (setenv("REDO_TRACK", track(0, 0), 1) != 0)) {
 			perror("setenv");
@@ -823,7 +824,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	{
 		const char *track_buf = track(0, 0);
 		const char *name = is_target ?
-					strrchr(track_buf, ':') :
+					strrchr(track_buf, TRACK_DELIMITER) :
 					strchr(track_buf, '\0') ;
 
 		dprintf(1, "%s\n", name + 1);
@@ -1083,6 +1084,25 @@ keepdir()
 }
 
 
+static int count(const char *s, int c)
+{
+	int n = 0;
+
+	if (!c)
+		return 1;
+
+	while (1) {
+		s = strchr(s, c);
+		if (!s)
+			break;
+		s++;
+		n++;
+	}
+
+	return n;
+}
+
+
 #define MSEC_PER_SEC  1000
 #define NSEC_PER_MSEC 1000000
 
@@ -1099,7 +1119,6 @@ main(int argc, char *argv[])
 	int deps_done, progress;
 	int retries, attempts, night = 0, asleep;
 	struct timespec sleep_time, remaining;
-
 
 	const char *program = base_name(argv[0], 0);
 
@@ -1191,11 +1210,10 @@ main(int argc, char *argv[])
 	unsetenv("REDO_RETRIES");
 
 	lock_fd = envfd("REDO_LOCK_FD");
-	level = envint("REDO_LEVEL");
+
+	level = count(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
+
 	dirprefix = getenv("REDO_DIRPREFIX");
-
-	track(getenv("REDO_TRACK"), 0);
-
 	compute_updir(dirprefix, updir);
 
 	datebuild();
