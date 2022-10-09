@@ -529,7 +529,6 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	const char *suffix_ptr = redo_suffix + sizeof redo_suffix -1;
 
 
-
 	/* rewind .do tail inside target */
 
 	while (target_ptr > target) {
@@ -561,6 +560,9 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 	if (visible)
 		dprintf(1, ">>>> %s\n", slash);
 
+
+	strcat(target, redo_suffix);
+
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = target;
 
@@ -570,7 +572,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0)
 				return 0;
 
-			strcpy(stpcpy(dofile, s), redo_suffix);
+			strcpy(dofile, s);
 
 			if (visible)
 				dprintf(1, "%s\n", dofile_rel);
