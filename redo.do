@@ -12,7 +12,7 @@
 #
 #	redo redo
 
-if test -n "$REDO_LEVEL"
+if test -n "$REDO_TRACK"
 then # driven by redo
   redo redo.c local.cflags
   test -f local.cflags && CFLAGS="$(cat local.cflags)" || CFLAGS=""
