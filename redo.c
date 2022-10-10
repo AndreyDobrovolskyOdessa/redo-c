@@ -572,7 +572,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 			/* finding redo_prefix inside target stops the search */
 
 			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0) {
-			    if ((s != target_tail) || (eflag < 3))
+			    if ((s != target_tail) /* || (eflag < 3) */ )
 				return 0;
 			}
 
