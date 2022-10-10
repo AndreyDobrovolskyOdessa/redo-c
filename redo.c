@@ -911,7 +911,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
 
-	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0;
+	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0, is_source = 0;
 
 	FILE *fredo;
 
@@ -944,22 +944,48 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 	strcpy(target_base, target);
-	if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full, visible)) {
+	strcpy(stpcpy(redofile, redo_prefix), target);
+	strcpy(stpcpy(lockfile, lock_prefix), target);
+
+	if (strncmp(target, redo_prefix, sizeof redo_prefix - 2) == 0) {
+		is_source = 1;
+	} else if (uflag) {
+		is_source = access(redofile, F_OK);
+	} else if (!find_dofile(target_base, dofile_rel, sizeof dofile_rel,
+						&uprel, target_full, visible))
+	{
+		lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
+		if (lock_fd < 0) {
+			/* dprintf(2, "Target busy -- %s\n", target); */
+			return TARGET_BUSY;
+		}
+
+		remove(redofile);
+		close(lock_fd);
+		remove(lockfile);
+		is_source = 1;
+	}
+
+	if (is_source) {
 		if (sflag && (!oflag) && visible)
 			dprintf(1, "%s\n", target_full);
 		return IS_SOURCE;
 	}
 
-	strcpy(stpcpy(redofile, redo_prefix), target);
 	if (strcmp(datefilename(redofile), datebuild()) >= 0)
 		return TARGET_UPTODATE;
 
-	strcpy(stpcpy(lockfile, lock_prefix), target);
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
 	if (lock_fd < 0) {
 		/* dprintf(2, "Target busy -- %s\n", target); */
 		return TARGET_BUSY;
+	}
+
+	if (uflag) {
+		struct stat redo_st;
+		stat(redofile, &redo_st);
+		chmod(redofile, redo_st.st_mode);	/* touch ctime */
 	}
 
 	fredo = fopen(redofile,"r");
@@ -1009,7 +1035,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		if (!dep_err) {
 			off_t deps_pos = lseek(lock_fd, 0, SEEK_CUR);
 
-			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel, target, target_base, target_full, uprel);
+			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel,
+					target, target_base, target_full, uprel);
 
 			if (lseek(lock_fd, 0, SEEK_CUR) != deps_pos)
 				has_deps = 1;
