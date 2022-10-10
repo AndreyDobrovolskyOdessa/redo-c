@@ -926,16 +926,16 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		visible = (nlevel < (-dflag));
 
 
+	if (strchr(dep_path, TRACK_DELIMITER)) {
+		dprintf(2, "Illegal \':\' symbol in  -- %s\n", dep_path);
+		return TARGET_ILLEGAL_SYM;
+	}
+
 	target = file_chdir(dir_fd, dep_path);
 	if (target == 0) {
 		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
 		track("", 1);	/* dummy call */
 		return TARGET_NODIR;
-	}
-
-	if (strchr(target, TRACK_DELIMITER)) {
-		dprintf(2, "Illegal \':\' symbol in  -- %s\n", target);
-		return TARGET_ILLEGAL_SYM;
 	}
 
 	target_full = track(target, 1);
