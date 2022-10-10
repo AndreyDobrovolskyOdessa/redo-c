@@ -95,7 +95,8 @@ use more sophisticated though more complicated and not so clear logic. The curre
 
 * `redo ttt` tries to find corresponding dofile starting from dependency directory, and if found launches the dofile in the dofile's directory, passing 3 arguments: `<filename>`, `<basename>`, `<temporary.file.name>`. If dofile resides not in the target's directory, then all filenames are relative paths.
 
-* if `<dofile>` will be applied to `<filename>` then `strcmp("<filename>", strcat("<basename>", "<dofile.name>")) == 0`.
+* if `<dofile>` will be applied to `<filename>` then\
+`strcmp(strcat("<filename>", ".do"), strcat("<basename>", "<dofile.name>")) == 0`.
 
 * executable dofiles are launched as-is while non-executable are sourced to `/bin/sh`.
 
