@@ -64,7 +64,7 @@ dev4 is an experimental still full-functional branch. Its purpose is to lower th
 
 ### Motivation
 
-Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `..do..A` file.
+Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `.do..A` file.
 
 Implement lock-free loop dependencies detection, allowing safe `redo` parallelizing.
 
@@ -79,6 +79,37 @@ https://github.com/leahneukirchen/redo-c
 http://www.goredo.cypherpunks.ru
 
 use more sophisticated though more complicated and not so clear logic. The current `redo` version is an attempt to make it fully controllable with sources and `.do` files, which means, that `redo` internals are pure derivatives of sources and `.do` files and don't require any user attention or interventions.
+
+
+### In brief
+
+* dofile - file of `*.do` type
+
+* target - file for which corresponding dofile can be found
+
+* source - file for which corresponding dofile can not be found
+
+* dependency - source or target
+
+* corresponding dofiles files have filenames derived from the dependency filename. Try `redo -w <some.name>` for examples.
+
+* `redo ttt` tries to find corresponding dofile starting from dependency directory, and if found launches the dofile in the dofile's directory, passing 3 arguments: `<filename>`, `<basename>`, `<temporary.file.name>`. If dofile resides not in the target's directory, then all filenames are relative paths.
+
+* if `<dofile>` will be applied to `<filename>` then `strcmp("<filename>", strcat("<basename>", "<dofile.name>")) == 0`.
+
+* executable dofiles are launched as-is while non-executable are sourced to `/bin/sh`.
+
+* `redo ttt` builds `ttt` if dofile for `ttt` was found.
+
+* if during execution of the dofile, selected for target `ttt`, command `redo ddd` is executed, then `ddd` is marked as the dependency of `ttt` in `.do..ttt` file.
+
+#### Implementation specific char sequences
+
+* `.do` - dofile suffix
+
+* `.do..` - dependency file prefix. Files of `.do..*` type can be sources only - no dofile search is launched.
+
+* `.do.` - stops the search for dofile if found inside the dependency name.
 
 
 ### Test-drive
@@ -114,7 +145,7 @@ Dotdofiles (like `.o.do`, `.x.do.do`, `.do`) are able to build groups of files w
 
 #### Important
 
-Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `..do..foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
+Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.do..foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
 
 #### Less important
 
@@ -132,9 +163,9 @@ No default target.
 
 #### Implementation specific
 
-Sources with the names `..do..*` may be used for special purposes only - see "Redo-always" section.
+Sources with the names `.do..*` may be used for special purposes only - see "Redo-always" section.
 
-Sequence `..do.` inside the target name has special purpose (see "Tricks" section) and is not recommended for use somewhere inside the filenames.
+Sequence `.do.` inside the target name has special purpose (see "Tricks" section) and is not recommended for use somewhere inside the filenames.
 
 
 ### Options available
@@ -164,7 +195,7 @@ Sequence `..do.` inside the target name has special purpose (see "Tricks" sectio
 
 * `-o` "outdated" modifier for `-st` options. Implies `-u`.
 
-* `-w` Log find_dofile() steps to stdout. `REDO_WHICH_DO={0,1}`
+* `-w` Log find_dofile() steps to stdout. Have no effect in `-u` and `-o` modes. `REDO_WHICH_DO={0,1}`
 
 * `-d depth` of the nodes to be displayed. `depth` equal to 0 means "display all". Positive `depth` means "equal to". Negative `depth` means "less or equal".
 
@@ -203,11 +234,11 @@ Are monitored unconditionally and issue error or warning if found.
 
 In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
 
-    redo ..do..$1
+    redo .do..$1
 
-using the fact, that `..do.*` files are not allowed to have `*.do` files and can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
+using the fact, that `.do..*` can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
 
-In other words `redo-ifchange`, `redo-icreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
+In other words `redo-ifchange`, `redo-ifcreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
 
 
 ### Dotdofiles
@@ -268,9 +299,9 @@ keeping in mind that use of this option is safe only if possibility of parallel 
 
 ### Hints
 
-If You implement `redo-always` as `redo ..do..$1` then You can obtain the list of redone-always targets with:
+If You implement `redo-always` as `redo .do..$1` then You can obtain the list of redone-always targets with:
 
-    redo -os '' | sed -n 's/\.\.do\.\.//p' | sort | uniq
+    redo -os '' | sed -n 's/\.do\.\.//p' | sort | uniq
 
 for the project already built.
 
@@ -282,7 +313,7 @@ Test Your project for warnings without touching targets and refreshing dependenc
 
 ### Tricks
 
-As it was noted above the sequence `..do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
+As it was noted above the sequence `.do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
 
 Searching in cwd and updirs, involves `.do`:
 
@@ -296,10 +327,10 @@ Searching in cwd and updirs, involves `.do`:
 
 Searching in cwd only, `.do` rests:
 
-    $ redo -w x.cwd-only..do.
-    >>>> /tmp/x.cwd-only..do.
-    x.cwd-only..do..do
-    .cwd-only..do..do
+    $ redo -w x.cwd-only.do.
+    >>>> /tmp/x.cwd-only.do.
+    x.cwd-only.do..do
+    .cwd-only.do..do
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>

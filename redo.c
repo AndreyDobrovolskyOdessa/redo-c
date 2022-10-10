@@ -211,9 +211,9 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 static const char redo_suffix[] =   ".do";
 
-static const char redo_prefix[] =   "..do..";
-static const char lock_prefix[] =   "..do....do..";
-static const char target_prefix[] = "..do....do....do..";
+static const char redo_prefix[] =   ".do..";
+static const char lock_prefix[] =   ".do...do..";
+static const char target_prefix[] = ".do...do...do..";
 
 static const char updir[] = "../";
 
@@ -571,8 +571,10 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		while (1) {
 			/* finding redo_prefix inside target stops the search */
 
-			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0)
+			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0) {
+			    if ((s != target_tail) || (eflag < 3))
 				return 0;
+			}
 
 			strcpy(dofile, s);
 
@@ -953,7 +955,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	strcpy(stpcpy(redofile, redo_prefix), target);
 	strcpy(stpcpy(lockfile, lock_prefix), target);
 
-	if (strncmp(target, redo_prefix, sizeof redo_prefix - 2) == 0) {
+	if (strncmp(target, redo_prefix, sizeof redo_prefix - 1) == 0) {
 		is_source = 1;
 	} else if (uflag) {
 		is_source = access(redofile, F_OK);
