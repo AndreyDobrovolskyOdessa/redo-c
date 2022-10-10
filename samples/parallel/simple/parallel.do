@@ -1,12 +1,4 @@
-CMD="redo t1 t2 t3 t4"
+redo-always
 
-(
-  REDO_LOCK_FD=
-  REDO_RETRIES=6
-  $CMD &
-  $CMD &
-  wait
-)
-
-$CMD
+CMD="redo t1 t2 t3 t4" . ../take.two
 

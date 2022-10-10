@@ -1,4 +1,4 @@
-redo t12 t21
+CMD="redo t12 t21" . ../take.two
 
 I=1
 

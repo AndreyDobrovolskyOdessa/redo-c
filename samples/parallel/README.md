@@ -6,12 +6,12 @@ Starting in redo-c git directory:
 
     . ./redo.do
     cd samples/parallel/simple
-    rm .redo.*
+    rm .do..*
     echo 1 > seed
     time redo sequential
     echo 2 > seed
     time redo sequential
-    rm .redo.*
+    rm .do..*
     echo 1 > seed
     time redo parallel
     echo 2 > seed
@@ -24,12 +24,12 @@ Starting in redo-c git directory:
 
     . ./redo.do
     cd samples/parallel/complex
-    rm .redo.*
+    rm .do..*
     echo 1 > seed
     time redo sequential
     echo 2 > seed
     time redo sequential
-    rm .redo.*
+    rm .do..*
     echo 1 > seed
     time redo parallel
     echo 2 > seed

@@ -1,0 +1,9 @@
+(
+  REDO_LOCK_FD=
+  REDO_RETRIES=6
+  $CMD &
+  $CMD &
+  wait
+)
+
+$CMD
