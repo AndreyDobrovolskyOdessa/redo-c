@@ -611,6 +611,7 @@ enum update_dep_errors {
 	TARGET_RM_FAILED = 4,
 	TARGET_MV_FAILED = 8,
 	TARGET_BUSY = 0x10,
+	TARGET_ILLEGAL_SYM = 0x12,
 	TARGET_FAILURE = 0x18,
 	TARGET_TOOLONG = 0x20,
 	TARGET_REL_TOOLONG = 0x30,
@@ -930,6 +931,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
 		track("", 1);	/* dummy call */
 		return TARGET_NODIR;
+	}
+
+	if (strchr(target, TRACK_DELIMITER)) {
+		dprintf(2, "Illegal \':\' symbol in  -- %s\n", target);
+		return TARGET_ILLEGAL_SYM;
 	}
 
 	target_full = track(target, 1);
