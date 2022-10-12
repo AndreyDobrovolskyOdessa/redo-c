@@ -628,7 +628,8 @@ enum update_dep_errors {
 
 enum hints {
 	IS_SOURCE = 0x80,
-	UPDATED_RECENTLY = 0x100
+	UPDATED_RECENTLY = 0x100,
+	IMMEDIATE_DEPENDENCY = 0x200
 };
 
 #define HINTS (~DEP_ERRORS)
@@ -823,7 +824,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (	(is_target ? (has_deps ? tflag : stflag) : sflag) &&
 		/* oflag && */ /* implicit */
 		visible &&
-		(hint == IS_SOURCE)	)
+		(hint & IS_SOURCE)	)
 	{
 		const char *track_buf = track(0, 0);
 		const char *name = is_target ?
@@ -904,7 +905,7 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 static int
 update_dep(int *dir_fd, const char *dep_path, int nlevel)
 {
-	const char *target;
+	const char *dep;
 	char *target_full, target_base[NAME_MAX + 1];
 
 	char dofile_rel[PATH_MAX];
@@ -933,29 +934,29 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return DEPENDENCY_ILLEGAL_SYM;
 	}
 
-	target = file_chdir(dir_fd, dep_path);
-	if (target == 0) {
+	dep = file_chdir(dir_fd, dep_path);
+	if (dep == 0) {
 		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
 		track("", 1);	/* dummy call */
 		return DEPENDENCY_NODIR;
 	}
 
-	target_full = track(target, 1);
+	target_full = track(dep, 1);
 	if (target_full == 0){
 		dprintf(2, "Dependency loop attempt -- %s\n", dep_path);
 		return lflag ? IS_SOURCE : DEPENDENCY_LOOP;
 	}
 
-	if (strlen(target) > (sizeof target_base - sizeof target_prefix)) {
-		dprintf(2, "Dependency name too long -- %s\n", target);
+	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
+		dprintf(2, "Dependency name too long -- %s\n", dep);
 		return DEPENDENCY_TOOLONG;
 	}
 
-	strcpy(target_base, target);
-	strcpy(stpcpy(redofile, redo_prefix), target);
-	strcpy(stpcpy(lockfile, lock_prefix), target);
+	strcpy(target_base, dep);
+	strcpy(stpcpy(redofile, redo_prefix), dep);
+	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	if (strncmp(target, redo_prefix, sizeof redo_prefix - 1) == 0) {
+	if (strncmp(dep, redo_prefix, sizeof redo_prefix - 1) == 0) {
 		is_source = 1;
 	} else if (uflag) {
 		is_source = access(redofile, F_OK);
@@ -964,7 +965,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	{
 		lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
 		if (lock_fd < 0) {
-			/* dprintf(2, "Target busy -- %s\n", target); */
+			/* dprintf(2, "Dependency busy -- %s\n", dep); */
 			return DEPENDENCY_BUSY;
 		}
 
@@ -986,8 +987,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
 	if (lock_fd < 0) {
-		/* dprintf(2, "Target busy -- %s\n", target); */
-		return DEPENDENCY_BUSY;
+		/* dprintf(2, "Target busy -- %s\n", dep); */
+		return DEPENDENCY_BUSY | IMMEDIATE_DEPENDENCY;
 	}
 
 	if (uflag) {
@@ -1004,7 +1005,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
-			int is_target = !strcmp(filename, target);
+			int is_target = !strcmp(filename, dep);
 			int hint = IS_SOURCE;
 
 			if (is_dofile && (!uflag) && strcmp(filename, dofile_rel))
@@ -1044,13 +1045,13 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			off_t deps_pos = lseek(lock_fd, 0, SEEK_CUR);
 
 			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel,
-					target, target_base, target_full, uprel);
+					dep, target_base, target_full, uprel);
 
 			if (lseek(lock_fd, 0, SEEK_CUR) != deps_pos)
 				has_deps = 1;
 
 			if (!dep_err)
-				dep_err = write_dep(lock_fd, target, 0, 0, IS_SOURCE);
+				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
 	}
 
@@ -1067,6 +1068,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	strcpy((char *) base_name(target_full, 0), lockfile);
 
+	dep_err &= ~IMMEDIATE_DEPENDENCY;
+
 	return choose(redofile, target_full, dep_err) | UPDATED_RECENTLY;
 }
 
@@ -1077,18 +1080,6 @@ envint(const char *name)
 	char *s = getenv(name);
 
 	return s ? strtol(s, 0, 10) : 0;
-}
-
-
-static int
-envfd(const char *name)
-{
-	int fd = envint(name);
-
-	if (fd <= 0 || fd >= sysconf(_SC_OPEN_MAX))
-		fd = -1;
-
-	return fd;
 }
 
 
@@ -1145,19 +1136,14 @@ static int count(const char *s, int c)
 int
 main(int argc, char *argv[])
 {
-	int opt, i;
-	const char *dirprefix;
-	char updir[PATH_MAX];
-	int main_dir_fd, lock_fd;
-	int level;
-	int redo_err = 0, hint;
-	int deps_done, progress;
-	int retries, attempts, night = 0, asleep;
-	struct timespec sleep_time, remaining;
+	const char *program = base_name(argv[0], 0); 
 
-	const char *program = base_name(argv[0], 0);
+	int opt, deps_done = 0;
+	int lock_fd = envint("REDO_LOCK_FD");
 
-	int *exit_code;
+
+	if (lock_fd <= 0 || lock_fd >= sysconf(_SC_OPEN_MAX))
+		lock_fd = -1;
 
 
 	opterr = 0;
@@ -1203,7 +1189,6 @@ main(int argc, char *argv[])
 				setenvfd("REDO_DEPTH", dflag);
 				break;
 			}
-		case '?':
 		default:
 			dprintf(2, "Usage: redo [-sweetflutoxins] [-d depth] [TARGETS...]\n");
 			exit(1);
@@ -1212,16 +1197,28 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (argc > 0) {
-		exit_code = malloc(argc * sizeof (int));
-		if (!exit_code) {
-			perror("malloc");
-			exit(-1);
-		}
 
-		for (i = 0; i < argc; i++)
-			exit_code[i] = DEPENDENCY_BUSY;
+	/*************************/ if (argc > 0) { /************************/
+
+	const char *dirprefix;
+	char updir[PATH_MAX];
+	int level, main_dir_fd;
+	int redo_err, hint;
+	int deps_todo, progress;
+	int retries, attempts, night = 0, asleep;
+	struct timespec sleep_time, remaining;
+
+	int *exit_code, i;
+
+
+	exit_code = malloc(argc * sizeof (int));
+	if (!exit_code) {
+		perror("malloc");
+		exit(-1);
 	}
+
+	for (i = 0; i < argc; i++)
+		exit_code[i] = DEPENDENCY_BUSY;
 
 	fflag = envint("REDO_FORCE");
 	xflag = envint("REDO_TRACE");
@@ -1241,15 +1238,13 @@ main(int argc, char *argv[])
 		tflag--;
 	}
 
-	attempts = retries = envint("REDO_RETRIES");
-	unsetenv("REDO_RETRIES");
-
-	lock_fd = envfd("REDO_LOCK_FD");
+	dirprefix = getenv("REDO_DIRPREFIX");
+	compute_updir(dirprefix, updir);
 
 	level = count(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
 
-	dirprefix = getenv("REDO_DIRPREFIX");
-	compute_updir(dirprefix, updir);
+	attempts = retries = envint("REDO_RETRIES");
+	unsetenv("REDO_RETRIES");
 
 	datebuild();
 
@@ -1257,9 +1252,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	for (deps_done = 0; deps_done < argc; deps_done += progress) {
-		progress = 0;
-
+	for (deps_todo = argc; deps_done < deps_todo; deps_done += progress) {
 		if (night) {
 			asleep = (rand() % night) + 1;
 			sleep_time.tv_sec  =   asleep / MSEC_PER_SEC; 
@@ -1272,7 +1265,7 @@ main(int argc, char *argv[])
 			night = 10 /* ms */;
 		}
 
-		for (i = 0 ; i < argc ; i++) {
+		for (i = 0, progress = 0; i < argc ; i++) {
 			if (exit_code[i]) {
 				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
 		
@@ -1280,24 +1273,22 @@ main(int argc, char *argv[])
 					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
 
 				if (redo_err & (~DEPENDENCY_BUSY))
-					break;
+					return redo_err;
 
 				if (redo_err == 0) {
 					exit_code[i] = 0;
 					progress++;
+				} else /* DEPENDENCY_BUSY */ if (hint & IMMEDIATE_DEPENDENCY) {
+					exit_code[i] = 0;
+					deps_todo--;		/* forget it */
 				}
 			}
 		}
-
-		if (redo_err & (~DEPENDENCY_BUSY))
-			break;
 
 		if (progress) {
 			attempts = retries;
 			night = 0;
 		} else {
-			/* redo_err = DEPENDENCY_BUSY; */ /* implicit */
-
 			if (!attempts)
 				break;
 
@@ -1305,9 +1296,13 @@ main(int argc, char *argv[])
 		}
 	}
 
+	/*************************/ } /**************************************/
+
+
 	if (strcmp(program, "redo-always") == 0)
 		dprintf(lock_fd, "Impossible hash of impossible file, which will become up-to-date never ever ...   %s%s..always!\n", target_prefix, redo_prefix);
 
-	return redo_err;
+
+	return (deps_done < argc) ? DEPENDENCY_BUSY : 0;
 }
 
