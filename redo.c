@@ -1190,7 +1190,7 @@ main(int argc, char *argv[])
 				break;
 			}
 		default:
-			dprintf(2, "Usage: redo [-sweetflutoxins] [-d depth] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-sweetlinuxsoft] [-d depth] [TARGETS...]\n");
 			exit(1);
 		}
 	}

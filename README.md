@@ -231,6 +231,11 @@ Adding to Your project `.do` file consisting of above shown command will convert
 Are monitored unconditionally and issue error or warning if found.
 
 
+### Parallel builds
+
+Can be implemented in cooperative form. See `samples/parallel`
+
+
 ### Redo-always
 
 In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
