@@ -1110,7 +1110,8 @@ keepdir()
 }
 
 
-static int count(const char *s, int c)
+static int
+count(const char *s, int c)
 {
 	int n = 0;
 
@@ -1129,8 +1130,34 @@ static int count(const char *s, int c)
 }
 
 
+#define SHORTEST 10
+#define LONGEST  10000
+
 #define MSEC_PER_SEC  1000
 #define NSEC_PER_MSEC 1000000
+
+static void
+hurry_up_if(int successful)
+{
+	static int night = SHORTEST;
+	int asleep;
+	struct timespec s, r;
+
+	if (successful) {
+		night = SHORTEST;
+		return;
+	}
+
+	asleep = (rand() % night) + 1;
+
+	if (night < LONGEST)
+		night *= 2;
+
+	s.tv_sec  =  asleep / MSEC_PER_SEC; 
+	s.tv_nsec = (asleep % MSEC_PER_SEC) * NSEC_PER_MSEC;
+
+	nanosleep(&s, &r);
+}
 
 
 int
@@ -1203,10 +1230,8 @@ main(int argc, char *argv[])
 	const char *dirprefix;
 	char updir[PATH_MAX];
 	int level, main_dir_fd;
-	int redo_err, hint;
-	int deps_todo, progress;
-	int retries, attempts, night = 0, asleep;
-	struct timespec sleep_time, remaining;
+	int deps_todo = argc;
+	int retries, attempts;
 
 	int *exit_code, i;
 
@@ -1252,21 +1277,13 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	for (deps_todo = argc; deps_done < deps_todo; deps_done += progress) {
-		if (night) {
-			asleep = (rand() % night) + 1;
-			sleep_time.tv_sec  =   asleep / MSEC_PER_SEC; 
-			sleep_time.tv_nsec =  (asleep % MSEC_PER_SEC) * NSEC_PER_MSEC;
+	do {
+		hurry_up_if(retries == attempts); attempts--;
 
-			night *= 2;
-
-			nanosleep(&sleep_time, &remaining);
-		} else {
-			night = 10 /* ms */;
-		}
-
-		for (i = 0, progress = 0; i < argc ; i++) {
+		for (i = 0; i < argc ; i++) {
 			if (exit_code[i]) {
+				int redo_err, hint;
+
 				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
 		
 				if ((redo_err == 0) && (lock_fd > 0))
@@ -1277,24 +1294,15 @@ main(int argc, char *argv[])
 
 				if (redo_err == 0) {
 					exit_code[i] = 0;
-					progress++;
+					deps_done++;
+					attempts = retries;
 				} else /* DEPENDENCY_BUSY */ if (hint & IMMEDIATE_DEPENDENCY) {
 					exit_code[i] = 0;
 					deps_todo--;		/* forget it */
 				}
 			}
 		}
-
-		if (progress) {
-			attempts = retries;
-			night = 0;
-		} else {
-			if (!attempts)
-				break;
-
-			attempts--;
-		}
-	}
+	} while ((deps_done < deps_todo) && (attempts > 0));
 
 	/*************************/ } /**************************************/
 
