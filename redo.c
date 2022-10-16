@@ -941,15 +941,15 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return DEPENDENCY_NODIR;
 	}
 
+	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
+		dprintf(2, "Dependency name too long -- %s\n", dep);
+		return DEPENDENCY_TOOLONG;
+	}
+
 	target_full = track(dep, 1);
 	if (target_full == 0){
 		dprintf(2, "Dependency loop attempt -- %s\n", dep_path);
 		return lflag ? IS_SOURCE : DEPENDENCY_LOOP;
-	}
-
-	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
-		dprintf(2, "Dependency name too long -- %s\n", dep);
-		return DEPENDENCY_TOOLONG;
 	}
 
 	strcpy(target_base, dep);
