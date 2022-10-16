@@ -563,7 +563,7 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		dprintf(1, ">>>> %s\n", slash);
 
 
-	strcat(target, redo_suffix);
+	strcpy(target_end, redo_suffix);
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = target;
