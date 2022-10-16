@@ -25,8 +25,7 @@ else # bootstrapping
     { test -d "$1" && mv -i redo "$1"; } &&
     (
       cd "${1:-.}"
-      ln -sf redo redo-ifchange &&
-      ln -sf redo redo-ifcreate &&
+      ln -sf redo depends-on
     ) &&
     echo Ok || echo Error;
   }
