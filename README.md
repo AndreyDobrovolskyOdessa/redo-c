@@ -59,54 +59,43 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## Appendix
 
-dev4 is an experimental still full-functional branch. Its purpose is to lower the number of reserved words used by `redo`. `default` first filename is now regular word and have no special meaning. Dotdofiles play the role of default dofiles. Such approach is expected to be more consistent.
+### `redo <dependency-name>`
+
+search for `<dofile>`, able to build `<dependency-name>` and if found, runs it, passing three arguments:
+
+    <dofile> <dependency-name> <dependency-basename> <temporary-file>
+
+if `<dofile>` exits successfully, `<dependency-name>` is replaced with `<temporary-file>`.
+
+`<dependency-name>` can be built by:
+
+* `<dependency-name>.do` - if found in the same directory with <dependency-name>
+
+* `<dependency-name>.do` with firstname and any number of extensions stripped, not touching trailing '.do' sufiix(es) - in the same directory with <dependency-name> or the closest among the up-dirs
+
+`<dependency-basename>` is the prefix, which together with the basename of the `<dofile>` actually found produces `<dependency-name>.do`.
+
+`<dofile>` is run in its directory and all the arguments are passed as relative paths.
+
+If `<dofile>` able to build `<dependency-name>` was found means that `<dependency-name>` is the target, otherwise it is the source.
+
+If `<dependency-name>` is the target and `<dofile>` exits successfully, then dependencies for `<dependency-name>` are written in `.do..<dependency-name>` file in the same directory with `<dependency-name>`.
+
+Dependencies for `<dependency-name>` are:
+
+* relative path of actual `<dofile>`, used to build `<dependency-name>`
+
+* all dependencies, declared during actual `<dofile>`'s execution
+
+* `<dependency-name>` itself
+
+Dependencies in dofiles are declared with the help of
+
+    depends-on <dependency-name2>
 
 
-### Motivation
-
-Improve performance avoiding unnecessary targets scripts' execution. As deep as possible dive inside the dependencies tree and attempt to execute scripts placed deeper prior to those placed closer to the build root. Let's imagine, that `A` depends on `B`, and `B` depends on `C` (some source). Then `update_dep()` recurses down to `C`, checks its hash, and in case it was changed, runs `B.do`. Then `B` hash is checked and `A.do` is run then and only if `B`'s hash differs from its previous value, stored in the `.do..A` file.
-
-Implement lock-free loop dependencies detection, allowing safe `redo` parallelizing.
-
-The current implementation (dev4 branch) follows D.J.Bernstein's guidelines on distinguishing sources and targets. Targets do have corresponding `.do` files, while sources - don't. KISS.
-
-Actively used nowadays implementations:
-
-https://github.com/apenwarr/redo
-
-https://github.com/leahneukirchen/redo-c
-
-http://www.goredo.cypherpunks.ru
-
-use more sophisticated though more complicated and not so clear logic. The current `redo` version is an attempt to make it fully controllable with sources and `.do` files, which means, that `redo` internals are pure derivatives of sources and `.do` files and don't require any user attention or interventions.
-
-
-### In brief
-
-* dofile - file of `*.do` type
-
-* target - file for which corresponding dofile can be found
-
-* source - file for which corresponding dofile can not be found
-
-* dependency - source or target
-
-* corresponding dofiles files have filenames derived from the dependency filename. Try `redo -w <some.name>` for examples.
-
-* `redo ttt` tries to find corresponding dofile starting from dependency directory, and if found launches the dofile in the dofile's directory, passing 3 arguments: `<filename>`, `<basename>`, `<temporary.file.name>`. If dofile resides not in the target's directory, then all filenames are relative paths.
-
-* if `<dofile>` will be applied to `<filename>` then\
-`strcmp(strcat("<filename>", ".do"), strcat("<basename>", "<dofile.name>")) == 0`.
-
-* executable dofiles are launched as-is while non-executable are sourced to `/bin/sh`.
-
-* `redo ttt` builds `ttt` if dofile for `ttt` was found.
-
-* if during execution of the dofile, selected for target `ttt`, command `redo ddd` is executed, then `ddd` is marked as the dependency of `ttt` in `.do..ttt` file.
 
 #### Implementation specific char sequences
-
-* `.do` - dofile suffix
 
 * `.do..` - dependency file prefix. Files of `.do..*` type can be sources only - no dofile search is launched.
 
@@ -128,45 +117,6 @@ use more sophisticated though more complicated and not so clear logic. The curre
 Add `redo.c` and `redo.do` files to Your project and build with
 
     (. ./redo.do; redo <target>)
-
-
-### Compatibility notes
-
-#### Major
-
-`default` prefix has no special meaning in conjunction with `.do` suffix. Sequence `default` can be used without any limitations in sources', targets' and recipes' names and follows common dofiles' search rules.
-
-Dotdofiles (like `.o.do`, `.x.do.do`, `.do`) are able to build groups of files with corresponding extensions:
-
-* `.o.do` builds all `*.o` files
-
-* `.x.do.do` builds all `*.x.do` files
-
-* `.do` builds all `*` files
-
-#### Important
-
-Non-existing targets are not expected out-of-date unconditionally. If for example `foo.do` script produces no output and exits successfully, then record about an empty (non-existing) file `foo` is written into the corresponding `.do..foo` file and target `foo` is expected up-to-date until it become existing and not empty (non-existent and empty targets have the same hashes). Such behaviour eliminates the need for `redo-ifcreate` and allows to avoid enforcement to produce zero-sized files. Of course, You can use them if it fits Your taste and notion.
-
-#### Less important
-
-stdout of `*.do` scripts is not captured. Feel free to start Your recipes with
-
-    exec > $3 
-
-The `redo` binary itself never create or delete directories. Let dofiles do this job.
-
-#### Unimportant
-
-No default target.
-
-`redo` forces rebuild of up-to-date targets only being told `-f`.
-
-#### Implementation specific
-
-Sources with the names `.do..*` may be used for special purposes only - see "Redo-always" section.
-
-Sequence `.do.` inside the target name has special purpose (see "Tricks" section) and is not recommended for use somewhere inside the filenames.
 
 
 ### Options available
@@ -236,62 +186,18 @@ Are monitored unconditionally and issue error or warning if found.
 Can be implemented in cooperative form. See `samples/parallel`
 
 
-### Redo-always
+### Always out-of-date targets
 
-In fact current version implements only 2 utilities from redo family: `redo-ifchange` and `redo-always`. This short list may be reduced to `redo-ifchange` only. `redo-always` may be easily implemented as
+Can be achieved with the help of
 
-    redo .do..$1
-
-using the fact, that `.do..*` can not be targets. This approach is prefered over plain old "redo-always", because give some additional abilities, see "Hints" section.
-
-In other words `redo-ifchange`, `redo-ifcreate` and `redo-always` links are redundant, everything may be done with `redo` itself.
-
-
-### Dotdofiles
-
-Dotdofiles do the job which `default*.do` files do in majority of `redo` implementations.
-
-    $ redo -w x.y
-    >>>> /tmp/x.y
-    x.y.do
-    .y.do
-    .do
-    ../.y.do
-    ../.do
-
-Compatibility of traditional `default*.do` files with the current version can be provided with the help of copying them with `default` replaced with `''`:
-
-    cp default.o.do .o.do
-    cp default.bin.do .bin.do
-    cp default.do .do
+    depends-on .do..$1
 
 
 ### Doing dofiles
 
-`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? Current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
+`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? The current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
 
 The rule of doing dofiles is that file belonging to the Nth do-layer can be done by (N+1)th do-layer file only. Technically it means that any trailing `.do` suffix will not be excluded from the filename during the search for an appropriate dofile.
-
-
-### "Imaginary" target
-
-The current version of redo supports the nameless targets such as :
-
-    redo ''
-
-    redo ./
-
-    redo some-dir/
-
-Of course such targets can not exist, but they may have the corresponding script, and its name is `.do`.
-
-Please keep in mind that `.do` in the current version is reincarnation of `default.do` and attempts to do everything, and must contain the recipe for converting pure sources into self-targets:
-
-    test -f "$1" && mv "$1" "$3"
-
-If You prefer makefile-like `.do`, probably You use `case` selector for distinguishing the recipes. Then the default branch recipe may look like
-
-    *) test -f "$1" && mv "$1" "$3" ;;
 
 
 ### Troubleshooting
@@ -305,7 +211,7 @@ keeping in mind that use of this option is safe only if possibility of parallel 
 
 ### Hints
 
-If You implement `redo-always` as `redo .do..$1` then You can obtain the list of redone-always targets with:
+You can obtain the list of always out-of-date targets with:
 
     redo -os '' | sed -n 's/\.do\.\.//p' | sort | uniq
 

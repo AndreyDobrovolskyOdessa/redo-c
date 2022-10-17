@@ -1,9 +1,7 @@
 (
-  REDO_LOCK_FD=
-  REDO_RETRIES=6
-  $CMD &
-  $CMD &
+  redo $DEPS &
+  redo $DEPS &
   wait
 )
 
-$CMD
+depends-on $DEPS

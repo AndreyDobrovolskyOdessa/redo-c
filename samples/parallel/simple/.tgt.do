@@ -1,4 +1,4 @@
-redo seed
+depends-on seed
 
 I=1
 

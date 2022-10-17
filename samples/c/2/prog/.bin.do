@@ -40,7 +40,7 @@ end
 
 Assert("test -e " .. CName, "Missing " .. CName)
 
-Assert("redo " .. RName)
+Assert("depends-on " .. RName)
 
 local RUniq = {}
 local DUniq = {}
@@ -62,7 +62,7 @@ if DList ~= "" then
   assert(f:close())
 end
 
-Assert("redo " .. RList)
+Assert("depends-on " .. RList)
 Assert(Linker .. " -o " .. BinName .. " " .. RList .. " " .. Libs)
-Assert("redo " .. BinName)
+Assert("depends-on " .. BinName)
 

@@ -1,1 +1,1 @@
-redo ${2}.bin
+depends-on ${2}.bin

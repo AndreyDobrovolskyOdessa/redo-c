@@ -1,4 +1,4 @@
-redo-always
+depends-on .do..${1}
 
-CMD="redo t1 t2 t3 t4" . ../take.two
+DEPS="t1.tgt t2.tgt t3.tgt t4.tgt" . ../take.two
 

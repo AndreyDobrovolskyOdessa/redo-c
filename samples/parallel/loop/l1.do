@@ -1,3 +1,3 @@
 sleep 1
-redo l2
+depends-on l2
 

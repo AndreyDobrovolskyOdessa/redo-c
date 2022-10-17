@@ -1129,9 +1129,10 @@ count(const char *s, int c)
 	return n;
 }
 
+#define RETRIES_DEFAULT 10
 
 #define SHORTEST 10
-#define LONGEST  10000
+#define LONGEST  (SHORTEST << RETRIES_DEFAULT)
 
 #define MSEC_PER_SEC  1000
 #define NSEC_PER_MSEC 1000000
@@ -1163,15 +1164,22 @@ hurry_up_if(int successful)
 int
 main(int argc, char *argv[])
 {
-	const char *program = base_name(argv[0], 0); 
+	int opt, deps_done = 0, lock_fd = -1;
 
-	int opt, deps_done = 0;
-	int lock_fd = envint("REDO_LOCK_FD");
+	const char *dirprefix;
+	char updir[PATH_MAX];
+	int level, main_dir_fd;
+	int deps_todo, retries, attempts;
+
+	int *exit_code, i;
 
 
-	if (lock_fd <= 0 || lock_fd >= sysconf(_SC_OPEN_MAX))
-		lock_fd = -1;
+	if (strcmp(base_name(argv[0], 0), "depends-on") == 0) {
+		lock_fd = envint("REDO_LOCK_FD");
 
+		if (lock_fd == 0 /* || lock_fd >= sysconf(_SC_OPEN_MAX) */ )
+			lock_fd = -1;
+	}
 
 	opterr = 0;
 
@@ -1224,16 +1232,8 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-
-	/*************************/ if (argc > 0) { /************************/
-
-	const char *dirprefix;
-	char updir[PATH_MAX];
-	int level, main_dir_fd;
-	int deps_todo = argc;
-	int retries, attempts;
-
-	int *exit_code, i;
+	if (argc == 0)
+		return 0;
 
 
 	exit_code = malloc(argc * sizeof (int));
@@ -1268,8 +1268,14 @@ main(int argc, char *argv[])
 
 	level = count(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
 
-	attempts = retries = envint("REDO_RETRIES");
+	retries = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
+
+	if ((lock_fd < 0) && (retries == 0))
+		retries = RETRIES_DEFAULT;
+	attempts = retries;
+
+	deps_todo = argc;
 
 	datebuild();
 
@@ -1278,7 +1284,7 @@ main(int argc, char *argv[])
 	srand(getpid());
 
 	do {
-		hurry_up_if(retries == attempts); attempts--;
+		hurry_up_if(attempts == retries); attempts--;
 
 		for (i = 0; i < argc ; i++) {
 			if (exit_code[i]) {
@@ -1304,7 +1310,6 @@ main(int argc, char *argv[])
 		}
 	} while ((deps_done < deps_todo) && (attempts > 0));
 
-	/*************************/ } /**************************************/
 
 	return (deps_done < argc) ? DEPENDENCY_BUSY : 0;
 }

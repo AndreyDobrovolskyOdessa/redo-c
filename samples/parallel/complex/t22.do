@@ -1,4 +1,4 @@
-redo t2
+depends-on t2
 
 I=1
 

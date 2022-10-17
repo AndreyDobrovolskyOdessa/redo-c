@@ -14,7 +14,7 @@
 
 if test -n "$REDO_TRACK"
 then # driven by redo
-  redo redo.c local.cflags
+  depends-on redo.c local.cflags
   test -f local.cflags && CFLAGS="$(cat local.cflags)" || CFLAGS=""
   cc $CFLAGS -o "$3" redo.c
 else # bootstrapping
