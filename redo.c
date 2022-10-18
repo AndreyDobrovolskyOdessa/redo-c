@@ -1036,6 +1036,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		fclose(fredo);
 	}
 
+	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
+
 	if (!nflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
