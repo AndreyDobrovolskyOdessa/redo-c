@@ -71,14 +71,9 @@ Functions are executable variables. Functions are stored in the files which name
 
 #### Prerequisites
 
-Prerequisites are variables, created by `redo` at the moment of another variable's computation by some function. Prerequisites themselves can not be an immediate result of any function.
+Prerequisites are variables, created by `redo` per every variable, successfully computed by some function. Prerequisites themselves can not be an immediate result of any function.
 
-##### Records
-
-Records are components of prerequisites. The record describes certain variable. Each record must contain variable's filename, its ctime and hash of variable's content.
-
-Variable's record is stored in prerequisites when variable is used. Records are managed by `redo`.
-
+Prerequisites consist of records. Each record describes certain variable and contains variable's filename, its ctime and hash of variable's content.
 
 Prerequisites of "some-var" variable are stored in ".do..some-var" file in the same directory with "some-var".
 
@@ -86,7 +81,7 @@ If variable "x" was computed by function "f" using input parameters "a", "b" and
 
     x = f(a, b, c)
 
-then ".do..x" file will contain records about "f", "a", "b", "c" and "x" variables. "f" and "x" records are written by `redo`, while "a", "b" and "c" records must be created by "f" using `depends-on` call:
+then prerequisites variable named ".do..x" will contain records about "f", "a", "b", "c" and "x" variables. "f" and "x" records are written by caller `redo`, while "a", "b" and "c" records are written by the called "f" function during its execution, using `depends-on` call:
 
     depends-on a b c
 
@@ -98,10 +93,11 @@ Variables, having prerequisites, are targets.
 
 Variables, having no prerequisistes, are sources.
 
+Records are managed by `redo` only. Thay can not be targets, but can be used as sources.
 
 **Important note!**
 
-All input parameters must be reported for `redo` with the help of `depends-on` called during function evaluation.
+**ALL** function's input parameters must be reported for `redo` with the help of `depends-on` called during function evaluation.
 
 
 ### Usage
@@ -136,7 +132,7 @@ If we want to get "xxx" computed we call
 
 #### Choosing appropriate function.
 
-An applicability of the function to the certain variable is detected according to variables' and functions' names and locations in filesystem directories.
+An applicability of the function to the certain variable is detected according to variables' and functions' names and locations in filesystem hierarchy.
 
 For example `redo` was asked to build variable "x.y.z":
 
@@ -146,8 +142,10 @@ For example `redo` was asked to build variable "x.y.z":
 
 2. First name and all extensions are sequentially stripped in the order and files
 
-    .y.z.do\
-    .z.do\
+    .y.z.do
+
+    .z.do
+
     .do
 
 are looked for in the "x.y.z" directory
