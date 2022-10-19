@@ -93,7 +93,7 @@ Variables, having prerequisites, are targets.
 
 Variables, having no prerequisistes, are sources.
 
-Records are managed by `redo` only. Thay can not be targets, but can be used as sources.
+Prerequisites are managed by `redo` only. Thay can not be targets, but can be used as sources.
 
 **Important note!**
 
