@@ -142,8 +142,8 @@ For example `redo` was asked to build variable "x.y.z":
 
 2. First name and all extensions are sequentially stripped in the order and files
 
-    .y.z.do
-    .z.do
+    .y.z.do\
+    .z.do\
     .do
 
 are looked for in the "x.y.z" directory
@@ -152,13 +152,13 @@ are looked for in the "x.y.z" directory
 
 In case the appropriate function was found, class name is derived from the initial variable's name extended with ".do" suffix and actual choice, as complement of actual choice to fullname.
 
-Variable	Function	Class
+Variable\	Function\	Class
 
-x.y.z		.y.z.do		x
+x.y.z\	\	.y.z.do\	x
 
-a.b.c		.c.do		a.b
+a.b.c\	\	.c.do\	\	a.b
 
-q.w.e		.do		q.w.e
+q.w.e\	\	.do\	\	q.w.e
 
 a.s.d		a.s.d.do	<empty>
 
