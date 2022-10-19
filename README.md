@@ -140,7 +140,7 @@ For example `redo` was asked to build variable "x.y.z":
 
 1. The search is started with "x.y.z.do" in the "x.y.z" directory.
 
-2. First name and all extensions are sequentially stripped in the order and files
+2. First name and all extensions (excepts trailing ".do" ones) are sequentially stripped in the order and files
 
     .y.z.do
 
