@@ -67,7 +67,7 @@ Variables are sequences of bytes. Implemented as files, placed in certain direct
 
 #### Functions
 
-Functions are executable variables. Functions are stored in the files which names are ended with `.do` suffix. Functions may have input parameters - variables. The result of function evaluation is one variable.
+Functions are executable variables. Functions are stored in the files which names are ended with `.do` suffix. Functions may have input parameters - variables. The result of function evaluation is one variable. Function's result must be unambiguous and fully determined by its input parameters.
 
 #### Prerequisites
 
@@ -92,12 +92,16 @@ then ".do..x" file will contain records about "f", "a", "b", "c" and "x" variabl
 
 ##### Targets
 
-Variables, having prerequisites, are named targets.
+Variables, having prerequisites, are targets.
 
 ##### Sources
 
-Variables, having no prerequisistes, are named sources.
+Variables, having no prerequisistes, are sources.
 
+
+** Important note! **
+
+All input parameters must be reported for `redo` with the help of `depends-on` called during function evaluation.
 
 
 ### Usage
@@ -118,7 +122,7 @@ If we want to get "xxx" computed we call
 
 	4.2 If the most recent computation of "xxx" was provided by another function or "xxx.do" was changed after the latest build, then goto 5
 
-	4.3 If any of the input parameters of "xxx.do" changed (imply `redo <parameter>`), then goto 5
+	4.3 If any of the input parameters of "xxx.do" changed (checked with `redo <parameter>`), then goto 5
 
 	4.4 If requested variable "xxx" was changed, then goto 5
 
@@ -171,6 +175,7 @@ In case the appropriate function was found, class name is derived from the initi
 
 where `<tmpfile>` is proposed for `<function>` as intermediate storage and will replace `<variable>` if `<function>` exits successfully.
 
+`<function>` is executed in its directory, `<variable>`, `<class>` and `<tmpfile>` are passed as relative paths.
 
 
 ### Test-drive
