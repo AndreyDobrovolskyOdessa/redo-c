@@ -165,11 +165,11 @@ In case the appropriate function was found, class name is derived from the initi
 
 #### Functions' invocation.
 
-`redo` invokes the <function> chosen for <variable> as:
+`redo` invokes the `<function>` chosen for `<variable>` as:
 
     <function> <variable> <class> <tmpfile>
 
-where <tmpfile> is proposed for <function> as intermediate storage and will replace <variable> if <function> exits successfully.
+where `<tmpfile>` is proposed for `<function>` as intermediate storage and will replace `<variable>` if `<function>` exits successfully.
 
 
 
