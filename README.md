@@ -57,49 +57,120 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 
 
-## Appendix
+## Redo as distributed computations engine
 
-### `redo <dependency-name>`
+### Terms and definitions
 
-search for `<dofile>`, able to build `<dependency-name>` and if found, runs it, passing three arguments:
+#### Variables
 
-    <dofile> <dependency-name> <dependency-basename> <temporary-file>
+Variables are sequences of bytes. Implemented as files, placed in certain directories of the hierarchical filesystem.
 
-if `<dofile>` exits successfully, `<dependency-name>` is replaced with `<temporary-file>`.
+#### Functions
 
-`<dependency-name>` can be built by:
+Functions are executable variables. Functions are stored in the files which names are ended with `.do` suffix. Functions may have input parameters - variables. The result of function evaluation is one variable.
 
-* `<dependency-name>.do` - if found in the same directory with <dependency-name>
+#### Prerequisites
 
-* `<dependency-name>.do` with firstname and any number of extensions stripped, not touching trailing '.do' sufiix(es) - in the same directory with <dependency-name> or the closest among the up-dirs
+Prerequisites are variables, created by `redo` at the moment of another variable's computation by some function. Prerequisites themselves can not be an immediate result of any function.
 
-`<dependency-basename>` is the prefix, which together with the basename of the `<dofile>` actually found produces `<dependency-name>.do`.
+##### Records
 
-`<dofile>` is run in its directory and all the arguments are passed as relative paths.
+Records are components of prerequisites. The record describes certain variable. Each record must contain variable's filename, its ctime and hash of variable's content.
 
-If `<dofile>` able to build `<dependency-name>` was found means that `<dependency-name>` is the target, otherwise it is the source.
-
-If `<dependency-name>` is the target and `<dofile>` exits successfully, then dependencies for `<dependency-name>` are written in `.do..<dependency-name>` file in the same directory with `<dependency-name>`.
-
-Dependencies for `<dependency-name>` are:
-
-* relative path of actual `<dofile>`, used to build `<dependency-name>`
-
-* all dependencies, declared during actual `<dofile>`'s execution
-
-* `<dependency-name>` itself
-
-Dependencies in dofiles are declared with the help of
-
-    depends-on <dependency-name2>
+Variable's record is stored in prerequisites when variable is used. Records are managed by `redo`.
 
 
+Prerequisites of "some-var" variable are stored in ".do..some-var" file in the same directory with "some-var".
 
-#### Implementation specific char sequences
+If variable "x" was computed by function "f" using input parameters "a", "b" and "c":
 
-* `.do..` - dependency file prefix. Files of `.do..*` type can be sources only - no dofile search is launched.
+    x = f(a, b, c)
 
-* `.do.` - stops the search for dofile if found inside the dependency name.
+then ".do..x" file will contain records about "f", "a", "b", "c" and "x" variables. "f" and "x" records are written by `redo`, while "a", "b" and "c" records must be created by "f" using `depends-on` call:
+
+    depends-on a b c
+
+##### Targets
+
+Variables, having prerequisites, are named targets.
+
+##### Sources
+
+Variables, having no prerequisistes, are named sources.
+
+
+
+### Usage
+
+If we want to get "xxx" computed we call
+
+    redo xxx
+
+1. `redo` tries to find function, able to compute "xxx".
+
+2. If no such function found, prerequisites for "xxx" are checked and removed if existing.
+
+3. If function "xxx.do" is found appropriate for building "xxx", then start
+
+4. Prerequisites studying.
+
+	4.1 If no prerequisites found, then goto 5 
+
+	4.2 If the most recent computation of "xxx" was provided by another function or "xxx.do" was changed after the latest build, then goto 5
+
+	4.3 If any of the input parameters of "xxx.do" changed (imply `redo <parameter>`), then goto 5
+
+	4.4 If requested variable "xxx" was changed, then goto 5
+
+	4.5 goto 6
+
+5. Execute "xxx.do" and write the result into "xxx".
+
+6. Update ".do..xxx" prerequisites.
+
+
+
+#### Choosing appropriate function.
+
+An applicability of the function to the certain variable is detected according to variables' and functions' names and locations in filesystem directories.
+
+For example `redo` was asked to build variable "x.y.z":
+
+    redo x.y.z
+
+1. The search is started with "x.y.z.do" in the "x.y.z" directory.
+
+2. First name and all extensions are sequentially stripped in the order and files
+
+    .y.z.do
+    .z.do
+    .do
+
+are looked for in the "x.y.z" directory
+
+3. The same candidates as in step 2 are looked for in all up-dirs.
+
+In case the appropriate function was found, class name is derived from the initial variable's name extended with ".do" suffix and actual choice, as complement of actual choice to fullname.
+
+Variable	Function	Class
+
+x.y.z		.y.z.do		x
+
+a.b.c		.c.do		a.b
+
+q.w.e		.do		q.w.e
+
+a.s.d		a.s.d.do	<empty>
+
+
+#### Functions' invocation.
+
+`redo` invokes the <function> chosen for <variable> as:
+
+    <function> <variable> <class> <tmpfile>
+
+where <tmpfile> is proposed for <function> as intermediate storage and will replace <variable> if <function> exits successfully.
+
 
 
 ### Test-drive
