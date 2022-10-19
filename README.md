@@ -99,7 +99,7 @@ Variables, having prerequisites, are targets.
 Variables, having no prerequisistes, are sources.
 
 
-** Important note! **
+**Important note!**
 
 All input parameters must be reported for `redo` with the help of `depends-on` called during function evaluation.
 
