@@ -299,7 +299,7 @@ Test Your project for warnings without touching targets and refreshing dependenc
 
 ### Tricks
 
-As it was noted above the sequence `.do.` has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
+The sequence `.do.` inside the variable's filename has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
 
 Searching in cwd and updirs, involves `.do`:
 
