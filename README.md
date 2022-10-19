@@ -152,7 +152,7 @@ are looked for in the "x.y.z" directory
 
 3. The same candidates as in step 2 are looked for in all up-dirs.
 
-In case the appropriate function was found, class name is derived from the initial variable's name extended with ".do" suffix and actual choice, as complement of actual choice to fullname.
+In case the appropriate function was found, class name is derived from the initial variable's name extended with ".do" suffix and actually chosen function's basename, as complement of actual choice to initial fullname.
 
     Variable    Function    Class
 
