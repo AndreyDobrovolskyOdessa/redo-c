@@ -53,3 +53,271 @@ To the extent possible under law, Leah Neukirchen <leah@vuxu.org>
 has waived all copyright and related or neighboring rights to this work.
 
 http://creativecommons.org/publicdomain/zero/1.0/
+
+
+
+
+## Redo as distributed computations engine
+
+### Terms and definitions
+
+#### Variables
+
+Variables are sequences of bytes. Implemented as files, placed in certain directories of the hierarchical filesystem.
+
+#### Functions
+
+Functions are executable variables. Functions are stored in the files which names are ended with `.do` suffix. Functions may have input parameters - variables. The result of function evaluation is one variable. Function's result must be unambiguous and fully determined by its input parameters.
+
+#### Prerequisites
+
+Prerequisites are variables, created by `redo` per every variable, successfully computed by some function. Prerequisites themselves can not be an immediate result of any function.
+
+Prerequisites consist of records. Each record describes certain variable and contains variable's filename, its ctime and hash of variable's content.
+
+Prerequisites of "some-var" variable are stored in ".do..some-var" file in the same directory with "some-var".
+
+If variable "x" was computed by function "f" using input parameters "a", "b" and "c":
+
+    x = f(a, b, c)
+
+then prerequisites variable named ".do..x" will contain records about "f", "a", "b", "c" and "x" variables. "f" and "x" records are written by caller `redo`, while "a", "b" and "c" records are written by the called "f" function during its execution, using `depends-on` call:
+
+    depends-on a b c
+
+##### Targets
+
+Variables, having prerequisites, are targets.
+
+##### Sources
+
+Variables, having no prerequisistes, are sources.
+
+Prerequisites are managed by `redo` only. Thay can not be targets, but can be used as sources.
+
+**Important note!**
+
+**ALL** function's input parameters must be reported for `redo` with the help of `depends-on` called during function evaluation.
+
+
+### Usage
+
+If we want to get "xxx" computed we call
+
+    redo xxx
+
+1. `redo` tries to find function, able to compute "xxx".
+
+2. If no such function found, prerequisites for "xxx" are checked and removed if existing.
+
+3. If function "xxx.do" is found appropriate for building "xxx", then start
+
+4. Prerequisites studying.
+
+	4.1 If no prerequisites found, then goto 5 
+
+	4.2 If the most recent computation of "xxx" was provided by another function or "xxx.do" was changed after the latest build, then goto 5
+
+	4.3 If any of the input parameters of "xxx.do" changed (checked with `redo <parameter>`), then goto 5
+
+	4.4 If requested variable "xxx" was changed, then goto 5
+
+	4.5 goto 6
+
+5. Execute "xxx.do" and write the result into "xxx".
+
+6. Update ".do..xxx" prerequisites.
+
+
+
+#### Choosing appropriate function.
+
+An applicability of the function to the certain variable is detected according to variables' and functions' names and locations in filesystem hierarchy.
+
+For example `redo` was asked to build variable "x.y.z":
+
+    redo x.y.z
+
+1. The search is started with "x.y.z.do" in the "x.y.z" directory.
+
+2. First name and all extensions (excepts trailing ".do" ones) are sequentially stripped in the order and files
+
+    .y.z.do
+
+    .z.do
+
+    .do
+
+are looked for in the "x.y.z" directory
+
+3. The same candidates as in step 2 are looked for in all up-dirs.
+
+In case the appropriate function was found, class name is derived from the initial variable's name extended with ".do" suffix and actually chosen function's basename, as complement of actual choice to initial fullname.
+
+    Variable    Function    Class
+
+    x.y.z       .y.z.do     x
+
+    a.b.c       .c.do       a.b
+
+    q.w.e       .do         q.w.e
+
+    a.s.d       a.s.d.do    ''
+
+
+#### Functions' invocation.
+
+`redo` invokes the `<function>` chosen for `<variable>` as:
+
+    <function> <variable> <class> <tmpfile>
+
+where `<tmpfile>` is proposed for `<function>` as intermediate result storage and will replace `<variable>` if `<function>` exits successfully.
+
+`<function>` is executed in its directory, `<variable>`, `<class>` and `<tmpfile>` are passed as relative paths.
+
+
+### Test-drive
+
+    . ./redo.do
+
+
+### Kick-start
+
+    . ./redo.do $HOME/.local/bin
+
+
+### Standalone build
+
+Add `redo.c` and `redo.do` files to Your project and build with
+
+    (. ./redo.do; redo <target>)
+
+
+### Options available
+
+#### Build options
+
+* `-f` All targets are considered outdated. Usefulness doubtful. `REDO_FORCE={0,1}`
+
+* `-x` See above. `REDO_TRACE={0,1}`
+
+* `-e`, `-ee`. Enables doing of .do files. `REDO_DOFILES={0,1,2}`. 0 (default) suppress doing of dofiles, 1 (`-e`) suppress doing of dotdofiles, 2 (`-ee`) allows to do anything.
+
+* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
+
+* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_LOOP_WARN={0,1}`
+
+
+#### Diagnostic output options
+
+* `-n` Inhibits `*.do` files execution. Supersedes `-f`. Suppresses dependency files' refreshing.
+
+* `-u` "up-to-date" imitation. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date. Implicit `-n` means that only the branches already built can be scanned.
+
+* `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1,2}`
+
+* `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1,2}`
+
+* `-o` "outdated" modifier for `-st` options. Implies `-u`.
+
+* `-w` Log find_dofile() steps to stdout. Have no effect in `-u` and `-o` modes. `REDO_WHICH_DO={0,1}`
+
+* `-d depth` of the nodes to be displayed. `depth` equal to 0 means "display all". Positive `depth` means "equal to". Negative `depth` means "less or equal".
+
+
+### Hashed sources aka self-targets or semi-targets.
+
+Output options `-st` can be combined in order to achieve desired output:
+
+* `-s` sources only
+
+* `-st` self-targets only
+
+* `-sst` sources and self-targets
+
+* `-t` full targets only
+
+* `-stt` all targets
+
+* `-sstt` all files
+
+Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
+
+Conversion can be provided with the help of the following simple dofile:
+
+    test -f $1 && mv $1 $3
+
+Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active dofiles to self-targets. Such conversion may slow-down projects with lot of small sources.
+
+
+### Loop dependencies
+
+Are monitored unconditionally and issue error or warning if found.
+
+
+### Parallel builds
+
+Can be implemented in cooperative form. See `samples/parallel`
+
+
+### Always out-of-date targets
+
+Can be achieved with the help of
+
+    depends-on .do..$1
+
+
+### Doing dofiles
+
+`.do` filename extension has special meaning for `redo`. At the first glance it divides all files into two categories - ordinary files and dofiles. But what about doing dofiles? The current version follows approach of "do-layers". Ordinary files (lacking `.do` filename extension) belongs to 0th do-layer. `*.do` files belong to the 1st do-layer. `*.do.do` files - to the 2nd do-layer and so forth.
+
+The rule of doing dofiles is that file belonging to the Nth do-layer can be done by (N+1)th do-layer file only. Technically it means that any trailing `.do` suffix will not be excluded from the filename during the search for an appropriate dofile.
+
+
+### Troubleshooting
+
+If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
+
+    redo -ui ''
+
+keeping in mind that use of this option is safe only if possibility of parallel build is absolutely obviated. 
+
+
+### Hints
+
+You can obtain the list of always out-of-date targets with:
+
+    redo -os '' | sed -n 's/\.do\.\.//p' | sort | uniq
+
+for the project already built.
+
+
+Test Your project for warnings without touching targets and refreshing dependency records
+
+    redo -ul ''
+
+
+### Tricks
+
+The sequence `.do.` inside the variable's filename has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
+
+Searching in cwd and updirs, involves `.do`:
+
+    $ redo -w x.cwd-n-upper
+    >>>> /tmp/x.cwd-n-upper
+    x.cwd-n-upper.do
+    .cwd-n-upper.do
+    .do
+    ../.cwd-n-upper.do
+    ../.do
+
+Searching in cwd only, `.do` rests:
+
+    $ redo -w x.cwd-only.do.
+    >>>> /tmp/x.cwd-only.do.
+    x.cwd-only.do..do
+    .cwd-only.do..do
+
+
+Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
+
