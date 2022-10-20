@@ -231,7 +231,7 @@ track(const char *target, int track_op)
 	static size_t track_buf_size = 0;	/* the whole track_buf size, sufficient for
 						holding initial REDO_TRACK and current target
 						full path */
-					      
+
 	size_t target_len, track_engaged, target_wd_offset;
 	char *target_wd, *ptr;
 
@@ -1113,23 +1113,23 @@ keepdir()
 
 
 static int
-count(const char *s, int c)
+occurrences(const char *str, int ch)
 {
 	int n = 0;
 
-	if (!c)
-		return 1;
-
-	while (1) {
-		s = strchr(s, c);
-		if (!s)
-			break;
-		s++;
-		n++;
+	while (str) {
+		str = strchr(str, ch);
+		if (str) {
+			n++;
+			if (ch == 0)
+				break;
+			str++;
+		}
 	}
 
 	return n;
 }
+
 
 #define RETRIES_DEFAULT 10
 
@@ -1268,7 +1268,7 @@ main(int argc, char *argv[])
 	dirprefix = getenv("REDO_DIRPREFIX");
 	compute_updir(dirprefix, updir);
 
-	level = count(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
+	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
 
 	retries = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
@@ -1293,7 +1293,7 @@ main(int argc, char *argv[])
 				int redo_err, hint;
 
 				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
-		
+
 				if ((redo_err == 0) && (lock_fd > 0))
 					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
 
