@@ -20,7 +20,7 @@
 /*
 This redo-c version can be found at:
 
-https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/dev4
+https://github.com/AndreyDobrovolskyOdessa/redo-c
 
 which is the fork of:
 
