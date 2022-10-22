@@ -299,24 +299,23 @@ Test Your project for warnings without touching targets and refreshing dependenc
 
 ### Tricks
 
-The sequence `.do.` inside the variable's filename has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must avoid doing by omnivorous `.do`.
+The sequence `.do.` inside the variable's filename has special meaning. If it is found inside the supposed target's name during the search for appropriate dofile, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used for targets, which need cwd-only dofile search or must escape the omnivorous `.do` visibility area.
 
-Searching in cwd and updirs, involves `.do`:
+Searching in cwd only:
 
-    $ redo -w x.cwd-n-upper
-    >>>> /tmp/x.cwd-n-upper
-    x.cwd-n-upper.do
-    .cwd-n-upper.do
-    .do
-    ../.cwd-n-upper.do
-    ../.do
+    $ redo -w cwd-only.do.
+    >>>> /tmp/cwd-only.do.
+    cwd-only.do..do
 
-Searching in cwd only, `.do` rests:
+Searching in cwd and updirs:
 
-    $ redo -w x.cwd-only.do.
-    >>>> /tmp/x.cwd-only.do.
-    x.cwd-only.do..do
-    .cwd-only.do..do
+    $ redo -w cwd.and.updirs.do.
+    >>>> /tmp/cwd.and.updirs.do.
+    cwd.and.updirs.do..do
+    .and.updirs.do..do
+    .updirs.do..do
+    ../.and.updirs.do..do
+    ../.updirs.do..do
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>

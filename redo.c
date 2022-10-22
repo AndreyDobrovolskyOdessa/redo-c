@@ -217,6 +217,8 @@ static const char target_prefix[] = ".do...do...do..";
 
 static const char updir[] = "../";
 
+static const char trickpoint[] = ".do.";
+
 
 #define TRACK_DELIMITER ':'
 
@@ -517,48 +519,68 @@ $ redo -w ''
 .do
 ../.do
 
+$ redo -w x.do.
+>>>> /tmp/x.do.
+x.do..do
+
+$ redo -w x.y.do.
+>>>> /tmp/x.y.do.
+x.y.do..do
+.y.do..do
+../.y.do..do
+
 **---------------------------------------------------------------------------*/
 
 
 static char *
-find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash, int visible)
+find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash, int visible)
 {
 	char *dofile = dofile_rel;
 
-	char *target_end = strchr(target, '\0');
-	char *target_ptr = target_end;
-	char *target_tail = target_end;
+	char *dep_end  = strchr(dep, '\0');
+	char *dep_ptr  = dep_end;
+	char *dep_tail = dep_end;
+	char *dep_trickpoint;
 
-	const char *suffix_ptr = redo_suffix + sizeof redo_suffix -1;
+	const char *suffix_ptr = redo_suffix + sizeof redo_suffix - 1;
+
+	int dep_len = (dep_end - dep) + sizeof redo_suffix;
+
+	char *extension;
 
 
-	/* rewind .do tail inside target */
+	/* rewind .do tail inside dependency */
 
-	while (target_ptr > target) {
-		if (*--target_ptr != *--suffix_ptr)
+	while (dep_ptr > dep) {
+		if (*--dep_ptr != *--suffix_ptr)
 			break;
 		if (suffix_ptr == redo_suffix) {
-			target_tail = target_ptr;
+			dep_tail = dep_ptr;
 			suffix_ptr += sizeof redo_suffix - 1;
 		}
 	}
 
+
 	/* we can suppress dofiles or dotdofiles doing */
 
-	if (target_tail != target_end) {
+	if (dep_tail != dep_end) {
 		if (eflag < 1)
 			return 0;
-		if (*target == '.') {
-			if (eflag < 2)
-				return 0;
-		}
+		if ((*dep == '.') && (eflag < 2))
+			return 0;
 	}
 
-	if (dofile_free < (strlen(target) + sizeof redo_suffix))
-		return 0;
-	dofile_free -= sizeof redo_suffix;
 
-	strcpy(target_end, redo_suffix);
+	if (dofile_free < dep_len)
+		return 0;
+	dofile_free -= dep_len;
+
+	dep_trickpoint = strstr(dep, trickpoint);
+
+	strcpy(dep_end, redo_suffix);
+
+	dep_ptr = dep;
+	extension = strchr(dep, '.');
 
 
 	visible = visible && wflag;
@@ -568,34 +590,25 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
-		char *s = target;
 
-		while (1) {
-			/* finding redo_prefix inside target stops the search */
-
-			if (strncmp(s, redo_prefix, sizeof redo_prefix - 2) == 0) {
-			    if ((s != target_tail) /* || (eflag < 3) */ )
-				return 0;
-			}
-
-			strcpy(dofile, s);
+		while ((dep_ptr != dep_trickpoint) || (dep_ptr == dep_tail)) {
+			strcpy(dofile, dep_ptr);
 
 			if (visible)
 				dprintf(1, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
-				*s = '\0';
+				*dep_ptr = '\0';
 				return dofile;
 			}
 
-			if (s == target_tail)
+			if (dep_ptr == dep_tail)
 				break;
 
-			while ((++s < target_tail) && (*s != '.'));
-
-			if (*target != '.')
-				target = s;
+			while (*++dep_ptr != '.');
 		}
+
+		dep_ptr = extension;
 
 		if (dofile_free < (sizeof updir - 1))
 			return 0;
