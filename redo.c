@@ -527,7 +527,8 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 
 	char *target_end = strchr(target, '\0');
 	char *target_ptr = target_end;
-	char *target_tail = target_ptr;
+	char *target_tail = target_end;
+
 	const char *suffix_ptr = redo_suffix + sizeof redo_suffix -1;
 
 
@@ -557,13 +558,14 @@ find_dofile(char *target, char *dofile_rel, size_t dofile_free, int *uprel, cons
 		return 0;
 	dofile_free -= sizeof redo_suffix;
 
+	strcpy(target_end, redo_suffix);
+
+
 	visible = visible && wflag;
 
 	if (visible)
 		dprintf(1, ">>>> %s\n", slash);
 
-
-	strcpy(target_end, redo_suffix);
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 		char *s = target;
