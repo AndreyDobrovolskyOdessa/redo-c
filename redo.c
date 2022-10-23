@@ -209,15 +209,13 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-static const char redo_suffix[] =   ".do";
-
-static const char redo_prefix[] =   ".do..";
-static const char lock_prefix[] =   ".do...do..";
-static const char target_prefix[] = ".do...do...do..";
+static const char redo_suffix[] =	".do";
+static const char trickpoint[]  =	".do.";
+static const char redo_prefix[] =	".do..";
+static const char lock_prefix[] =	".do...do..";
+static const char target_prefix[] =	".do...do...do..";
 
 static const char updir[] = "../";
-
-static const char trickpoint[] = ".do.";
 
 
 #define TRACK_DELIMITER ':'
@@ -240,15 +238,15 @@ track(const char *target, int track_op)
 	if (track_buf_size == 0) {				/* the very first invocation */
 		track_buf_size = PATH_MAX;
 		if (target)					/* suppose getenv("REDO_TRACK") */
-			track_buf_size += strlen (target);
-		track_buf = malloc (track_buf_size);
+			track_buf_size += strlen(target);
+		track_buf = malloc(track_buf_size);
 		if (!track_buf) {
 			perror("malloc");
 			exit (-1);
 		}
 		*track_buf = 0;
 		if (target)
-			strcpy (track_buf, target);
+			strcpy(track_buf, target);
 		track_op = 0;				/* enough for the first time */
 	}
 
@@ -269,7 +267,7 @@ track(const char *target, int track_op)
 
 	while (1) {
 		if (track_buf_size > track_engaged) {
-			target_wd = getcwd (track_buf + target_wd_offset, track_buf_size - track_engaged);
+			target_wd = getcwd(track_buf + target_wd_offset, track_buf_size - track_engaged);
 			if (target_wd)		/* getcwd successful */
 				break;
 		} else
@@ -277,7 +275,7 @@ track(const char *target, int track_op)
 
 		if (errno == ERANGE) {  /* track_buf_size is not sufficient */
 			track_buf_size += PATH_MAX;
-			track_buf = realloc (track_buf, track_buf_size);
+			track_buf = realloc(track_buf, track_buf_size);
 			if (!track_buf) {
 				perror("realloc");
 				return 0;
@@ -544,7 +542,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 
 	const char *suffix_ptr = redo_suffix + sizeof redo_suffix - 1;
 
-	int dep_len = (dep_end - dep) + sizeof redo_suffix;
+	size_t doname_size = (dep_end - dep) + sizeof redo_suffix;
 
 	char *extension;
 
@@ -560,7 +558,6 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 		}
 	}
 
-
 	/* we can suppress dofiles or dotdofiles doing */
 
 	if (dep_tail != dep_end) {
@@ -571,9 +568,9 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 	}
 
 
-	if (dofile_free < dep_len)
+	if (dofile_free < doname_size)
 		return 0;
-	dofile_free -= dep_len;
+	dofile_free -= doname_size;
 
 	dep_trickpoint = strstr(dep, trickpoint);
 
@@ -582,12 +579,10 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 	dep_ptr = dep;
 	extension = strchr(dep, '.');
 
-
 	visible = visible && wflag;
 
 	if (visible)
 		dprintf(1, ">>>> %s\n", slash);
-
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 
