@@ -920,7 +920,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	char dofile_rel[PATH_MAX];
 
-	int uprel;
+	int uprel = 0;			/* -Wno-maybe-uninitialized uprel */
 
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
@@ -1188,9 +1188,6 @@ main(int argc, char *argv[])
 
 	if (strcmp(base_name(argv[0], 0), "depends-on") == 0) {
 		lock_fd = envint("REDO_LOCK_FD");
-
-		if (lock_fd == 0 /* || lock_fd >= sysconf(_SC_OPEN_MAX) */ )
-			lock_fd = -1;
 	}
 
 	opterr = 0;
@@ -1212,9 +1209,9 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LIST_TARGETS", ++tflag);
 			break;
 		case 'o':
-			oflag = 1;
+			oflag = 1;	/* implies "-u" */
 		case 'u':
-			uflag = 1;
+			uflag = 1;	/* implies "-n" */
 		case 'n':
 			nflag = 1;
 			break;
