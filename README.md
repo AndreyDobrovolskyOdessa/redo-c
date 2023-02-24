@@ -59,6 +59,10 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## Redo as distributed computations engine
 
+### Compatibility note
+
+This `redo` version can't be the drop-in replacement for the well-known `redo` implementations.
+
 ### Terms and definitions
 
 #### Variables
@@ -279,11 +283,6 @@ You can obtain the list of always out-of-date targets with:
     redo -os <target> | sed -n 's/\.do\.\.//p' | sort | uniq
 
 for the project already built.
-
-
-Test Your project for warnings without touching targets and refreshing dependency records
-
-    redo -ul <target>
 
 
 ### Tricks
