@@ -1186,7 +1186,7 @@ main(int argc, char *argv[])
 	int *exit_code, i;
 
 
-	if (strcmp(base_name(argv[0], 0), "depends-on") == 0) {
+	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
 		lock_fd = envint("REDO_LOCK_FD");
 	}
 
