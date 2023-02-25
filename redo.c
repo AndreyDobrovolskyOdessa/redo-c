@@ -2,7 +2,7 @@
    in portable C with zero dependencies
 
    http://cr.yp.to/redo.html
-   https://jdebp.eu./FGA/introduction-to-redo.html
+   https://jdebp.info/FGA/introduction-to-redo.html
    https://github.com/apenwarr/redo/blob/master/README.md
    http://news.dieweltistgarnichtso.net/bin/redo-sh.html
 
@@ -328,6 +328,7 @@ static int
 setenvfd(const char *name, int i)
 {
 	char buf[16];
+
 	snprintf(buf, sizeof buf, "%d", i);
 
 	return setenv(name, buf, 1);
@@ -675,7 +676,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 	int target_err = 0;
 
 	pid_t pid;
-	const char *target_rel; 
+	const char *target_rel;
 	char target_base_rel[PATH_MAX];
 
 	char *target_new;
@@ -683,7 +684,7 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 
 
 	target_rel = base_name(target_full, uprel);
-	if (strlen(target_rel) >= sizeof target_base_rel){
+	if (strlen(target_rel) >= sizeof target_base_rel) {
 		dprintf(2, "Target relative name too long -- %s\n", target_rel);
 		return DEPENDENCY_REL_TOOLONG;
 	}
@@ -834,7 +835,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (	(is_target ? (has_deps ? tflag : stflag) : sflag) &&
 		/* oflag && */ /* implicit */
 		visible &&
-		(hint & IS_SOURCE)	)
+		(hint & IS_SOURCE)    )
 	{
 		const char *track_buf = track(0, 0);
 		const char *name = is_target ?
@@ -957,7 +958,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 	target_full = track(dep, 1);
-	if (target_full == 0){
+	if (target_full == 0) {
 		dprintf(2, "Dependency loop attempt -- %s\n", dep_path);
 		return lflag ? IS_SOURCE : DEPENDENCY_LOOP;
 	}
@@ -1007,7 +1008,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		chmod(redofile, redo_st.st_mode);	/* touch ctime */
 	}
 
-	fredo = fopen(redofile,"r");
+	fredo = fopen(redofile, "r");
 
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
@@ -1166,7 +1167,7 @@ hurry_up_if(int successful)
 	if (night < LONGEST)
 		night *= 2;
 
-	s.tv_sec  =  asleep / MSEC_PER_SEC; 
+	s.tv_sec  =  asleep / MSEC_PER_SEC;
 	s.tv_nsec = (asleep % MSEC_PER_SEC) * NSEC_PER_MSEC;
 
 	nanosleep(&s, &r);
