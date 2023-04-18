@@ -140,6 +140,11 @@ will build the `redo` binary, create `depends-on` link and adjust the PATH varia
 will build the `redo` binary, create `depends-on` link and copy them to the already present in the PATH preferred directory.
 
 
+### Build `redo` with `redo`
+
+    redo redo
+
+
 ### Options available
 
 #### Build options
@@ -277,7 +282,7 @@ for the project already built.
 
 ### Tricks
 
-The sequence `.do.` inside the variable's filename has special meaning. If it is found inside the supposed target's name during the search for appropriate recipe, it interrupts the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
+The sequence `.do.` found inside the supposed target's name during the find_dofile() search for appropriate recipe will interrupt the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
 
 Searching in cwd only:
 
@@ -297,4 +302,5 @@ Searching in cwd and updirs:
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
+
 
