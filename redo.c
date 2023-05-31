@@ -467,14 +467,14 @@ file_chdir(int *fd, const char *name)
 
 /*-------------------------------- Flags ------------------------------------*/
 
-int eflag = 0, sflag = 0, iflag, wflag, lflag;                   /* exported */
+int eflag = 0, sflag = 0, iflag, wflag, lflag;			 /* exported */
 int tflag = 0, dflag = 0, xflag, fflag;
 
-int  qflag;                                                      /* imported */
+int  qflag;							 /* imported */
 
 int nflag = 0, uflag = 0, oflag = 0;      /* suppress sub-processes spawning */
 
-int stflag;                                                       /* derived */
+int stflag;		                                     	  /* derived */
 
 /*---------------------------------------------------------------------------*/
 
@@ -894,7 +894,8 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 	int dep_dir_fd = dir_fd;
 	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
 
-	track(0, 1);	/* strip the last record */
+	if ((dep_err & (DEPENDENCY_ILLEGAL_SYM | DEPENDENCY_NODIR | DEPENDENCY_TOOLONG)) == 0)
+		track(0, 1);	/* strip the last record */
 
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
@@ -948,7 +949,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	dep = file_chdir(dir_fd, dep_path);
 	if (dep == 0) {
 		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
-		track("", 1);	/* dummy call */
 		return DEPENDENCY_NODIR;
 	}
 
