@@ -941,7 +941,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 
 	if (strchr(dep_path, TRACK_DELIMITER)) {
-		dprintf(2, "Illegal \':\' symbol in  -- %s\n", dep_path);
+		dprintf(2, "Illegal symbol \'%c\' in  -- %s\n", TRACK_DELIMITER, dep_path);
 		return DEPENDENCY_ILLEGAL_SYM;
 	}
 
