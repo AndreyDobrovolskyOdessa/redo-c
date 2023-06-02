@@ -467,14 +467,14 @@ file_chdir(int *fd, const char *name)
 
 /*-------------------------------- Flags ------------------------------------*/
 
-int eflag = 0, sflag = 0, iflag, wflag, lflag;			 /* exported */
+int eflag = 0, sflag = 0, iflag, wflag, lflag;                   /* exported */
 int tflag = 0, dflag = 0, xflag, fflag;
 
-int  qflag;							 /* imported */
+int qflag;                                                       /* imported */
 
 int nflag = 0, uflag = 0, oflag = 0;      /* suppress sub-processes spawning */
 
-int stflag;		                                     	  /* derived */
+int stflag;                                                       /* derived */
 
 /*---------------------------------------------------------------------------*/
 
@@ -618,20 +618,17 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 
 
 enum update_dep_errors {
-	DEPENDENCY_UPTODATE = 0,
-	DEPENDENCY_FCHDIR_FAILED = 1,
-	DEPENDENCY_WRDEP_FAILED = 2,
-	DEPENDENCY_RM_FAILED = 4,
-	DEPENDENCY_MV_FAILED = 8,
-	DEPENDENCY_BUSY = 0x10,
-	DEPENDENCY_ILLEGAL_SYM = 0x12,
-	DEPENDENCY_FAILURE = 0x18,
-	DEPENDENCY_TOOLONG = 0x20,
-	DEPENDENCY_REL_TOOLONG = 0x30,
-	DEPENDENCY_FORK_FAILED = 0x40,
-	DEPENDENCY_WAIT_FAILED = 0x50,
-	DEPENDENCY_NODIR = 0x60,
-	DEPENDENCY_LOOP = 0x70
+	DEPENDENCY_UPTODATE      =    0,
+	DEPENDENCY_FCHDIR_FAILED =    1,
+	DEPENDENCY_WRDEP_FAILED  =    2,
+	DEPENDENCY_RM_FAILED     =    4,
+	DEPENDENCY_BAD_NAME      =    8,
+	DEPENDENCY_FORK_FAILED   = 0x10,
+	DEPENDENCY_WAIT_FAILED   = 0x20,
+	DEPENDENCY_FAILURE       = 0x30,
+	DEPENDENCY_BUSY          = 0x40,
+	DEPENDENCY_REL_TOOLONG   = 0x50,
+	DEPENDENCY_LOOP          = 0x70
 };
 
 #define DEP_ERRORS 0x7f
@@ -661,7 +658,7 @@ choose(const char *old, const char *new, int err)
 		}
 		if ((access(new, F_OK) == 0) && (rename(new, old) != 0)) {
 			perror("rename");
-			err |= DEPENDENCY_MV_FAILED;
+			err |= DEPENDENCY_RM_FAILED;
 		}
 	}
 
@@ -832,7 +829,7 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (!uflag)
 		return 1;
 
-	if (	(is_target ? (has_deps ? tflag : stflag) : sflag) &&
+	if (    (is_target ? (has_deps ? tflag : stflag) : sflag) &&
 		/* oflag && */ /* implicit */
 		visible &&
 		(hint & IS_SOURCE)    )
@@ -894,7 +891,7 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 	int dep_dir_fd = dir_fd;
 	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
 
-	if ((dep_err & (DEPENDENCY_ILLEGAL_SYM | DEPENDENCY_NODIR | DEPENDENCY_TOOLONG)) == 0)
+	if (dep_err != DEPENDENCY_BAD_NAME)
 		track(0, 1);	/* strip the last record */
 
 	if (dir_fd != dep_dir_fd) {
@@ -943,18 +940,18 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	if (strchr(dep_path, TRACK_DELIMITER)) {
 		dprintf(2, "Illegal symbol \'%c\' in  -- %s\n", TRACK_DELIMITER, dep_path);
-		return DEPENDENCY_ILLEGAL_SYM;
+		return DEPENDENCY_BAD_NAME;
 	}
 
 	dep = file_chdir(dir_fd, dep_path);
 	if (dep == 0) {
 		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
-		return DEPENDENCY_NODIR;
+		return DEPENDENCY_BAD_NAME;
 	}
 
 	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
 		dprintf(2, "Dependency name too long -- %s\n", dep);
-		return DEPENDENCY_TOOLONG;
+		return DEPENDENCY_BAD_NAME;
 	}
 
 	target_full = track(dep, 1);
