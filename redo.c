@@ -924,7 +924,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
 
-	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0, is_source = 0;
+	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0, is_source = 0, hint;
 
 	FILE *fredo;
 
@@ -1009,15 +1009,14 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
-		const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+		char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			int is_target = !strcmp(filename, dep);
-			int hint = IS_SOURCE;
 
 			if (is_dofile && (!uflag) && strcmp(filename, dofile_rel))
-				break;
+				strcpy(filename, dofile_rel);
 
 			if (!is_target) {
 				if (!is_dofile)
@@ -1042,6 +1041,9 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			}
 		}
 		fclose(fredo);
+		hint = 0;
+	} else {
+		dep_err = do_update_dep(*dir_fd, dofile_rel, nlevel + 1, &hint);
 	}
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
@@ -1049,7 +1051,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	if (!nflag && !dep_err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
-		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, 0);
+		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, hint);
 
 		if (!dep_err) {
 			off_t deps_pos = lseek(lock_fd, 0, SEEK_CUR);
