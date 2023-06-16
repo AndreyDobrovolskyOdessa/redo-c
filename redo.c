@@ -1245,13 +1245,15 @@ main(int argc, char *argv[])
 		return 0;
 
 
-	exit_code = malloc(argc * sizeof (int));
+	deps_todo = argc;
+
+	exit_code = malloc(deps_todo * sizeof (int));
 	if (!exit_code) {
 		perror("malloc");
 		exit(-1);
 	}
 
-	for (i = 0; i < argc; i++)
+	for (i = 0; i < deps_todo; i++)
 		exit_code[i] = DEPENDENCY_BUSY;
 
 	fflag = envint("REDO_FORCE");
@@ -1282,9 +1284,7 @@ main(int argc, char *argv[])
 
 	if ((lock_fd < 0) && (retries == 0))
 		retries = RETRIES_DEFAULT;
-	attempts = retries;
-
-	deps_todo = argc;
+	attempts = retries + 1;
 
 	datebuild();
 
@@ -1293,7 +1293,7 @@ main(int argc, char *argv[])
 	srand(getpid());
 
 	do {
-		hurry_up_if(attempts == retries); attempts--;
+		hurry_up_if(attempts >= retries);
 
 		for (i = 0; i < argc ; i++) {
 			if (exit_code[i]) {
@@ -1310,14 +1310,14 @@ main(int argc, char *argv[])
 				if (redo_err == 0) {
 					exit_code[i] = 0;
 					deps_done++;
-					attempts = retries;
+					attempts = retries + 1;
 				} else /* DEPENDENCY_BUSY */ if (hint & IMMEDIATE_DEPENDENCY) {
 					exit_code[i] = 0;
 					deps_todo--;		/* forget it */
 				}
 			}
 		}
-	} while ((deps_done < deps_todo) && (attempts > 0));
+	} while ((deps_done < deps_todo) && (--attempts > 0));
 
 
 	return (deps_done < argc) ? DEPENDENCY_BUSY : 0;
