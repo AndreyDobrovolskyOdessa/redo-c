@@ -1014,6 +1014,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			int is_target = !strcmp(filename, dep);
+			hint = IS_SOURCE;
 
 			if (is_dofile && (!uflag) && strcmp(filename, dofile_rel))
 				strcpy(filename, dofile_rel);
