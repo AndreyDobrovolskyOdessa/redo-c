@@ -176,6 +176,8 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-d depth` of the nodes to be displayed. `depth` equal to 0 means "display all". Positive `depth` means "equal to". Negative `depth` means "less or equal".
 
+WARNING: options `-u` and `-o` allow touching of the prerequisites and can cause partial build if run in parallel with some productive build.
+
 
 ## Implementation details
 
