@@ -803,7 +803,7 @@ find_record(const char *filename)
 
 
 static int
-dep_changed(const char *line, int hint, int is_target, int has_deps, int visible)
+dep_changed(const char *line, int hint, int self, int has_deps, int visible)
 {
 	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
@@ -829,13 +829,13 @@ dep_changed(const char *line, int hint, int is_target, int has_deps, int visible
 	if (!uflag)
 		return 1;
 
-	if (    (is_target ? (has_deps ? tflag : stflag) : sflag) &&
+	if (    (self ? (has_deps ? tflag : stflag) : sflag) &&
 		/* oflag && */ /* implicit */
 		visible &&
 		(hint & IS_SOURCE)    )
 	{
 		const char *track_buf = track(0, 0);
-		const char *name = is_target ?
+		const char *name = self ?
 					strrchr(track_buf, TRACK_DELIMITER) :
 					strchr(track_buf, '\0') ;
 
@@ -1013,13 +1013,13 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
-			int is_target = !strcmp(filename, dep);
+			int self = !strcmp(filename, dep);
 			hint = IS_SOURCE;
 
 			if (is_dofile && (!uflag) && strcmp(filename, dofile_rel))
 				strcpy(filename, dofile_rel);
 
-			if (!is_target) {
+			if (!self) {
 				if (!is_dofile)
 					has_deps = 1;
 				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
@@ -1027,7 +1027,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 			is_dofile = 0;
 
-			if (dep_err || dep_changed(line, hint, is_target, has_deps, visible))
+			if (dep_err || dep_changed(line, hint, self, has_deps, visible))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
@@ -1036,7 +1036,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (dep_err)
 				break;
 
-			if (is_target) {
+			if (self) {
 				wanted = fflag;
 				break;
 			}
@@ -1177,12 +1177,12 @@ hurry_up_if(int successful)
 int
 main(int argc, char *argv[])
 {
-	int opt, deps_done = 0, lock_fd = -1;
+	int opt, lock_fd = -1;
 
 	const char *dirprefix;
 	char updir[PATH_MAX];
 	int level, main_dir_fd;
-	int deps_todo, retries, attempts;
+	int deps_todo, deps_done = 0, retries, attempts;
 
 	int *exit_code, i;
 
