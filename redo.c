@@ -628,6 +628,7 @@ enum update_dep_errors {
 	DEPENDENCY_FAILURE       = 0x30,
 	DEPENDENCY_BUSY          = 0x40,
 	DEPENDENCY_REL_TOOLONG   = 0x50,
+	DEPENDENCY_ERROR         = 0x60,
 	DEPENDENCY_LOOP          = 0x70
 };
 
@@ -926,6 +927,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 	int lock_fd, dep_err = 0, wanted = 1, has_deps = 0, is_source = 0, hint;
 
+	struct stat redo_st = {0};
+
 	FILE *fredo;
 
 	int  visible = !dflag;
@@ -989,8 +992,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		return IS_SOURCE;
 	}
 
-	if (strcmp(datefilename(redofile), datebuild()) >= 0)
-		return DEPENDENCY_UPTODATE;
+	stat(redofile, &redo_st);
+
+	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
+		return (redo_st.st_mode & S_IRUSR) ? DEPENDENCY_UPTODATE : DEPENDENCY_ERROR;
+	}
 
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
@@ -1000,8 +1006,6 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	}
 
 	if (uflag) {
-		struct stat redo_st;
-		stat(redofile, &redo_st);
 		chmod(redofile, redo_st.st_mode);	/* touch ctime */
 	}
 
@@ -1066,6 +1070,9 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 			if (!dep_err)
 				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
+
+		if (dep_err)
+			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
 	}
 
 	close(lock_fd);
