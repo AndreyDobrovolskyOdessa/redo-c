@@ -1058,7 +1058,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
 
-		if (dep_err)
+		if (dep_err & (~BUSY))
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
 	}
 
