@@ -470,8 +470,6 @@ file_chdir(int *fd, const char *name)
 int eflag = 0, sflag = 0, iflag, wflag, lflag;                   /* exported */
 int tflag = 0, dflag = 0, xflag, fflag;
 
-int qflag;                                                       /* imported */
-
 int nflag = 0, uflag = 0, oflag = 0;      /* suppress sub-processes spawning */
 
 int stflag;                                                       /* derived */
@@ -660,8 +658,8 @@ choose(const char *old, const char *new, int err)
 
 
 static int 
-run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
-	const char *target, const char *target_base, const char *target_full, int uprel)
+run_script(int dir_fd, int lock_fd, const char *dofile_rel, const char *target,
+		const char *target_base, const char *target_full, int uprel)
 {
 	int target_err = 0;
 
@@ -685,9 +683,6 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 	strcpy(target_new_rel, target_rel);
 	target_new = (char *) base_name(target_new_rel, 0);
 	strcpy(stpcpy(target_new, target_prefix), target);
-
-	if (!qflag)
-		dprintf(2, "redo %*s %s # %s\n", nlevel * 2, "", target, dofile_rel);
 
 	pid = fork();
 	if (pid < 0) {
@@ -733,9 +728,6 @@ run_script(int dir_fd, int lock_fd, int nlevel, const char *dofile_rel,
 					ERROR ;
 		}
 	}
-
-	if (!qflag)
-		dprintf(2, "     %*s %s # %s -> %d\n", nlevel * 2, "", target, dofile_rel, target_err);
 
 	return choose(target, target_new, target_err);
 }
@@ -1048,8 +1040,8 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 		if (!dep_err) {
 			off_t deps_pos = lseek(lock_fd, 0, SEEK_CUR);
 
-			dep_err = run_script(*dir_fd, lock_fd, nlevel, dofile_rel,
-					dep, target_base, target_full, uprel);
+			dep_err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
+						target_base, target_full, uprel);
 
 			if (lseek(lock_fd, 0, SEEK_CUR) != deps_pos)
 				has_deps = 1;
@@ -1058,8 +1050,11 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
 
-		if (dep_err & (~BUSY))
+		if (dep_err & (~BUSY)) {
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
+			dprintf(2, "redo %*s%s\n", nlevel * 2, "", target_full);
+			dprintf(2, "     %*s%s -> %d\n", nlevel * 2, "", dofile_rel, dep_err);
+		}
 	}
 
 	close(lock_fd);
@@ -1260,8 +1255,6 @@ main(int argc, char *argv[])
 	eflag = envint("REDO_DOFILES");
 	lflag = envint("REDO_LOOP_WARN");
 	dflag = envint("REDO_DEPTH");
-
-	qflag = envint("REDO_SILENT");
 
 	stflag = sflag && tflag;
 	if (stflag) {
