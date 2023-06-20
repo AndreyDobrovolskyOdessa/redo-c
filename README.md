@@ -288,19 +288,19 @@ The sequence `.do.` found inside the supposed target's name during the find_dofi
 
 Searching in cwd only:
 
-    $ redo -w cwd-only.do.
-    >>>> /tmp/cwd-only.do.
-    cwd-only.do..do
+    $ redo -w cwd.do.only
+    >>>> /tmp/cwd.do.only
+    cwd.do.only.do
 
 Searching in cwd and updirs:
 
-    $ redo -w cwd.and.updirs.do.
-    >>>> /tmp/cwd.and.updirs.do.
-    cwd.and.updirs.do..do
-    .and.updirs.do..do
-    .updirs.do..do
-    ../.and.updirs.do..do
-    ../.updirs.do..do
+    $ redo -w cwd.and.updirs.do.too
+    >>>> /tmp/cwd.and.updirs.do.too
+    cwd.and.updirs.do.too.do
+    .and.updirs.do.too.do
+    .updirs.do.too.do
+    ../.and.updirs.do.too.do
+    ../.updirs.do.too.do
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
