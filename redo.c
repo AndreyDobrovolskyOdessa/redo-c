@@ -723,9 +723,21 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 			perror("wait");
 			target_err = ERROR;
 		} else {
-			target_err = WIFEXITED(target_err) ?
-					WEXITSTATUS(target_err) :
-					ERROR ;
+			if (WIFEXITED(target_err)) {
+				target_err = WEXITSTATUS(target_err);
+			} else {
+				if (WCOREDUMP(target_err)) {
+					dprintf(2, "Core dumped.\n");
+				}
+				if (WIFSIGNALED(target_err)) {
+					target_err = WTERMSIG(target_err);
+					dprintf(2, "Terminated with %d signal.\n", target_err);
+				} else if (WIFSTOPPED(target_err)) {
+					target_err = WSTOPSIG(target_err);
+					dprintf(2, "Stopped with %d signal.\n", target_err);
+				}
+				target_err = ERROR;
+			}
 		}
 	}
 
