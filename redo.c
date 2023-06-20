@@ -308,7 +308,7 @@ track(const char *target, int track_op)
 }
 
 
-static const char *
+static char *
 base_name(const char *name, int uprel)
 {
 	char *ptr = strchr(name, '\0');
@@ -437,7 +437,7 @@ datebuild()
 
 
 static const char *
-file_chdir(int *fd, const char *name)
+file_chdir(int *fd, char *name)
 {
 	int fd_new;
 	char *slash = strrchr(name, '/');
@@ -658,7 +658,7 @@ choose(const char *old, const char *new, int err)
 
 
 static int 
-run_script(int dir_fd, int lock_fd, const char *dofile_rel, const char *target,
+run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		const char *target_base, const char *target_full, int uprel)
 {
 	int target_err = 0;
@@ -678,10 +678,10 @@ run_script(int dir_fd, int lock_fd, const char *dofile_rel, const char *target,
 	}
 
 	strcpy(target_base_rel, target_rel);
-	strcpy((char *) base_name(target_base_rel, 0), target_base);
+	strcpy(base_name(target_base_rel, 0), target_base);
 
 	strcpy(target_new_rel, target_rel);
-	target_new = (char *) base_name(target_new_rel, 0);
+	target_new = base_name(target_new_rel, 0);
 	strcpy(stpcpy(target_new, target_prefix), target);
 
 	pid = fork();
@@ -758,12 +758,12 @@ static int
 find_record(const char *filename)
 {
 	char redofile[PATH_MAX + sizeof redo_prefix];
-	char *target = (char *) base_name(filename, 0);
+	char *target = base_name(filename, 0);
 	int find_err = 1;
 
 
 	strcpy(redofile, filename);
-	strcpy((char *) base_name(redofile, 0), redo_prefix);
+	strcpy(base_name(redofile, 0), redo_prefix);
 	strcat(redofile, target);
 
 	FILE *f = fopen(redofile, "r");
@@ -867,11 +867,11 @@ write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int 
 }
 
 
-static int update_dep(int *dir_fd, const char *dep_path, int nlevel);
+static int update_dep(int *dir_fd, char *dep_path, int nlevel);
 
 
 static int
-do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
+do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
 {
 	int dep_dir_fd = dir_fd;
 	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
@@ -897,7 +897,7 @@ do_update_dep(int dir_fd, const char *dep_path, int nlevel, int *hint)
 
 
 static int
-update_dep(int *dir_fd, const char *dep_path, int nlevel)
+update_dep(int *dir_fd, char *dep_path, int nlevel)
 {
 	const char *dep;
 	char *target_full, target_base[NAME_MAX + 1];
@@ -1078,7 +1078,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 	then we need the full lockfile name.
 */
 
-	strcpy((char *) base_name(target_full, 0), lockfile);
+	strcpy(base_name(target_full, 0), lockfile);
 
 	dep_err &= ~IMMEDIATE_DEPENDENCY;
 
