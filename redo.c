@@ -1292,17 +1292,18 @@ main(int argc, char *argv[])
 				if ((redo_err == 0) && (lock_fd > 0))
 					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
 
-				if (redo_err != BUSY)
-					return redo_err;
-
 				if (redo_err == 0) {
 					dep_status[i] = OK;
 					deps_done++;
 					attempts = retries + 1;
-				} else /* BUSY */ if (hint & IMMEDIATE_DEPENDENCY) {
-					dep_status[i] = OK;
-					deps_todo--;		/* forget it */
-				}
+				} else if (redo_err == BUSY) {
+					if (hint & IMMEDIATE_DEPENDENCY) {
+						dep_status[i] = OK;
+						deps_todo--;		/* forget it */
+					}
+				} else
+					return redo_err;
+
 			}
 		}
 	} while ((deps_done < deps_todo) && (--attempts > 0));
