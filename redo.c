@@ -309,7 +309,7 @@ track(const char *target, int track_op)
 
 
 static char *
-base_name(const char *name, int uprel)
+base_name(char *name, int uprel)
 {
 	char *ptr = strchr(name, '\0');
 
@@ -436,7 +436,7 @@ datebuild()
 }
 
 
-static const char *
+static char *
 file_chdir(int *fd, char *name)
 {
 	int fd_new;
@@ -659,7 +659,7 @@ choose(const char *old, const char *new, int err)
 
 static int 
 run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
-		const char *target_base, const char *target_full, int uprel)
+		const char *target_base, char *target_full, int uprel)
 {
 	int target_err = 0;
 
@@ -755,7 +755,7 @@ check_record(char *line)
 
 
 static int
-find_record(const char *filename)
+find_record(char *filename)
 {
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char *target = base_name(filename, 0);
@@ -788,9 +788,9 @@ find_record(const char *filename)
 
 
 static int
-dep_changed(const char *line, int hint, int self, int has_deps, int visible)
+dep_changed(char *line, int hint, int self, int has_deps, int visible)
 {
-	const char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+	char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
 	int fd;
 
 	if (uflag && (!oflag))
@@ -832,7 +832,7 @@ dep_changed(const char *line, int hint, int self, int has_deps, int visible)
 
 
 static int
-write_dep(int lock_fd, const char *file, const char *dp, const char *updir, int hint)
+write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 {
 	int err = 0;
 	int fd;
@@ -899,7 +899,7 @@ do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
 static int
 update_dep(int *dir_fd, char *dep_path, int nlevel)
 {
-	const char *dep;
+	char *dep;
 	char *target_full, target_base[NAME_MAX + 1];
 
 	char dofile_rel[PATH_MAX];
