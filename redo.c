@@ -959,8 +959,13 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 						&uprel, target_full, visible))
 	{
 		lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
-		if (lock_fd < 0)
+		if (lock_fd < 0) {
+			if (errno != EEXIST) {
+				perror("open exclusive");
+				return ERROR;
+			}
 			return BUSY;
+		}
 
 		remove(redofile);
 		close(lock_fd);
@@ -981,8 +986,13 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | (iflag ? 0 : O_EXCL), 0666);
-	if (lock_fd < 0)
+	if (lock_fd < 0) {
+		if (errno != EEXIST) {
+			perror("open exclusive");
+			return ERROR;
+		}
 		return BUSY | IMMEDIATE_DEPENDENCY;
+	}
 
 	if (uflag) {
 		chmod(redofile, redo_st.st_mode);	/* touch ctime */
