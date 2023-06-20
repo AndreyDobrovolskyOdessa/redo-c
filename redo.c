@@ -1050,7 +1050,7 @@ update_dep(int *dir_fd, const char *dep_path, int nlevel)
 				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
 
-		if (dep_err & (~BUSY)) {
+		if (dep_err != BUSY) {
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
 			dprintf(2, "redo %*s%s\n", nlevel * 2, "", target_full);
 			dprintf(2, "     %*s%s -> %d\n", nlevel * 2, "", dofile_rel, dep_err);
@@ -1292,7 +1292,7 @@ main(int argc, char *argv[])
 				if ((redo_err == 0) && (lock_fd > 0))
 					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
 
-				if (redo_err & (~BUSY))
+				if (redo_err != BUSY)
 					return redo_err;
 
 				if (redo_err == 0) {
