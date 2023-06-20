@@ -1,2 +1,2 @@
-echo -Os -Wall -Wextra -Wno-implicit-fallthrough > $3
+echo -O0 -Wall -Wextra -Wno-implicit-fallthrough > $3
 
