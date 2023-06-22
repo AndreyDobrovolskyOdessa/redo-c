@@ -1197,19 +1197,16 @@ hurry_up_if(int successful)
 int
 main(int argc, char *argv[])
 {
-	int opt, lock_fd = -1;
+	int opt;
+
+	char **dep;
+	int dep_num, *dep_status, deps_done = 0, deps_todo;
 
 	const char *dirprefix;
 	char updir[PATH_MAX];
-	int level, main_dir_fd;
-	int deps_todo, deps_done = 0, retries, attempts;
 
-	int *dep_status, i, redo_err;
+	int level, main_dir_fd, lock_fd = -1, retries, attempts, i, redo_err;
 
-
-	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
-		lock_fd = envint("REDO_LOCK_FD");
-	}
 
 	opterr = 0;
 
@@ -1230,32 +1227,17 @@ main(int argc, char *argv[])
 			} else if (strcmp(optarg, "2") == 0) {
 				setenvfd("REDO_LOG_FD", 2);
 			} else {
-				setenvfd("REDO_LOG_FD", open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666));
+				log_fd =  open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+				if (log_fd < 0)
+					perror("logfile");
+				setenvfd("REDO_LOG_FD", log_fd);
 			}
 			break;
 		default:
 			dprintf(2, "Usage: redo [-dxw] [-l <logname>] [TARGETS...]\n");
-			exit(1);
+			return ERROR;
 		}
 	}
-	argc -= optind;
-	argv += optind;
-
-	if (argc == 0)
-		return 0;
-
-
-	deps_todo = argc;
-
-	dep_status = malloc(deps_todo * sizeof (int));
-	if (!dep_status) {
-		perror("malloc");
-		exit(-1);
-	}
-
-
-	for (i = 0; i < deps_todo; i++)
-		dep_status[i] = BUSY;
 
 	xflag = envint("REDO_TRACE");
 	wflag = envint("REDO_WARNING");
@@ -1263,16 +1245,29 @@ main(int argc, char *argv[])
 
 	log_fd = envint("REDO_LOG_FD");
 
+	dep = argv + optind;
+	deps_todo = dep_num = argc - optind;
+
+	if (dep_num == 0)
+		return 0;
+
+	dep_status = malloc(dep_num * sizeof (int));
+	if (!dep_status) {
+		perror("malloc");
+		return ERROR;
+	}
+
+	for (i = 0; i < dep_num; i++)
+		dep_status[i] = BUSY;
+
+
 	dirprefix = getenv("REDO_DIRPREFIX");
 	compute_updir(dirprefix, updir);
 
 	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
 
-	if (level == 0) {
-		if (log_fd > 0)
-			dprintf(log_fd, "return {\n");
-	} else {
-		end_msg();
+	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
+		lock_fd = envint("REDO_LOCK_FD");
 	}
 
 	retries = envint("REDO_RETRIES");
@@ -1282,23 +1277,31 @@ main(int argc, char *argv[])
 		retries = RETRIES_DEFAULT;
 	attempts = retries + 1;
 
+
 	datebuild();
 
 	main_dir_fd = keepdir();
 
 	srand(getpid());
 
+	if (level == 0) {
+		if (log_fd > 0)
+			dprintf(log_fd, "return {\n");
+	} else {
+		end_msg();
+	}
+
 	do {
 		hurry_up_if(attempts >= retries);
 
-		for (i = 0; i < argc ; i++) {
+		for (i = 0; i < dep_num ; i++) {
 			if (dep_status[i] != OK) {
 				int hint;
 
-				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
+				redo_err = do_update_dep(main_dir_fd, dep[i], level, &hint);
 
 				if ((redo_err == 0) && (lock_fd > 0))
-					redo_err = write_dep(lock_fd, argv[i], dirprefix, updir, hint);
+					redo_err = write_dep(lock_fd, dep[i], dirprefix, updir, hint);
 
 				if (redo_err == 0) {
 					dep_status[i] = OK;
@@ -1314,7 +1317,7 @@ main(int argc, char *argv[])
 				}
 			}
 		}
-	} while ((i == argc) && (deps_done < deps_todo) && (--attempts > 0));
+	} while ((i == dep_num) && (deps_done < deps_todo) && (--attempts > 0));
 
 	if (level == 0) {
 		if (log_fd > 0)
@@ -1323,6 +1326,6 @@ main(int argc, char *argv[])
 		start_msg();
 	}
 
-	return (i < argc) ? redo_err : ((deps_done < argc) ? BUSY : OK);
+	return (i < dep_num) ? redo_err : ((deps_done < deps_todo) ? BUSY : OK);
 }
 
