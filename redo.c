@@ -487,7 +487,8 @@ file_chdir(int *fd, char *name)
 /*--------- find_dofile() logs examples ---------**
 
 $ redo -l 1 x.y
-"/tmp/x.y",
+return {
+  "/tmp/x.y",
 --[[
 x.y.do
 .y.do
@@ -495,9 +496,11 @@ x.y.do
 ../.y.do
 ../.do
 --]]
+}
 
 $ redo -l 1 .x.y
-"/tmp/.x.y",
+return {
+  "/tmp/.x.y",
 --[[
 .x.y.do
 .y.do
@@ -506,9 +509,11 @@ $ redo -l 1 .x.y
 ../.y.do
 ../.do
 --]]
+}
 
 $ redo -d -l 1 x.y.do
-"/tmp/x.y.do",
+return {
+  "/tmp/x.y.do",
 --[[
 x.y.do.do
 .y.do.do
@@ -516,36 +521,45 @@ x.y.do.do
 ../.y.do.do
 ../.do.do
 --]]
+}
 
 $ redo -d -l 1 .y.do
-"/tmp/.y.do",
+return {
+  "/tmp/.y.do",
 --[[
 .y.do.do
 .do.do
 ../.y.do.do
 ../.do.do
 --]]
+}
 
 $ redo -l 1 ''
-"/tmp/",
+return {
+  "/tmp/",
 --[[
 .do
 ../.do
 --]]
+}
 
 $ redo -l 1 x.do.y
-"/tmp/x.do.y",
+return {
+  "/tmp/x.do.y",
 --[[
 x.do.y.do
 --]]
+}
 
 $ redo -l 1 x.y.do.z
-"/tmp/x.y.do.z",
+return {
+  "/tmp/x.y.do.z",
 --[[
 x.y.do.z.do
 .y.do.z.do
 ../.y.do.z.do
 --]]
+}
 
 **-----------------------------------------------*/
 
@@ -958,7 +972,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
 	if (log_fd > 0)
-		dprintf(log_fd, "%*s\"%s\",\n", nlevel * 2, "", target_full);
+		dprintf(log_fd, "%*s\"%s\",\n", nlevel * 2 + 2, "", target_full);
 
 	if (strncmp(dep, redo_prefix, sizeof redo_prefix - 1) == 0)
 		return IS_SOURCE;
@@ -979,13 +993,13 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		dep_err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
 		if (log_fd > 0)
-			dprintf(log_fd, "%*s{ err = %d },\n", nlevel * 2, "", dep_err);
+			dprintf(log_fd, "%*s{ err = %d },\n", nlevel * 2 + 2, "", dep_err);
 
 		return dep_err;
 	}
 
 	if (log_fd > 0)
-		dprintf(log_fd, "%*s{\n", nlevel * 2, "");
+		dprintf(log_fd, "%*s{\n", nlevel * 2 + 2, "");
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | O_EXCL, 0666);
 	if (lock_fd < 0) {
@@ -999,8 +1013,8 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 	if (dep_err) {
 		if (log_fd > 0) {
-			dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 2, "", dep_err);
-			dprintf(log_fd, "%*s},\n", nlevel * 2, "");
+			dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 4, "", dep_err);
+			dprintf(log_fd, "%*s},\n", nlevel * 2 + 2, "");
 		}
 		return dep_err;
 	}
@@ -1075,8 +1089,8 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	close(lock_fd);
 
 	if (log_fd > 0) {
-		dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 2, "", dep_err);
-		dprintf(log_fd, "%*s},\n", nlevel * 2, "");
+		dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 4, "", dep_err);
+		dprintf(log_fd, "%*s},\n", nlevel * 2 + 2, "");
 	}
 
 /*
@@ -1190,7 +1204,7 @@ main(int argc, char *argv[])
 	int level, main_dir_fd;
 	int deps_todo, deps_done = 0, retries, attempts;
 
-	int *dep_status, i;
+	int *dep_status, i, redo_err;
 
 
 	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
@@ -1254,8 +1268,12 @@ main(int argc, char *argv[])
 
 	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
 
-	if (level > 0)
+	if (level == 0) {
+		if (log_fd > 0)
+			dprintf(log_fd, "return {\n");
+	} else {
 		end_msg();
+	}
 
 	retries = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
@@ -1275,7 +1293,7 @@ main(int argc, char *argv[])
 
 		for (i = 0; i < argc ; i++) {
 			if (dep_status[i] != OK) {
-				int redo_err, hint;
+				int hint;
 
 				redo_err = do_update_dep(main_dir_fd, argv[i], level, &hint);
 
@@ -1292,18 +1310,19 @@ main(int argc, char *argv[])
 						deps_todo--;		/* forget it */
 					}
 				} else {
-					if (level > 0)
-						start_msg();
-					return redo_err;
+					break;
 				}
-
 			}
 		}
-	} while ((deps_done < deps_todo) && (--attempts > 0));
+	} while ((i == argc) && (deps_done < deps_todo) && (--attempts > 0));
 
-	if (level > 0)
+	if (level == 0) {
+		if (log_fd > 0)
+			dprintf(log_fd, "}\n");
+	} else {
 		start_msg();
+	}
 
-	return (deps_done < argc) ? BUSY : OK;
+	return (i < argc) ? redo_err : ((deps_done < argc) ? BUSY : OK);
 }
 
