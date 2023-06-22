@@ -1216,8 +1216,7 @@ main(int argc, char *argv[])
 			} else if (strcmp(optarg, "2") == 0) {
 				setenvfd("REDO_LOG_FD", 2);
 			} else {
-				remove(optarg);
-				setenvfd("REDO_LOG_FD", open(optarg, O_CREAT | O_WRONLY, 0666));
+				setenvfd("REDO_LOG_FD", open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666));
 			}
 			break;
 		default:
