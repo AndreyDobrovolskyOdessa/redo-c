@@ -147,36 +147,13 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 ### Options available
 
-#### Build options
-
-* `-f` All targets are considered outdated. Usefulness doubtful. `REDO_FORCE={0,1}`
-
 * `-x` Non-executable recipes will be executed with `/bin/sh -ex`. `REDO_TRACE={0,1}`
 
-* `-e`, `-ee`. Enables building of recipes. `REDO_DOFILES={0,1,2}`. 0 (default) suppress building of recipes, 1 (`-e`) suppress building of dot-recipes, 2 (`-ee`) allows to build anything.
+* `-d` Enables building of recipes. `REDO_DOFILES={0,1}`
 
-* `-i` Ignore locks - be watchful and handle with care. Use only if You are absolutely sure, that no parallel builds will collide - results unpredictable. `REDO_IGNORE_LOCKS={0,1}`
+* `-w` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_WARNING={0,1}`
 
-* `-l` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_LOOP_WARN={0,1}`
-
-
-#### Diagnostic output options
-
-* `-s` List source files' full paths to stdout. `REDO_LIST_SOURCES={0,1,2}`
-
-* `-t` List target files' full paths to stdout. `REDO_LIST_TARGETS={0,1,2}`
-
-* `-n` Inhibits recipes execution. Supersedes `-f`. Suppresses prerequisites refreshing.
-
-* `-u` "up-to-date" imitation. Implies `-n`. Project dependency tree is walked through as if all dependencies are up-to-date. Implicit `-n` means that only the nodes already built can be scanned.
-
-* `-o` "outdated" modifier for `-st` options. Implies `-u`.
-
-* `-w` Log search for recipe steps to stdout. Have no effect in `-u` and `-o` modes. `REDO_WHICH_DO={0,1}`
-
-* `-d depth` of the nodes to be displayed. `depth` equal to 0 means "display all". Positive `depth` means "equal to". Negative `depth` means "less or equal".
-
-WARNING: options `-u` and `-o` allow touching of the prerequisites and can cause partial build if run in parallel with some productive build.
+* `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
 
 ## Implementation details
@@ -196,7 +173,7 @@ Prerequisites can not be targets, but can be used as sources.
 
 1. `redo` tries to find the recipe able to build `xxx`.
 
-2. If no recipe is found, then prerequisites `.do..xxx` are removed (if existing) and `redo` exits successfully.
+2. If no recipe is found `redo` exits successfully.
 
 3. If recipe is found then the next conditions are tested:
 
@@ -227,20 +204,6 @@ Conversion can be provided with the help of the following simple recipe:
 
 Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active recipes to self-targets. Such conversion may slow-down projects with lot of small sources.
 
-Output options `-st` can be combined in order to achieve desired output:
-
-* `-s` sources only
-
-* `-st` self-targets only
-
-* `-sst` sources and self-targets
-
-* `-t` full targets only
-
-* `-stt` all targets
-
-* `-sstt` all files
-
 
 ### Loop dependencies
 
@@ -262,24 +225,6 @@ Can be implemented using target's dependency on its own prerequisites:
 ### Recipes as targets
 
 The current `redo` version follows approach of "do-layers". File belongs to the Nth do-layer if its name ends with N `.do` suffices. Targets belonging to the Nth do-layer can be built by (N+1)th do-layer recipes only. Technically it means that no trailing `.do` suffix can be stripped from the target's filename during the search for an appropriate recipe.
-
-
-### Troubleshooting
-
-If for some reason Your build was interrupted and You suffer of fake "Target busy" messages, then some locks remain uncleared. You can remove them with the help of:
-
-    redo -ui <target>
-
-keeping in mind that use of this option is safe only if possibility of parallel build is absolutely obviated. 
-
-
-### Hints
-
-You can obtain the list of always out-of-date targets with:
-
-    redo -os <target> | sed -n 's/\.do\.\.//p' | sort | uniq
-
-for the project already built.
 
 
 ### Tricks
