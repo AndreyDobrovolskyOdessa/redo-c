@@ -913,12 +913,10 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 	char dofile_rel[PATH_MAX];
 
-	int uprel = 0;			/* -Wno-maybe-uninitialized uprel */
-
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
 
-	int lock_fd, dep_err = 0, wanted = 1, hint;
+	int uprel, lock_fd, dep_err = 0, wanted = 1, hint;
 
 	struct stat redo_st = {0};
 
