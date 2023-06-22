@@ -1326,6 +1326,6 @@ main(int argc, char *argv[])
 		start_msg();
 	}
 
-	return (i < dep_num) ? redo_err : ((deps_done < deps_todo) ? BUSY : OK);
+	return (i < dep_num) ? redo_err : ((deps_done < dep_num) ? BUSY : OK);
 }
 
