@@ -227,6 +227,13 @@ Can be implemented using target's dependency on its own prerequisites:
 The current `redo` version follows approach of "do-layers". File belongs to the Nth do-layer if its name ends with N `.do` suffices. Targets belonging to the Nth do-layer can be built by (N+1)th do-layer recipes only. Technically it means that no trailing `.do` suffix can be stripped from the target's filename during the search for an appropriate recipe.
 
 
+### Hints
+
+You can test which dofiles will be encountered by `redo` appropriate to build certain <target> with
+
+    redo -d -l 1 <target>
+
+
 ### Tricks
 
 The sequence `.do.` found inside the supposed target's name during the find_dofile() search for appropriate recipe will interrupt the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
