@@ -1126,7 +1126,7 @@ fence(int level, char *top, void (*hill)(void)) {
 				(*hill)();
 
 		} else
-			dprintf(log_fd, top);
+			dprintf(log_fd, "%s\n", top);
 	}
 }
 
@@ -1221,7 +1221,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	fence(level, "return {\n", close_comment);
+	fence(level, "return {", close_comment);
 
 	do {
 		hurry_up_if(attempts >= retries);
@@ -1251,7 +1251,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep_num) && (deps_done < deps_todo) && (--attempts > 0));
 
-	fence(level, "}\n", open_comment);
+	fence(level, "}", open_comment);
 
 	return (i < dep_num) ? redo_err : ((deps_done < dep_num) ? BUSY : OK);
 }
