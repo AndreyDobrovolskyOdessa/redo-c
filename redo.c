@@ -208,16 +208,18 @@ int dflag, xflag, wflag, log_fd;
 
 
 static void
-start_msg(void) {
-	if ((log_fd == 1) || (log_fd == 2))
-		dprintf(log_fd, "--[=========[\n");
+open_comment(void) {
+	dprintf(log_fd, "--[=========[\n");
 }
 
 static void
-end_msg(void) {
-	if ((log_fd == 1) || (log_fd == 2))
-		dprintf(log_fd, "--]=========]\n");
+close_comment(void) {
+	dprintf(log_fd, "--]=========]\n");
 }
+
+#define start_msg() if ((log_fd > 0) && (log_fd < 3)) open_comment()
+#define end_msg()   if ((log_fd > 0) && (log_fd < 3)) close_comment()
+
 
 static void
 pperror(const char *s) {
@@ -916,6 +918,23 @@ do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
 }
 
 
+static void
+msg (char *error, char *filename) {
+	start_msg();
+	dprintf(2, "%s -- %s\n", error, filename);
+	end_msg();
+}
+
+
+static void
+log_up (int level, int err) {
+	int indent = level * 2 + 2;
+
+	dprintf(log_fd, "%*serr = %d,\n", indent + 2, "", err);
+	dprintf(log_fd, "%*s},\n", indent, "");
+}
+
+
 #define NAME_MAX 255
 
 
@@ -938,32 +957,24 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 
 	if (strchr(dep_path, TRACK_DELIMITER)) {
-		start_msg();
-		dprintf(2, "Illegal symbol \'%c\' in  -- %s\n", TRACK_DELIMITER, dep_path);
-		end_msg();
+		msg("Illegal symbol " stringize(TRACK_DELIMITER), dep_path);
 		return ERROR | BAD_NAME;
 	}
 
 	dep = file_chdir(dir_fd, dep_path);
 	if (dep == 0) {
-		start_msg();
-		dprintf(2, "Missing dependency directory -- %s\n", dep_path);
-		end_msg();
+		msg("Missing dependency directory", dep_path);
 		return ERROR | BAD_NAME;
 	}
 
 	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
-		start_msg();
-		dprintf(2, "Dependency name too long -- %s\n", dep);
-		end_msg();
+		msg("Dependency name too long", dep);
 		return ERROR | BAD_NAME;
 	}
 
 	target_full = track(dep, 1);
 	if (target_full == 0) {
-		start_msg();
-		dprintf(2, "Dependency loop attempt -- %s\n", dep_path);
-		end_msg();
+		msg("Dependency loop attempt", dep_path);
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
@@ -988,18 +999,18 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	if (!dofile)
 		return IS_SOURCE;
 
+	if (log_fd > 0)
+		dprintf(log_fd, "%*s{\n", nlevel * 2 + 2, "");
+
 	stat(redofile, &redo_st);
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		dep_err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
 		if (log_fd > 0)
-			dprintf(log_fd, "%*s{ err = %d },\n", nlevel * 2 + 2, "", dep_err);
+			log_up(nlevel, dep_err);
 
 		return dep_err;
 	}
-
-	if (log_fd > 0)
-		dprintf(log_fd, "%*s{\n", nlevel * 2 + 2, "");
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | O_EXCL, 0666);
 	if (lock_fd < 0) {
@@ -1012,10 +1023,9 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	}
 
 	if (dep_err) {
-		if (log_fd > 0) {
-			dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 4, "", dep_err);
-			dprintf(log_fd, "%*s},\n", nlevel * 2 + 2, "");
-		}
+		if (log_fd > 0)
+			log_up(nlevel, dep_err);
+
 		return dep_err;
 	}
 
@@ -1088,10 +1098,8 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 	close(lock_fd);
 
-	if (log_fd > 0) {
-		dprintf(log_fd, "%*serr = %d,\n", nlevel * 2 + 4, "", dep_err);
-		dprintf(log_fd, "%*s},\n", nlevel * 2 + 2, "");
-	}
+	if (log_fd > 0)
+		log_up(nlevel, dep_err);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -1194,6 +1202,19 @@ hurry_up_if(int successful)
 }
 
 
+static void
+fence(int level, char *top, void (*hill)(void)) {
+	if (log_fd > 0) {
+		if (level > 0) {
+			if (log_fd < 3)
+				(*hill)();
+
+		} else
+			dprintf(log_fd, top);
+	}
+}
+
+
 int
 main(int argc, char *argv[])
 {
@@ -1284,12 +1305,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	if (level == 0) {
-		if (log_fd > 0)
-			dprintf(log_fd, "return {\n");
-	} else {
-		end_msg();
-	}
+	fence(level, "return {\n", close_comment);
 
 	do {
 		hurry_up_if(attempts >= retries);
@@ -1319,12 +1335,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep_num) && (deps_done < deps_todo) && (--attempts > 0));
 
-	if (level == 0) {
-		if (log_fd > 0)
-			dprintf(log_fd, "}\n");
-	} else {
-		start_msg();
-	}
+	fence(level, "}\n", open_comment);
 
 	return (i < dep_num) ? redo_err : ((deps_done < dep_num) ? BUSY : OK);
 }
