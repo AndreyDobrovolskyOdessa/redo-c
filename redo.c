@@ -209,12 +209,12 @@ int dflag, xflag, wflag, log_fd;
 
 static void
 open_comment(void) {
-	dprintf(log_fd, "--[=========[\n");
+	dprintf(log_fd, "--[====================================================================[\n");
 }
 
 static void
 close_comment(void) {
-	dprintf(log_fd, "--]=========]\n");
+	dprintf(log_fd, "--]====================================================================]\n");
 }
 
 #define start_msg() if ((log_fd > 0) && (log_fd < 3)) open_comment()
