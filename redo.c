@@ -230,6 +230,14 @@ pperror(const char *s) {
 }
 
 
+static void
+msg(char *error, char *filename) {
+	start_msg();
+	dprintf(2, "%s -- %s\n", error, filename);
+	end_msg();
+}
+
+
 static const char redo_suffix[] =	".do";
 static const char trickpoint[]  =	".do.";
 static const char redo_prefix[] =	".do..";
@@ -699,16 +707,12 @@ check_record(char *line)
 	int line_len = strlen(line);
 
 	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1) {
-		start_msg();
-		dprintf(2, "Warning: dependency record too short. Target will be rebuilt.\n");
-		end_msg();
+		msg("Warning: dependency record too short. Target will be rebuilt", line);
 		return 0;
 	}
 
 	if (line[line_len - 1] != '\n') {
-		start_msg();
-		dprintf(2, "Warning: dependency record truncated. Target will be rebuilt.\n");
-		end_msg();
+		msg("Warning: dependency record truncated. Target will be rebuilt", line);
 		return 0;
 	}
 
@@ -835,14 +839,6 @@ do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
 	*hint = dep_err & HINTS;
 
 	return dep_err & ERRORS;
-}
-
-
-static void
-msg (char *error, char *filename) {
-	start_msg();
-	dprintf(2, "%s -- %s\n", error, filename);
-	end_msg();
 }
 
 
