@@ -502,13 +502,12 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 	char *dep_end  = strchr(dep, '\0');
 	char *dep_ptr  = dep_end;
 	char *dep_tail = dep_end;
+	char *extension;
 	char *dep_trickpoint;
 
 	const char *suffix_ptr = redo_suffix + sizeof redo_suffix - 1;
 
 	size_t doname_size = (dep_end - dep) + sizeof redo_suffix;
-
-	char *extension;
 
 
 	/* rewind .do tail inside dependency */
@@ -533,32 +532,33 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 	dofile_free -= doname_size;
 
 	dep_trickpoint = strstr(dep, trickpoint);
+	if (dep_trickpoint == dep_tail)
+		dep_trickpoint = 0;
 
 	strcpy(dep_end, redo_suffix);
 
-	dep_ptr = dep;
 	extension = strchr(dep, '.');
 
 	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
 
-		while ((dep_ptr != dep_trickpoint) || (dep_ptr == dep_tail)) {
-			strcpy(dofile, dep_ptr);
+		while (dep != dep_trickpoint) {
+			strcpy(dofile, dep);
 
 			if (log_fd > 0)
 				dprintf(log_fd, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
-				*dep_ptr = '\0';
+				*dep = '\0';
 				return dofile;
 			}
 
-			if (dep_ptr == dep_tail)
+			if (dep == dep_tail)
 				break;
 
-			while (*++dep_ptr != '.');
+			while (*++dep != '.');
 		}
 
-		dep_ptr = extension;
+		dep = extension;
 
 		if (dofile_free < (sizeof updir - 1))
 			return 0;
@@ -1025,7 +1025,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 	strcpy(base_name(target_full, 0), lockfile);
 
-	dep_err &= ~IMMEDIATE_DEPENDENCY;
+	dep_err &= ~IMMEDIATE_DEPENDENCY;	/* implicit? */
 
 	return choose(redofile, target_full, dep_err, pperror) | UPDATED_RECENTLY;
 }
