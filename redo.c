@@ -500,9 +500,8 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 	char *dofile = dofile_rel;
 
 	char *dep_end  = strchr(dep, '\0');
-	char *dep_ptr  = dep_end;
 	char *dep_tail = dep_end;
-	char *extension;
+	char *extension = dep_end;
 	char *dep_trickpoint;
 
 	const char *suffix_ptr = redo_suffix + sizeof redo_suffix - 1;
@@ -512,11 +511,11 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const c
 
 	/* rewind .do tail inside dependency */
 
-	while (dep_ptr > dep) {
-		if (*--dep_ptr != *--suffix_ptr)
+	while (extension > dep) {
+		if (*--extension != *--suffix_ptr)
 			break;
 		if (suffix_ptr == redo_suffix) {
-			dep_tail = dep_ptr;
+			dep_tail = extension;
 			suffix_ptr += sizeof redo_suffix - 1;
 		}
 	}
@@ -898,14 +897,10 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	if (log_fd > 0)
+	if (log_fd > 0) {
 		dprintf(log_fd, "%*s\"%s\",\n", nlevel * 2 + 2, "", target_full);
-
-	if (strncmp(dep, redo_prefix, sizeof redo_prefix - 1) == 0)
-		return IS_SOURCE;
-
-	if (log_fd > 0)
 		dprintf(log_fd, "--[[\n");
+	}
 
 	dofile = find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full);
 
