@@ -202,7 +202,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 /*------------------------------ Globals ------------------------------------*/
 
-int dflag, xflag, wflag, log_fd;
+int dflag, xflag, wflag, log_fd, level;
 
 /*---------------------------------------------------------------------------*/
 
@@ -815,14 +815,20 @@ write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 }
 
 
-static int update_dep(int *dir_fd, char *dep_path, int nlevel);
+#define INDENT 2
+
+
+static int update_dep(int *dir_fd, char *dep_path);
 
 
 static int
-do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
+do_update_dep(int dir_fd, char *dep_path, int *hint)
 {
-	int dep_dir_fd = dir_fd;
-	int dep_err = update_dep(&dep_dir_fd, dep_path, nlevel);
+	int dep_dir_fd = dir_fd, dep_err;
+
+	level += INDENT;
+
+	dep_err = update_dep(&dep_dir_fd, dep_path);
 
 	if ((dep_err & BAD_NAME) == 0)
 		track(0, 1);	/* strip the last record */
@@ -837,16 +843,16 @@ do_update_dep(int dir_fd, char *dep_path, int nlevel, int *hint)
 
 	*hint = dep_err & HINTS;
 
+	level -= INDENT;
+
 	return dep_err & ERRORS;
 }
 
 
 static void
 log_up (int level, int err) {
-	int indent = level * 2 + 2;
-
-	dprintf(log_fd, "%*serr = %d,\n", indent + 2, "", err);
-	dprintf(log_fd, "%*s},\n", indent, "");
+	dprintf(log_fd, "%*serr = %d,\n", level, "", err);
+	dprintf(log_fd, "%*s},\n", level, "");
 }
 
 
@@ -854,7 +860,7 @@ log_up (int level, int err) {
 
 
 static int
-update_dep(int *dir_fd, char *dep_path, int nlevel)
+update_dep(int *dir_fd, char *dep_path)
 {
 	char *dep, *dofile;
 	char *target_full, target_base[NAME_MAX + 1];
@@ -898,7 +904,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
 	if (log_fd > 0) {
-		dprintf(log_fd, "%*s\"%s\",\n", nlevel * 2 + 2, "", target_full);
+		dprintf(log_fd, "%*s\"%s\",\n", level, "", target_full);
 		dprintf(log_fd, "--[[\n");
 	}
 
@@ -911,14 +917,14 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 		return IS_SOURCE;
 
 	if (log_fd > 0)
-		dprintf(log_fd, "%*s{\n", nlevel * 2 + 2, "");
+		dprintf(log_fd, "%*s{\n", level, "");
 
 	stat(redofile, &redo_st);
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		dep_err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
 		if (log_fd > 0)
-			log_up(nlevel, dep_err);
+			log_up(level, dep_err);
 
 		return dep_err;
 	}
@@ -935,7 +941,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 
 	if (dep_err) {
 		if (log_fd > 0)
-			log_up(nlevel, dep_err);
+			log_up(level, dep_err);
 
 		return dep_err;
 	}
@@ -956,7 +962,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 				strcpy(filename, dofile_rel);
 
 			if (!self) {
-				dep_err = do_update_dep(*dir_fd, filename, nlevel + 1, &hint);
+				dep_err = do_update_dep(*dir_fd, filename, &hint);
 			}
 
 			is_dofile = 0;
@@ -978,7 +984,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 		fclose(fredo);
 		hint = 0;
 	} else {
-		dep_err = do_update_dep(*dir_fd, dofile_rel, nlevel + 1, &hint);
+		dep_err = do_update_dep(*dir_fd, dofile_rel, &hint);
 	}
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
@@ -1001,8 +1007,8 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 		if (dep_err && (dep_err != BUSY)) {
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
 			start_msg();
-			dprintf(2, "redo %*s%s\n", nlevel * 2, "", target_full);
-			dprintf(2, "     %*s%s -> %d\n", nlevel * 2, "", dofile_rel, dep_err);
+			dprintf(2, "redo %*s%s\n", level, "", target_full);
+			dprintf(2, "     %*s%s -> %d\n", level, "", dofile_rel, dep_err);
 			end_msg();
 		}
 	}
@@ -1010,7 +1016,7 @@ update_dep(int *dir_fd, char *dep_path, int nlevel)
 	close(lock_fd);
 
 	if (log_fd > 0)
-		log_up(nlevel, dep_err);
+		log_up(level, dep_err);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -1137,7 +1143,7 @@ main(int argc, char *argv[])
 	const char *dirprefix;
 	char updir[PATH_MAX];
 
-	int level, main_dir_fd, lock_fd = -1, retries, attempts, i, redo_err;
+	int main_dir_fd, lock_fd = -1, retries, attempts, i, redo_err;
 
 
 	opterr = 0;
@@ -1196,7 +1202,7 @@ main(int argc, char *argv[])
 	dirprefix = getenv("REDO_DIRPREFIX");
 	compute_updir(dirprefix, updir);
 
-	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER);
+	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER) * INDENT;
 
 	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
 		lock_fd = envint("REDO_LOCK_FD");
@@ -1225,7 +1231,7 @@ main(int argc, char *argv[])
 			if (dep_status[i] != OK) {
 				int hint;
 
-				redo_err = do_update_dep(main_dir_fd, dep[i], level, &hint);
+				redo_err = do_update_dep(main_dir_fd, dep[i], &hint);
 
 				if ((redo_err == 0) && (lock_fd > 0))
 					redo_err = write_dep(lock_fd, dep[i], dirprefix, updir, hint);
