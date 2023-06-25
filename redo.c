@@ -1122,7 +1122,7 @@ hurry_up_if(int successful)
 
 
 static void
-fence(int level, char *top, void (*hill)(void)) {
+fence(char *top, void (*hill)(void)) {
 	if (log_fd > 0) {
 		if (level > 0) {
 			if (log_fd < 3)
@@ -1224,7 +1224,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	fence(level, "return {", close_comment);
+	fence("return {", close_comment);
 
 	do {
 		hurry_up_if(attempts >= retries);
@@ -1254,7 +1254,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep_num) && (deps_done < deps_todo) && (--attempts > 0));
 
-	fence(level, "}", open_comment);
+	fence("}", open_comment);
 
 	return (i < dep_num) ? redo_err : ((deps_done < dep_num) ? BUSY : OK);
 }
