@@ -850,10 +850,22 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 
 
 static void
-log_up (int level, int err) {
+log_up(int err) {
 	dprintf(log_fd, "%*serr = %d,\n", level, "", err);
 	dprintf(log_fd, "%*s},\n", level, "");
 }
+
+static void
+log_name(char *name) {
+	dprintf(log_fd, "%*s\"%s\",\n", level, "", name);
+	dprintf(log_fd, "--[[\n");
+}
+
+#define open_level()     if (log_fd > 0) dprintf(log_fd, "%*s{\n", level, "")
+#define close_level(err) if (log_fd > 0) log_up(dep_err)
+
+#define open_name(name)  if (log_fd > 0) log_name(name)
+#define close_name()     if (log_fd > 0) dprintf(log_fd, "--]]\n")
 
 
 #define NAME_MAX 255
@@ -903,29 +915,22 @@ update_dep(int *dir_fd, char *dep_path)
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	if (log_fd > 0) {
-		dprintf(log_fd, "%*s\"%s\",\n", level, "", target_full);
-		dprintf(log_fd, "--[[\n");
-	}
+	open_name(target_full);
 
 	dofile = find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full);
 
-	if (log_fd > 0)
-		dprintf(log_fd, "--]]\n");
+	close_name();
 
 	if (!dofile)
 		return IS_SOURCE;
 
-	if (log_fd > 0)
-		dprintf(log_fd, "%*s{\n", level, "");
+	open_level();
 
 	stat(redofile, &redo_st);
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		dep_err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
-		if (log_fd > 0)
-			log_up(level, dep_err);
-
+		close_level(dep_err);
 		return dep_err;
 	}
 
@@ -940,9 +945,7 @@ update_dep(int *dir_fd, char *dep_path)
 	}
 
 	if (dep_err) {
-		if (log_fd > 0)
-			log_up(level, dep_err);
-
+		close_level(dep_err);
 		return dep_err;
 	}
 
@@ -1015,8 +1018,7 @@ update_dep(int *dir_fd, char *dep_path)
 
 	close(lock_fd);
 
-	if (log_fd > 0)
-		log_up(level, dep_err);
+	close_level(dep_err);
 
 /*
 	Now we will use target_full residing in track to construct
