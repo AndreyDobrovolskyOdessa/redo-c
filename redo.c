@@ -208,22 +208,28 @@ int dflag, xflag, wflag, fflag, log_fd, level;
 
 
 static void
-open_comment(void) {
+open_comment(void)
+{
 	dprintf(log_fd, "--[====================================================================[\n");
 }
 
+
 static void
-close_comment(void) {
+close_comment(void)
+{
 	dprintf(log_fd, "--]====================================================================]\n");
 }
+
 
 #define start_msg() if ((log_fd > 0) && (log_fd < 3)) open_comment()
 #define end_msg()   if ((log_fd > 0) && (log_fd < 3)) close_comment()
 
 
 static void
-pperror(const char *s) {
+pperror(const char *s)
+{
 	char *e = strerror(errno);
+
 	start_msg();
 	dprintf(2, "%s : %s\n", s, e);
 	end_msg();
@@ -231,7 +237,8 @@ pperror(const char *s) {
 
 
 static void
-msg(char *error, char *filename) {
+msg(char *error, char *filename)
+{
 	start_msg();
 	dprintf(2, "%s -- %s\n", error, filename);
 	end_msg();
@@ -610,7 +617,7 @@ static int
 run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		const char *target_base, char *target_full, int uprel)
 {
-	int target_err = 0;
+	int target_err = ERROR;
 
 	pid_t pid;
 	const char *target_rel;
@@ -636,7 +643,6 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 	pid = fork();
 	if (pid < 0) {
 		perror("fork");
-		target_err = ERROR;
 	} else if (pid == 0) {
 
 		const char *dofile = file_chdir(&dir_fd, dofile_rel);
@@ -655,37 +661,31 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		    (setenv("REDO_DIRPREFIX", dirprefix, 1) != 0) ||
 		    (setenv("REDO_TRACK", track(0, 0), 1) != 0)) {
 			perror("setenv");
-			exit(-1);
+			exit(ERROR);
 		}
 
-		if (access(dofile, X_OK) != 0)   /* run -x files with /bin/sh */
-			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e",
-			dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
+		if (access(dofile, X_OK) != 0)	/* run -x files with /bin/sh */
+			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e", dofile,
+				target_rel, target_base_rel, target_new_rel, (char *)0);
 		else
-			execl(dofile,
-			dofile, target_rel, target_base_rel, target_new_rel, (char *)0);
+			execl(dofile, dofile,
+				target_rel, target_base_rel, target_new_rel, (char *)0);
 
 		perror("execl");
-		exit(-1);
+		exit(ERROR);
 	} else {
 		if (wait(&target_err) < 0) {
 			perror("wait");
-			target_err = ERROR;
 		} else {
+			if (WCOREDUMP(target_err)) {
+				dprintf(2, "Core dumped.\n");
+			}
 			if (WIFEXITED(target_err)) {
 				target_err = WEXITSTATUS(target_err);
-			} else {
-				if (WCOREDUMP(target_err)) {
-					dprintf(2, "Core dumped.\n");
-				}
-				if (WIFSIGNALED(target_err)) {
-					target_err = WTERMSIG(target_err);
-					dprintf(2, "Terminated with %d signal.\n", target_err);
-				} else if (WIFSTOPPED(target_err)) {
-					target_err = WSTOPSIG(target_err);
-					dprintf(2, "Stopped with %d signal.\n", target_err);
-				}
-				target_err = ERROR;
+			} else if (WIFSIGNALED(target_err)) {
+				dprintf(2, "Terminated with %d signal.\n", WTERMSIG(target_err));
+			} else if (WIFSTOPPED(target_err)) {
+				dprintf(2, "Stopped with %d signal.\n", WSTOPSIG(target_err));
 			}
 		}
 	}
