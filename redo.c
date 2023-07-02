@@ -13,7 +13,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/
 */
 
-/*-------------------------------------------------------------------------**
+/************************************************************
 This redo-c version can be found at:
 
 https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/lualog
@@ -33,7 +33,7 @@ Features:
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
-**-------------------------------------------------------------------------*/
+********************************************************/
 
 
 #define _GNU_SOURCE 1
@@ -200,11 +200,11 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/*------------------------------ Globals ------------------------------------*/
+/***************** Globals ******************/
 
-int dflag, xflag, wflag, log_fd, level;
+int dflag, xflag, wflag, fflag, log_fd, level;
 
-/*---------------------------------------------------------------------------*/
+/********************************************/
 
 
 static void
@@ -494,79 +494,73 @@ file_chdir(int *fd, char *name)
 }
 
 
-static char *
-find_dofile(char *dep, char *dofile_rel, size_t dofile_free, int *uprel, const char *slash)
+#define SUFFIX_LEN (sizeof redo_suffix - 1)
+
+static int
+find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 {
 	char *dofile = dofile_rel;
 
-	char *dep_end  = strchr(dep, '\0');
-	char *dep_tail = dep_end;
-	char *extension = dep_end;
-	char *dep_trickpoint;
+	char *end  = strchr(dep, '\0');
+	char *tail = end;
+	char *ext, *dep_trickpoint;
 
-	const char *suffix_ptr = redo_suffix + sizeof redo_suffix - 1;
+	size_t doname_size = (end - dep) + sizeof redo_suffix;
 
-	size_t doname_size = (dep_end - dep) + sizeof redo_suffix;
+	int uprel;
 
 
-	/* rewind .do tail inside dependency */
+	/* rewind .do tail inside dependency name */
 
-	while (extension > dep) {
-		if (*--extension != *--suffix_ptr)
+	for (ext = end - SUFFIX_LEN; ext >= dep; ext -= SUFFIX_LEN) {
+		if (strncmp(ext, redo_suffix, SUFFIX_LEN))
 			break;
-		if (suffix_ptr == redo_suffix) {
-			dep_tail = extension;
-			suffix_ptr += sizeof redo_suffix - 1;
-		}
+		if (!dflag)		/* skip dofile? */
+			return -1;
+		tail = ext;
 	}
 
-	/* we can suppress dofiles doing */
-
-	if ((dep_tail != dep_end) && (!dflag))
-		return 0;
-
-
 	if (dofile_free < doname_size)
-		return 0;
+		return -1;
 	dofile_free -= doname_size;
 
 	dep_trickpoint = strstr(dep, trickpoint);
-	if (dep_trickpoint == dep_tail)
+	if (dep_trickpoint == tail)
 		dep_trickpoint = 0;
 
-	strcpy(dep_end, redo_suffix);
+	strcpy(end, redo_suffix);
 
-	extension = strchr(dep, '.');
+	ext = strchr(dep, '.');
 
-	for (*uprel = 0 ; slash ; (*uprel)++, slash = strchr(slash + 1, '/')) {
+	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
 
 		while (dep != dep_trickpoint) {
 			strcpy(dofile, dep);
 
-			if (log_fd > 0)
-				dprintf(log_fd, "%s\n", dofile_rel);
+			if (fflag)
+				dprintf(1, "%s\n", dofile_rel);
 
 			if (access(dofile_rel, F_OK) == 0) {
 				*dep = '\0';
-				return dofile;
+				return uprel;
 			}
 
-			if (dep == dep_tail)
+			if (dep == tail)
 				break;
 
 			while (*++dep != '.');
 		}
 
-		dep = extension;
+		dep = ext;
 
 		if (dofile_free < (sizeof updir - 1))
-			return 0;
+			return -1;
 		dofile_free -= sizeof updir - 1;
 
 		dofile = stpcpy(dofile, updir);
 	}
 
-	return 0;
+	return -1;
 }
 
 
@@ -855,17 +849,11 @@ log_up(int err) {
 	dprintf(log_fd, "%*s},\n", level, "");
 }
 
-static void
-log_name(char *name) {
-	dprintf(log_fd, "%*s\"%s\",\n", level, "", name);
-	dprintf(log_fd, "--[[\n");
-}
+#define log_name(name)   if (log_fd > 0) dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
 
 #define open_level()     if (log_fd > 0) dprintf(log_fd, "%*s{\n", level, "")
-#define close_level(err) if (log_fd > 0) log_up(dep_err)
+#define close_level(err) if (log_fd > 0) log_up(err)
 
-#define open_name(name)  if (log_fd > 0) log_name(name)
-#define close_name()     if (log_fd > 0) dprintf(log_fd, "--]]\n")
 
 
 #define NAME_MAX 255
@@ -874,8 +862,8 @@ log_name(char *name) {
 static int
 update_dep(int *dir_fd, char *dep_path)
 {
-	char *dep, *dofile;
-	char *target_full, target_base[NAME_MAX + 1];
+	char *dep, *target_full;
+	char target_base[NAME_MAX + 1];
 
 	char dofile_rel[PATH_MAX];
 
@@ -915,13 +903,17 @@ update_dep(int *dir_fd, char *dep_path)
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	open_name(target_full);
+	log_name(target_full);
 
-	dofile = find_dofile(target_base, dofile_rel, sizeof dofile_rel, &uprel, target_full);
+	if (fflag)
+		dprintf(1, "--[[\n");
 
-	close_name();
+	uprel = find_dofile(target_base, dofile_rel, sizeof dofile_rel, target_full);
 
-	if (!dofile)
+	if (fflag)
+		dprintf(1, "--]]\n");
+
+	if (uprel < 0)
 		return IS_SOURCE;
 
 	open_level();
@@ -1150,7 +1142,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+dxwl:")) != -1) {
+	while ((opt = getopt(argc, argv, "+dxwfl:")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1160,6 +1152,9 @@ main(int argc, char *argv[])
 			break;
 		case 'd':
 			setenvfd("REDO_DOFILES", 1);
+			break;
+		case 'f':
+			setenvfd("REDO_FIND", 1);
 			break;
 		case 'l':
 			if (strcmp(optarg, "1") == 0) {
@@ -1174,7 +1169,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2, "Usage: redo [-dxw] [-l <logname>] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-dxwf] [-l <logname>] [TARGETS...]\n");
 			return ERROR;
 		}
 	}
@@ -1182,6 +1177,7 @@ main(int argc, char *argv[])
 	xflag = envint("REDO_TRACE");
 	wflag = envint("REDO_WARNING");
 	dflag = envint("REDO_DOFILES");
+	fflag = envint("REDO_FIND");
 
 	log_fd = envint("REDO_LOG_FD");
 
