@@ -153,6 +153,8 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-w` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_WARNING={0,1}`
 
+* `-f` Log find_dofile() steps to stdout. `REDO_FIND={0,1}`
+
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
 
@@ -231,7 +233,7 @@ The current `redo` version follows approach of "do-layers". File belongs to the 
 
 You can test which dofiles will be encountered by `redo` appropriate to build certain <target> with
 
-    redo -d -l 1 <target>
+    redo -f <target>
 
 
 ### Tricks
