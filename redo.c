@@ -313,11 +313,11 @@ track(const char *target, int track_op)
 			track_buf_size += PATH_MAX;
 			track_buf = realloc(track_buf, track_buf_size);
 			if (!track_buf) {
-				perror("realloc");
+				pperror("realloc");
 				return 0;
 			}
 		} else {
-			perror ("getcwd");
+			pperror ("getcwd");
 			return 0;
 		}
 	}
@@ -722,7 +722,7 @@ find_record(char *filename)
 {
 	char redofile[PATH_MAX + sizeof redo_prefix];
 	char *target = base_name(filename, 0);
-	int find_err = 1;
+	int err = ERROR;
 
 
 	strcpy(redofile, filename);
@@ -735,7 +735,7 @@ find_record(char *filename)
 
 		while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
 			if (strcmp(target, namebuf) == 0) {
-				find_err = 0;
+				err = OK;
 				break;
 			}
 		}
@@ -743,7 +743,7 @@ find_record(char *filename)
 		fclose(f);
 	}
 
-	return find_err;
+	return err;
 }
 
 
@@ -768,10 +768,7 @@ dep_changed(char *line, int hint)
 			return 0;
 	}
 
-	if (strncmp(line, hexhash, HEXHASH_LEN) == 0)
-		return 0;
-
-	return 1;
+	return strncmp(line, hexhash, HEXHASH_LEN);
 }
 
 
@@ -1057,8 +1054,8 @@ keepdir()
 {
 	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
 	if (fd < 0) {
-		pperror("dir open");
-		exit(-1);
+		perror("dir open");
+		exit(ERROR);
 	}
 	return fd;
 }
