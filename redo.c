@@ -501,7 +501,10 @@ file_chdir(int *fd, char *name)
 }
 
 
-#define SUFFIX_LEN (sizeof redo_suffix - 1)
+#define SUFFIX_LEN	(sizeof redo_suffix - 1)
+
+#define reserve(space)	if (dofile_free < (space)) return -1; dofile_free -= (space)
+
 
 static int
 find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
@@ -514,7 +517,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 	size_t doname_size = (end - dep) + sizeof redo_suffix;
 
-	int uprel;
+	int uprel, first_name_len;
 
 
 	/* rewind .do tail inside dependency name */
@@ -527,9 +530,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 		tail = ext;
 	}
 
-	if (dofile_free < doname_size)
-		return -1;
-	dofile_free -= doname_size;
+	reserve(doname_size);
 
 	dep_trickpoint = strstr(dep, trickpoint);
 	if (dep_trickpoint == tail)
@@ -538,6 +539,8 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 	strcpy(end, redo_suffix);
 
 	ext = strchr(dep, '.');
+
+	first_name_len = ext - dep;
 
 	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
 
@@ -560,9 +563,10 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 		dep = ext;
 
-		if (dofile_free < (sizeof updir - 1))
-			return -1;
-		dofile_free -= sizeof updir - 1;
+		if (uprel == 0)
+			dofile_free += first_name_len;
+
+		reserve(sizeof updir - 1);
 
 		dofile = stpcpy(dofile, updir);
 	}
