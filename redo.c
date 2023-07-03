@@ -619,19 +619,17 @@ choose(const char *old, const char *new, int err, void (*perror_f)(const char *)
 
 static int 
 run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
-		const char *target_base, char *target_full, int uprel)
+		const char *target_base, const char *target_rel)
 {
 	int target_err = ERROR;
 
 	pid_t pid;
-	const char *target_rel;
-	char target_base_rel[PATH_MAX];
 
 	char *target_new;
+	char target_base_rel[PATH_MAX];
 	char target_new_rel[PATH_MAX + sizeof target_prefix];
 
 
-	target_rel = base_name(target_full, uprel);
 	if (strlen(target_rel) >= sizeof target_base_rel) {
 		dprintf(2, "Target relative name too long -- %s\n", target_rel);
 		return ERROR;
@@ -996,7 +994,7 @@ update_dep(int *dir_fd, char *dep_path)
 		if (!dep_err) {
 			start_msg();
 			dep_err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
-						target_base, target_full, uprel);
+					target_base, base_name(target_full, uprel));
 			end_msg();
 
 			if (!dep_err)
