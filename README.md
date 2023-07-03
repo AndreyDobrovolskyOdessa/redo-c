@@ -202,7 +202,7 @@ Targets are hashed once per build, while sources are hashed once per dependence.
 
 Conversion can be provided with the help of the following simple recipe:
 
-    test -f $1 && mv $1 $3
+    if test -f "$1"; then  mv "$1" "$3"; fi
 
 Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active recipes to self-targets. Such conversion may slow-down projects with lot of small sources.
 
