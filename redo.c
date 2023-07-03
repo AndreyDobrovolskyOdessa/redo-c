@@ -251,7 +251,7 @@ static const char redo_prefix[] =	".do..";
 static const char lock_prefix[] =	".do...do..";
 static const char target_prefix[] =	".do...do...do..";
 
-static const char updir[] = "../";
+static const char dirup[] = "../";
 
 
 #define TRACK_DELIMITER ':'
@@ -566,9 +566,9 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 		if (uprel == 0)
 			dofile_free += first_name_len;
 
-		reserve(sizeof updir - 1);
+		reserve(sizeof dirup - 1);
 
-		dofile = stpcpy(dofile, updir);
+		dofile = stpcpy(dofile, dirup);
 	}
 
 	return -1;
@@ -1046,7 +1046,7 @@ compute_updir(const char *dp, char *u)
 		dp = strchr(dp, '/');
 		if (dp) {
 			dp++;
-			u = stpcpy(u, updir);
+			u = stpcpy(u, dirup);
 		}
 	}
 }
