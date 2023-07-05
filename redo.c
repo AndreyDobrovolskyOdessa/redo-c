@@ -226,22 +226,18 @@ close_comment(void)
 
 
 static void
-pperror(const char *s)
+msg(const char *name, const char *error)
 {
-	char *e = strerror(errno);
-
 	start_msg();
-	dprintf(2, "%s : %s\n", s, e);
+	dprintf(2, "%s : %s\n", name, error);
 	end_msg();
 }
 
 
 static void
-msg(char *error, char *filename)
+pperror(const char *s)
 {
-	start_msg();
-	dprintf(2, "%s -- %s\n", error, filename);
-	end_msg();
+	msg(s, strerror(errno));
 }
 
 
@@ -699,21 +695,20 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 static int
 check_record(char *line)
 {
-	int line_len = strlen(line);
+	char *w, *last = strchr(line, '\0') - 1;
 
-	if (line_len < HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + 1) {
-		msg("Warning: dependency record too short. Target will be rebuilt", line);
-		return 0;
+	if ((last - line) < HEXHASH_LEN + 1 + HEXDATE_LEN + 1) {
+		w = "Warning - dependency record too short. Target will be rebuilt";
+	} else if (*last != '\n') {
+		w = "Warning - dependency record truncated. Target will be rebuilt";
+	} else {
+		*last = '\0';
+		return 1;
 	}
 
-	if (line[line_len - 1] != '\n') {
-		msg("Warning: dependency record truncated. Target will be rebuilt", line);
-		return 0;
-	}
+	msg(line, w);
 
-	line[line_len - 1] = 0; /* strip \n */
-
-	return 1;
+	return 0;
 }
 
 
@@ -877,24 +872,24 @@ update_dep(int *dir_fd, char *dep_path)
 
 
 	if (strchr(dep_path, TRACK_DELIMITER)) {
-		msg("Illegal symbol " stringize(TRACK_DELIMITER), dep_path);
+		msg(dep_path, "Illegal symbol " stringize(TRACK_DELIMITER));
 		return ERROR | BAD_NAME;
 	}
 
 	dep = file_chdir(dir_fd, dep_path);
 	if (dep == 0) {
-		msg("Missing dependency directory", dep_path);
+		msg(dep_path, "Missing dependency directory");
 		return ERROR | BAD_NAME;
 	}
 
 	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
-		msg("Dependency name too long", dep);
+		msg(dep, "Dependency name too long");
 		return ERROR | BAD_NAME;
 	}
 
 	target_full = track(dep, 1);
 	if (target_full == 0) {
-		msg("Dependency loop attempt", dep_path);
+		msg(dep_path, "Dependency loop attempt");
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
@@ -1157,15 +1152,15 @@ main(int argc, char *argv[])
 			break;
 		case 'l':
 			if (strcmp(optarg, "1") == 0) {
-				setenvfd("REDO_LOG_FD", 1);
+				log_fd = 1;
 			} else if (strcmp(optarg, "2") == 0) {
-				setenvfd("REDO_LOG_FD", 2);
+				log_fd = 2;
 			} else {
 				log_fd =  open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666);
 				if (log_fd < 0)
 					perror("logfile");
-				setenvfd("REDO_LOG_FD", log_fd);
 			}
+			setenvfd("REDO_LOG_FD", log_fd);
 			break;
 		default:
 			dprintf(2, "Usage: redo [-dxwf] [-l <logname>] [TARGETS...]\n");
