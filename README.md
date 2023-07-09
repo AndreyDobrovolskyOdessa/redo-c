@@ -157,6 +157,8 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
+* `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found or it was not imported successfully then fallback to the command-line arguments as targets. If the roadmap was imported successfully then command-line targets are ignored.
+
 
 ## Implementation details
 

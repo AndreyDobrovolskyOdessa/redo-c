@@ -42,6 +42,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -1108,7 +1109,8 @@ hurry_up_if(int successful)
 
 
 static void
-fence(char *top, void (*hill)(void)) {
+fence(char *top, void (*hill)(void))
+{
 	if (log_fd > 0) {
 		if (level > 0) {
 			if (log_fd < 3)
@@ -1120,23 +1122,177 @@ fence(char *top, void (*hill)(void)) {
 }
 
 
+struct roadmap {
+	size_t size;
+	int num;
+	int todo;
+	int done;
+	char **name;
+	int32_t *status;
+	int32_t *children;
+	int32_t *child;
+};
+
+
+static int
+text2int(int32_t *x, int cnt, char **p)
+{
+	char *ep;
+	long v;
+
+	while (cnt--) {
+		v = strtol(*p, &ep, 10);
+		if ((ep - *p) < (int) (sizeof (int32_t)))
+			return ERROR;
+		*p = ep;
+		*x++ = (int32_t) v;
+	}
+
+	return OK;
+}
+
+
+static int
+text2name(char **x, int cnt, char **p)
+{
+	while (cnt--) {
+		*p = strchr(*p, '\n');
+		if (*p == 0)
+			return ERROR;
+		*(*p)++ = '\0';
+		*x++ = *p;
+	}
+
+	return OK;
+}
+
+
+static int
+test_map(struct roadmap *m)
+{
+	int i;
+
+	for (i = 0; i < m->children[m->num]; i++) {
+		if (m->child[i] >= m->num)
+			return ERROR;
+	}
+
+	return OK;
+}
+
+
+static int
+import_map(struct roadmap *m, char *filename)
+{
+	struct stat st;
+	int fd;
+	char *ptr;
+
+	if (stat(filename, &st) < 0)
+		return ERROR;
+
+	if (st.st_size == 0)
+		return ERROR;
+
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		return ERROR;
+
+	m->name = mmap(NULL, st.st_size + 1, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (m->name == MAP_FAILED)
+		return ERROR;
+
+	m->size = st.st_size + 1;
+
+	ptr = (char *) m->name;
+
+	ptr[st.st_size] = '\0';
+
+	ptr = strchr(ptr, '\n');
+	if (ptr == 0)
+		return ERROR;
+
+	m->num = (ptr - (char *)m->name) / 8;
+	m->todo = m->num;
+	m->done = 0;
+
+	m->status = (int32_t *) ptr;
+	m->children = m->status + m->num;
+	m->child = m->children + m->num + 1;
+
+	if (text2int(m->status, m->num, &ptr) ||
+	    text2int(m->children, m->num + 1, &ptr) || 
+	    text2int(m->child, m->children[m->num], &ptr) ||
+	    text2name(m->name, m->num, &ptr))
+		return ERROR;
+
+	return test_map(m);
+}
+
+
+static void
+init_map(struct roadmap *m, int argc, char **argv)
+{
+	m->num  = argc;
+	m->todo = m->num;
+	m->done = 0;
+	m->name = argv;
+
+	m->status = calloc(2 * m->num + 1, sizeof (int32_t));
+	if (m->status == 0) {
+		perror("calloc");
+		exit(ERROR);
+	}
+
+	m->children = m->status + m->num;
+}
+
+
+static void
+approve(struct roadmap *m, int i)
+{
+	int j;
+
+	m->status[i] = -1;
+	m->done++;
+	for (j = m->children[i]; j < m->children[i + 1]; j++)
+		m->status[m->child[j]]--;
+}
+
+
+static int
+forget(struct roadmap *m, int i)
+{
+	int own = m->children[i];
+	int num = m->children[i + 1] - own;
+
+	if ((num == 0) || ((num == 1) && forget(m, m->child[own]))) {
+		m->status[i] = -1;
+		m->todo--;
+		return 1;
+	}
+
+	return 0;
+}
+
+
 int
 main(int argc, char *argv[])
 {
 	int opt;
 
-	char **dep;
-	int dep_num, *dep_status, deps_done = 0, deps_todo;
+	struct roadmap dep = {.size = 0};
 
 	const char *dirprefix;
 	char updir[PATH_MAX];
 
-	int main_dir_fd, lock_fd = -1, retries, attempts, i, redo_err;
+	int main_dir_fd, lock_fd = -1, retries, attempts, i, err;
 
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+dxwfl:")) != -1) {
+	while ((opt = getopt(argc, argv, "+dxwfl:m:")) != -1) {
 		switch (opt) {
 		case 'x':
 			setenvfd("REDO_TRACE", 1);
@@ -1157,13 +1313,24 @@ main(int argc, char *argv[])
 				log_fd = 2;
 			} else {
 				log_fd =  open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666);
-				if (log_fd < 0)
+				if (log_fd < 0) {
 					perror("logfile");
+					return ERROR;
+				}
 			}
 			setenvfd("REDO_LOG_FD", log_fd);
 			break;
+		case 'm':
+			if (import_map(&dep, optarg) != OK) {
+				dprintf(2, "Warning: failed to import the roadmap from %s.\n", optarg);
+				if (dep.size != 0) {
+					munmap(dep.name, dep.size);
+					dep.size = 0;
+				}
+			}
+			break;
 		default:
-			dprintf(2, "Usage: redo [-dxwf] [-l <logname>] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-dxwf] [-l <logname>] [-m <roadmap>] [TARGETS...]\n");
 			return ERROR;
 		}
 	}
@@ -1175,21 +1342,9 @@ main(int argc, char *argv[])
 
 	log_fd = envint("REDO_LOG_FD");
 
-	dep = argv + optind;
-	deps_todo = dep_num = argc - optind;
 
-	if (dep_num == 0)
-		return 0;
-
-	dep_status = malloc(dep_num * sizeof (int));
-	if (!dep_status) {
-		perror("malloc");
-		return ERROR;
-	}
-
-	for (i = 0; i < dep_num; i++)
-		dep_status[i] = BUSY;
-
+	if (dep.size == 0)
+		init_map(&dep, argc - optind, argv + optind);
 
 	dirprefix = getenv("REDO_DIRPREFIX");
 	compute_updir(dirprefix, updir);
@@ -1219,33 +1374,30 @@ main(int argc, char *argv[])
 	do {
 		hurry_up_if(attempts >= retries);
 
-		for (i = 0; i < dep_num ; i++) {
-			if (dep_status[i] != OK) {
+		for (i = 0; i < dep.num ; i++) {
+			if (dep.status[i] == 0) {
 				int hint;
 
-				redo_err = do_update_dep(main_dir_fd, dep[i], &hint);
+				err = do_update_dep(main_dir_fd, dep.name[i], &hint);
 
-				if ((redo_err == 0) && (lock_fd > 0))
-					redo_err = write_dep(lock_fd, dep[i], dirprefix, updir, hint);
+				if ((err == 0) && (lock_fd > 0))
+					err = write_dep(lock_fd, dep.name[i], dirprefix, updir, hint);
 
-				if (redo_err == 0) {
-					dep_status[i] = OK;
-					deps_done++;
+				if (err == 0) {
+					approve(&dep, i);
 					attempts = retries + 1;
-				} else if (redo_err == BUSY) {
-					if (hint & IMMEDIATE_DEPENDENCY) {
-						dep_status[i] = OK;
-						deps_todo--;		/* forget it */
-					}
+				} else if (err == BUSY) {
+					if (hint & IMMEDIATE_DEPENDENCY)
+						forget(&dep, i);
 				} else {
 					break;
 				}
 			}
 		}
-	} while ((i == dep_num) && (deps_done < deps_todo) && (--attempts > 0));
+	} while ((i == dep.num) && (dep.done < dep.todo) && (--attempts > 0));
 
 	fence("}", open_comment);
 
-	return (i < dep_num) ? redo_err : ((deps_done < dep_num) ? BUSY : OK);
+	return (i < dep.num) ? err : ((dep.done < dep.num) ? BUSY : OK);
 }
 
