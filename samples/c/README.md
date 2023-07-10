@@ -37,10 +37,10 @@ The same task, but `foo.c` and `main.c` sources are to be compiled using `CFLAGS
 
 ### loop
 
-An example of project with loop dependencies, which can be successfully build with the help of `-l` option in two iterations.
+An example of project with loop dependencies, which can be successfully build with the help of `-w`.
 
     . ./redo.do
-    redo -l samples/c/loop/...
+    redo -w samples/c/loop/...
 
 While some loop dependencies are recoverable, their existence indicates mistakes or errors in the project design.
 
