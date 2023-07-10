@@ -1078,7 +1078,7 @@ occurrences(const char *str, int ch)
 
 #define RETRIES_DEFAULT 10
 
-#define SHORTEST 10
+#define SHORTEST 20
 #define LONGEST  (SHORTEST << RETRIES_DEFAULT)
 
 #define MSEC_PER_SEC  1000
@@ -1266,8 +1266,9 @@ forget(struct roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
+	int child = m->child[own];
 
-	if ((num == 0) || ((num == 1) && forget(m, m->child[own]))) {
+	if ((num == 0) || ((num == 1) && (m->status[child] == 1) && forget(m, child))) {
 		m->status[i] = -1;
 		m->todo--;
 		return 1;
