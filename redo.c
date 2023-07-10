@@ -1256,6 +1256,7 @@ approve(struct roadmap *m, int i)
 
 	m->status[i] = -1;
 	m->done++;
+
 	for (j = m->children[i]; j < m->children[i + 1]; j++)
 		m->status[m->child[j]]--;
 }
@@ -1266,15 +1267,21 @@ forget(struct roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
-	int child = m->child[own];
 
-	if ((num == 0) || ((num == 1) && (m->status[child] == 1) && forget(m, child))) {
-		m->status[i] = -1;
-		m->todo--;
-		return 1;
+	if (num > 1)
+		return 0;
+
+	if (num == 1) {
+		int child = m->child[own];
+
+		if ((m->status[child] > 1) || (forget(m, child) == 0))
+			return 0;
 	}
 
-	return 0;
+	m->status[i] = -1;
+	m->todo--;
+
+	return 1;
 }
 
 
