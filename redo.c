@@ -43,6 +43,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/time.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -839,14 +840,27 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 
 
 static void
+log_dn() {
+	struct timeval tv;
+
+	gettimeofday(&tv, 0);
+	dprintf(log_fd, "%*s{\n", level, "");
+	dprintf(log_fd, "%*st0 = %ld, t0u = %ld,\n", level + 8, "", tv.tv_sec, tv.tv_usec);
+}
+
+static void
 log_up(int err) {
+	struct timeval tv;
+
+	gettimeofday(&tv, 0);
+	dprintf(log_fd, "%*st1 = %ld, t1u = %ld,\n", level + 8, "", tv.tv_sec, tv.tv_usec);
 	dprintf(log_fd, "%*serr = %d,\n", level, "", err);
 	dprintf(log_fd, "%*s},\n", level, "");
 }
 
 #define log_name(name)   if (log_fd > 0) dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
 
-#define open_level()     if (log_fd > 0) dprintf(log_fd, "%*s{\n", level, "")
+#define open_level()     if (log_fd > 0) log_dn()
 #define close_level(err) if (log_fd > 0) log_up(err)
 
 
@@ -1172,9 +1186,16 @@ test_map(struct roadmap *m)
 {
 	int i;
 
+	for (i = 0; i < m->num; i++)
+		m->status[i] = 0;
+
 	for (i = 0; i < m->children[m->num]; i++) {
-		if (m->child[i] >= m->num)
+		int child = m->child[i];
+
+		if ((child < 0) || (child >= m->num))
 			return ERROR;
+
+		m->status[child]++;
 	}
 
 	return OK;
