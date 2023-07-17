@@ -1,0 +1,4 @@
+depends-on $DEPS
+lua -e 'local t = os.clock() + '$DELAY' repeat until os.clock() > t'
+cat $DEPS > $3
+
