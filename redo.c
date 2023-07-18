@@ -814,28 +814,28 @@ static int update_dep(int *dir_fd, char *dep_path);
 static int
 do_update_dep(int dir_fd, char *dep_path, int *hint)
 {
-	int dep_dir_fd = dir_fd, dep_err;
+	int dep_dir_fd = dir_fd, err;
 
 	level += INDENT;
 
-	dep_err = update_dep(&dep_dir_fd, dep_path);
+	err = update_dep(&dep_dir_fd, dep_path);
 
-	if ((dep_err & BAD_NAME) == 0)
+	if ((err & BAD_NAME) == 0)
 		track(0, 1);	/* strip the last record */
 
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
 			pperror("chdir back");
-			dep_err |= ERROR;
+			err |= ERROR;
 		}
 		close(dep_dir_fd);
 	}
 
-	*hint = dep_err & HINTS;
+	*hint = err & HINTS;
 
 	level -= INDENT;
 
-	return dep_err & ERRORS;
+	return err & ERRORS;
 }
 
 
@@ -848,6 +848,7 @@ log_dn() {
 	dprintf(log_fd, "%*st0 = %ld, t0u = %ld,\n", level + 8, "", tv.tv_sec, tv.tv_usec);
 }
 
+
 static void
 log_up(int err) {
 	struct timeval tv;
@@ -858,11 +859,11 @@ log_up(int err) {
 	dprintf(log_fd, "%*s},\n", level, "");
 }
 
+
 #define log_name(name)   if (log_fd > 0) dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
 
 #define open_level()     if (log_fd > 0) log_dn()
 #define close_level(err) if (log_fd > 0) log_up(err)
-
 
 
 #define NAME_MAX 255
@@ -879,7 +880,7 @@ update_dep(int *dir_fd, char *dep_path)
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
 
-	int uprel, lock_fd, dep_err = 0, wanted = 1, hint;
+	int uprel, lock_fd, err = 0, wanted = 1, hint;
 
 	struct stat redo_st = {0};
 
@@ -930,24 +931,24 @@ update_dep(int *dir_fd, char *dep_path)
 	stat(redofile, &redo_st);
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
-		dep_err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
-		close_level(dep_err);
-		return dep_err;
+		err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
+		close_level(err);
+		return err;
 	}
 
 	lock_fd = open(lockfile, O_CREAT | O_WRONLY | O_EXCL, 0666);
 	if (lock_fd < 0) {
 		if (errno == EEXIST) {
-			dep_err = BUSY | IMMEDIATE_DEPENDENCY;
+			err = BUSY | IMMEDIATE_DEPENDENCY;
 		} else {
 			pperror("open exclusive");
-			dep_err = ERROR;
+			err = ERROR;
 		}
 	}
 
-	if (dep_err) {
-		close_level(dep_err);
-		return dep_err;
+	if (err) {
+		close_level(err);
+		return err;
 	}
 
 
@@ -966,18 +967,18 @@ update_dep(int *dir_fd, char *dep_path)
 				strcpy(filename, dofile_rel);
 
 			if (!self) {
-				dep_err = do_update_dep(*dir_fd, filename, &hint);
+				err = do_update_dep(*dir_fd, filename, &hint);
 			}
 
 			is_dofile = 0;
 
-			if (dep_err || dep_changed(line, hint))
+			if (err || dep_changed(line, hint))
 				break;
 
 			memcpy(hexhash, line, HEXHASH_LEN);
 
-			dep_err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
-			if (dep_err)
+			err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
+			if (err)
 				break;
 
 			if (self) {
@@ -988,38 +989,38 @@ update_dep(int *dir_fd, char *dep_path)
 		fclose(fredo);
 		hint = 0;
 	} else {
-		dep_err = do_update_dep(*dir_fd, dofile_rel, &hint);
+		err = do_update_dep(*dir_fd, dofile_rel, &hint);
 	}
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
 
-	if (!dep_err && wanted) {
+	if (!err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
 
-		dep_err = write_dep(lock_fd, dofile_rel, 0, 0, hint);
+		err = write_dep(lock_fd, dofile_rel, 0, 0, hint);
 
-		if (!dep_err) {
+		if (!err) {
 			start_msg();
-			dep_err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
+			err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
 					target_base, base_name(target_full, uprel));
 			end_msg();
 
-			if (!dep_err)
-				dep_err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
+			if (!err)
+				err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
 		}
 
-		if (dep_err && (dep_err != BUSY)) {
+		if (err && (err != BUSY)) {
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
 			start_msg();
 			dprintf(2, "redo %*s%s\n", level, "", target_full);
-			dprintf(2, "     %*s%s -> %d\n", level, "", dofile_rel, dep_err);
+			dprintf(2, "     %*s%s -> %d\n", level, "", dofile_rel, err);
 			end_msg();
 		}
 	}
 
 	close(lock_fd);
 
-	close_level(dep_err);
+	close_level(err);
 
 /*
 	Now we will use target_full residing in track to construct
@@ -1029,9 +1030,9 @@ update_dep(int *dir_fd, char *dep_path)
 
 	strcpy(base_name(target_full, 0), lockfile);
 
-	dep_err &= ~IMMEDIATE_DEPENDENCY;	/* implicit? */
+	err &= ~IMMEDIATE_DEPENDENCY;	/* implicit? */
 
-	return choose(redofile, target_full, dep_err, pperror) | UPDATED_RECENTLY;
+	return choose(redofile, target_full, err, pperror) | UPDATED_RECENTLY;
 }
 
 
