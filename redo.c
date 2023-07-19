@@ -216,7 +216,6 @@ open_comment(void)
 	dprintf(log_fd, "--[====================================================================[\n");
 }
 
-
 static void
 close_comment(void)
 {
@@ -224,8 +223,8 @@ close_comment(void)
 }
 
 
-#define start_msg() if ((log_fd > 0) && (log_fd < 3)) open_comment()
-#define end_msg()   if ((log_fd > 0) && (log_fd < 3)) close_comment()
+#define start_msg()	if ((log_fd > 0) && (log_fd < 3)) open_comment()
+#define end_msg()	if ((log_fd > 0) && (log_fd < 3)) close_comment()
 
 
 static void
@@ -906,7 +905,7 @@ update_dep(int *dir_fd, char *dep_path)
 
 	target_full = track(dep, 1);
 	if (target_full == 0) {
-		msg(dep_path, "Dependency loop attempt");
+		msg(track(0, 0), "Dependency loop attempt");
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
