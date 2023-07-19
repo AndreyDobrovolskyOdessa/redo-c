@@ -22,7 +22,7 @@ explore = function(dep, target)
   end 
 end
 
-for i, logname in ipairs(arg) do
+for i, logname in ipairs{...} do
   local f = assert(loadfile(logname))
   explore(f())
 end
