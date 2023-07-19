@@ -13,6 +13,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/
 */
 
+
 /************************************************************
 This redo-c version can be found at:
 
@@ -619,7 +620,7 @@ static int
 run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		const char *target_base, const char *target_rel)
 {
-	int target_err = ERROR;
+	int err = ERROR;
 
 	pid_t pid;
 
@@ -674,23 +675,23 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		perror("execl");
 		exit(ERROR);
 	} else {
-		if (wait(&target_err) < 0) {
+		if (wait(&err) < 0) {
 			perror("wait");
 		} else {
-			if (WCOREDUMP(target_err)) {
+			if (WCOREDUMP(err)) {
 				dprintf(2, "Core dumped.\n");
 			}
-			if (WIFEXITED(target_err)) {
-				target_err = WEXITSTATUS(target_err);
-			} else if (WIFSIGNALED(target_err)) {
-				dprintf(2, "Terminated with %d signal.\n", WTERMSIG(target_err));
-			} else if (WIFSTOPPED(target_err)) {
-				dprintf(2, "Stopped with %d signal.\n", WSTOPSIG(target_err));
+			if (WIFEXITED(err)) {
+				err = WEXITSTATUS(err);
+			} else if (WIFSIGNALED(err)) {
+				dprintf(2, "Terminated with %d signal.\n", WTERMSIG(err));
+			} else if (WIFSTOPPED(err)) {
+				dprintf(2, "Stopped with %d signal.\n", WSTOPSIG(err));
 			}
 		}
 	}
 
-	return choose(target, target_new, target_err, perror);
+	return choose(target, target_new, err, perror);
 }
 
 
@@ -821,7 +822,7 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 	err = update_dep(&dep_dir_fd, dep_path);
 
 	if ((err & BAD_NAME) == 0)
-		track(0, 1);	/* strip the last record */
+		track(0, 1);		/* strip the last record */
 
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
@@ -961,14 +962,14 @@ update_dep(int *dir_fd, char *dep_path)
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			int self = !strcmp(filename, dep);
+
 			hint = IS_SOURCE;
 
 			if (is_dofile && strcmp(filename, dofile_rel))
 				strcpy(filename, dofile_rel);
 
-			if (!self) {
+			if (!self)
 				err = do_update_dep(*dir_fd, filename, &hint);
-			}
 
 			is_dofile = 0;
 
@@ -1064,10 +1065,12 @@ static int
 keepdir()
 {
 	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+
 	if (fd < 0) {
 		perror("dir open");
 		exit(ERROR);
 	}
+
 	return fd;
 }
 
@@ -1314,10 +1317,11 @@ main(int argc, char *argv[])
 
 	struct roadmap dep = {.size = 0};
 
-	const char *dirprefix;
+	int dir_fd = keepdir();
+	const char *dirprefix = getenv("REDO_DIRPREFIX");
 	char updir[PATH_MAX];
 
-	int main_dir_fd, lock_fd = -1, retries, attempts, i, err;
+	int lock_fd = -1, retries, attempts, i, err;
 
 
 	opterr = 0;
@@ -1351,7 +1355,10 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOG_FD", log_fd);
 			break;
 		case 'm':
-			if (import_map(&dep, optarg) != OK) {
+			if (import_map(&dep, optarg) == OK) {
+				file_chdir(&dir_fd, optarg);
+				dirprefix = 0;
+			} else {
 				dprintf(2, "Warning: failed to import the roadmap from %s.\n", optarg);
 				if (dep.size != 0) {
 					munmap(dep.name, dep.size);
@@ -1376,26 +1383,24 @@ main(int argc, char *argv[])
 	if (dep.size == 0)
 		init_map(&dep, argc - optind, argv + optind);
 
-	dirprefix = getenv("REDO_DIRPREFIX");
+
 	compute_updir(dirprefix, updir);
 
 	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER) * INDENT;
 
-	if (strcmp(base_name(argv[0], 0), "redo") != 0) {
+	if (strcmp(base_name(argv[0], 0), "redo") != 0)
 		lock_fd = envint("REDO_LOCK_FD");
-	}
 
 	retries = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
 	if ((lock_fd < 0) && (retries == 0))
 		retries = RETRIES_DEFAULT;
+
 	attempts = retries + 1;
 
 
 	datebuild();
-
-	main_dir_fd = keepdir();
 
 	srand(getpid());
 
@@ -1408,7 +1413,7 @@ main(int argc, char *argv[])
 			if (dep.status[i] == 0) {
 				int hint;
 
-				err = do_update_dep(main_dir_fd, dep.name[i], &hint);
+				err = do_update_dep(dir_fd, dep.name[i], &hint);
 
 				if ((err == 0) && (lock_fd > 0))
 					err = write_dep(lock_fd, dep.name[i], dirprefix, updir, hint);
