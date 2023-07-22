@@ -24,7 +24,7 @@ which is the fork of:
 https://github.com/leahneukirchen/redo-c
 
 
-Features:
+	Features:
 
 1. Optimized recipes envocations.
 
@@ -1126,15 +1126,15 @@ hurry_up_if(int successful)
 
 
 static void
-fence(char *top, void (*hill)(void))
+fence(int atop, char *top, void (*hill)(void))
 {
 	if (log_fd > 0) {
-		if (level > 0) {
+		if (atop) {
+			dprintf(log_fd, "%s\n", top);
+		} else {
 			if (log_fd < 3)
 				(*hill)();
-
-		} else
-			dprintf(log_fd, "%s\n", top);
+		}
 	}
 }
 
@@ -1320,7 +1320,7 @@ main(int argc, char *argv[])
 	const char *dirprefix = getenv("REDO_DIRPREFIX");
 	char updir[PATH_MAX];
 
-	int lock_fd = -1, retries, attempts, i, err;
+	int lock_fd = -1, retries, attempts, i, err, logit = 0;
 
 
 	opterr = 0;
@@ -1352,6 +1352,7 @@ main(int argc, char *argv[])
 				}
 			}
 			setenvfd("REDO_LOG_FD", log_fd);
+			logit = 1;
 			break;
 		case 'm':
 			if (import_map(&dep, optarg) == OK) {
@@ -1403,7 +1404,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	fence("return {", close_comment);
+	fence(logit, "return {", close_comment);
 
 	do {
 		hurry_up_if(attempts >= retries);
@@ -1430,7 +1431,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep.num) && (dep.done < dep.todo) && (--attempts > 0));
 
-	fence("}", open_comment);
+	fence(logit, "}", open_comment);
 
 	return (i < dep.num) ? err : ((dep.done < dep.num) ? BUSY : OK);
 }

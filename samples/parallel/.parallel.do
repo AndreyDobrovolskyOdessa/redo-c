@@ -3,20 +3,26 @@ TDIR=${1%$TNAME}
 
 depends-on ${TDIR}.do..${TNAME}
 
-JOBS=${JOBS:-2}
-
-LOGS=$(lua -e "for i = 1, $JOBS do print(('$1.%d.log'):format(i)) end")
-
 export MAP_DIR=$(test -n "$TDIR" && cd $TDIR; pwd)
 
-for LOG in $LOGS
-do
-	redo -l $LOG -m $1 $2 &
-done
+if test -f "$1"
+then
+	JOBS=${JOBS:-2}
 
-wait
+	LOGS=$(lua -e "for i = 1, $JOBS do print(('$1.%d.log'):format(i)) end")
 
-{ echo 'return {'; cat $LOGS; echo '}'; } > $1.log
+	for LOG in $LOGS
+	do
+		redo -l $LOG -m $1 &
+	done
 
-lua log2map.lua $1.log > $3
+	wait
+
+else
+	LOGS=$1.log
+
+	JOBS="" redo -l $LOGS $2
+fi
+
+lua log2map.lua $LOGS > $3
 
