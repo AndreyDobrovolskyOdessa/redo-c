@@ -583,8 +583,8 @@ enum errors {
 
 
 enum hints {
-	BAD_NAME             = 0x100,
-	IS_SOURCE            = 0x200,
+	BAD_NAME	     = 0x100,
+	IS_SOURCE	     = 0x200,
 	UPDATED_RECENTLY     = 0x400,
 	IMMEDIATE_DEPENDENCY = 0x800
 };
@@ -1030,8 +1030,6 @@ update_dep(int *dir_fd, char *dep_path)
 
 	strcpy(base_name(target_full, 0), lockfile);
 
-	err &= ~IMMEDIATE_DEPENDENCY;	/* implicit? */
-
 	return choose(redofile, target_full, err, pperror) | UPDATED_RECENTLY;
 }
 
@@ -1126,11 +1124,12 @@ hurry_up_if(int successful)
 
 
 static void
-fence(int atop, char *top, void (*hill)(void))
+fence(int log_fd_buf, char *top, void (*hill)(void))
 {
 	if (log_fd > 0) {
-		if (atop) {
-			dprintf(log_fd, "%s\n", top);
+		if (log_fd != log_fd_buf) {
+			if (log_fd_buf <= 0)
+				dprintf(log_fd, "%s\n", top);
 		} else {
 			if (log_fd < 3)
 				(*hill)();
@@ -1320,8 +1319,10 @@ main(int argc, char *argv[])
 	const char *dirprefix = getenv("REDO_DIRPREFIX");
 	char updir[PATH_MAX];
 
-	int lock_fd = -1, retries, attempts, i, err, logit = 0;
+	int lock_fd = -1, retries, attempts, i, err, log_fd_prev;
 
+
+	log_fd = log_fd_prev = envint("REDO_LOG_FD");
 
 	opterr = 0;
 
@@ -1352,7 +1353,6 @@ main(int argc, char *argv[])
 				}
 			}
 			setenvfd("REDO_LOG_FD", log_fd);
-			logit = 1;
 			break;
 		case 'm':
 			if (import_map(&dep, optarg) == OK) {
@@ -1376,8 +1376,6 @@ main(int argc, char *argv[])
 	wflag = envint("REDO_WARNING");
 	dflag = envint("REDO_DOFILES");
 	fflag = envint("REDO_FIND");
-
-	log_fd = envint("REDO_LOG_FD");
 
 
 	if (dep.size == 0)
@@ -1404,7 +1402,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	fence(logit, "return {", close_comment);
+	fence(log_fd_prev, "return {", close_comment);
 
 	do {
 		hurry_up_if(attempts >= retries);
@@ -1431,7 +1429,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep.num) && (dep.done < dep.todo) && (--attempts > 0));
 
-	fence(logit, "}", open_comment);
+	fence(log_fd_prev, "}", open_comment);
 
 	return (i < dep.num) ? err : ((dep.done < dep.num) ? BUSY : OK);
 }
