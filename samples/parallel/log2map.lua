@@ -16,14 +16,14 @@ explore = function(dep, target)
         if target then node[name][target] = true end
         explore(record, name)
       else
-        if (record.err & 0xff) ~= 2 then os.exit(1) end
+        assert((record.err & 0xff) == 2, name .. ".error = " .. tostring(record.err))
       end
     end
-  end 
+  end
 end
 
 for i, logname in ipairs{...} do
-  local f = assert(loadfile(logname))
+  local f = assert(loadfile(logname), logname .. " failed")
   explore(f())
 end
 
@@ -35,7 +35,7 @@ end
 local dict = {}
 
 for name, staff in pairs(node) do
-  if staff[1] then os.exit(1) end  -- busy
+  assert(not staff[1], name .. " is busy")
   dict[#dict + 1] = name
   dict[name] = #dict
 end
