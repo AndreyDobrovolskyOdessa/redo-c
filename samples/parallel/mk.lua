@@ -8,6 +8,22 @@ if sources < maxdeps then sources = maxdeps end
 if targets < sources then targets = sources end
 if window < sources then window = sources end
 
+-------------------
+-- Randomization --
+-------------------
+
+local f = assert(io.open("/dev/urandom"))
+
+local Seed = function(len)
+  return tonumber((("%02x"):rep(len)):format((f:read(len)):byte(1, -1)), 16)
+end
+
+math.randomseed(Seed(8), Seed(8))
+
+io.close(f)
+
+
+
 local parents = {}
 local children = {}
 
