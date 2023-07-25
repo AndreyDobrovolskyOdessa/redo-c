@@ -83,3 +83,7 @@ Full clean the test directory for another instance testing:
     lua ../mk.lua 100 20 10 20
 
 
+## mktest2
+
+An example of managing logs in massively parallel build
+
