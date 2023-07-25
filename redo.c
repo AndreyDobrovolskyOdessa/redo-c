@@ -574,9 +574,9 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 
 enum errors {
-	OK    = 0,
-	ERROR = 1,
-	BUSY  = 2
+	OK	= 0,
+	ERROR	= 1,
+	BUSY	= 2
 };
 
 #define ERRORS 0xff
@@ -1093,7 +1093,7 @@ occurrences(const char *str, int ch)
 
 #define RETRIES_DEFAULT 10
 
-#define SHORTEST 20
+#define SHORTEST 10
 #define LONGEST  (SHORTEST << RETRIES_DEFAULT)
 
 #define MSEC_PER_SEC  1000
@@ -1111,7 +1111,7 @@ hurry_up_if(int successful)
 		return;
 	}
 
-	asleep = (rand() % night) + 1;
+	asleep = night + (rand() % night);
 
 	if (night < LONGEST)
 		night *= 2;
