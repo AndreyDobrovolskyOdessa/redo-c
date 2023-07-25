@@ -10,9 +10,13 @@ explore = function(dep, target)
   for i, name in ipairs(dep) do
     local record = dep[i + 1]
     if type(record) == "table" then
-      if not node[name] then node[name] = {"busy"} end
-      if record.err == 0 then
-        node[name][1] = nil
+      if not node[name] then
+        node[name] = {record.err}
+      end
+      if record.err < node[name][1] then
+        node[name][1] = record.err
+      end
+      if record.err == 0 or record.err == 2 then
         if target then node[name][target] = true end
         explore(record, name)
       else
@@ -35,7 +39,8 @@ end
 local dict = {}
 
 for name, staff in pairs(node) do
-  assert(not staff[1], name .. " is busy")
+  assert(staff[1] == 0, name .. " is busy")
+  staff[1] = nil
   dict[#dict + 1] = name
   dict[name] = #dict
 end
