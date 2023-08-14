@@ -1,2 +1,1 @@
-echo -Wall -Wextra > $3
-
+echo -Wall -Wextra -fno-asynchronous-unwind-tables >$3
