@@ -34,7 +34,7 @@ https://github.com/leahneukirchen/redo-c
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
-********************************************************/
+************************************************************/
 
 
 #define _GNU_SOURCE 1
@@ -574,9 +574,9 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 
 enum errors {
-	OK	= 0,
-	ERROR	= 1,
-	BUSY	= 2
+	OK    = 0,
+	ERROR = 1,
+	BUSY  = 2
 };
 
 #define ERRORS 0xff
@@ -840,21 +840,27 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 
 
 static void
-log_dn() {
+log_timestamp(char *description)
+{
 	struct timeval tv;
 
 	gettimeofday(&tv, 0);
-	dprintf(log_fd, "%*s{\n", level, "");
-	dprintf(log_fd, "%*st0 = %ld, t0u = %ld,\n", level + 8, "", tv.tv_sec, tv.tv_usec);
+	dprintf(log_fd, "%*s%s = %ld, %su = %ld,\n", level + 8, "", description, tv.tv_sec, description, tv.tv_usec);
 }
 
 
 static void
-log_up(int err) {
-	struct timeval tv;
+log_dn()
+{
+	dprintf(log_fd, "%*s{\n", level, "");
+	log_timestamp("t0");
+}
 
-	gettimeofday(&tv, 0);
-	dprintf(log_fd, "%*st1 = %ld, t1u = %ld,\n", level + 8, "", tv.tv_sec, tv.tv_usec);
+
+static void
+log_up(int err)
+{
+	log_timestamp("t1");
 	dprintf(log_fd, "%*serr = %d,\n", level, "", err);
 	dprintf(log_fd, "%*s},\n", level, "");
 }
