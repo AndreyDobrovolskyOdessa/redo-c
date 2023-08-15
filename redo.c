@@ -251,7 +251,6 @@ static const char target_prefix[] =	".do...do...do..";
 
 static const char dirup[] = "../";
 
-
 #define TRACK_DELIMITER ':'
 
 static char *
@@ -368,10 +367,10 @@ setenvfd(const char *name, int i)
 	return setenv(name, buf, 1);
 }
 
-#define HASH_LEN 32
+
+#define HASH_LEN    32
 #define HEXHASH_LEN (2 * HASH_LEN)
 #define HEXDATE_LEN 16
-
 
 static char redoline[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 
@@ -1317,7 +1316,7 @@ forget(struct roadmap *m, int i)
 int
 main(int argc, char *argv[])
 {
-	int opt, lock_fd = -1, retries, attempt, log_fd_prev, i;
+	int opt, log_fd_prev, lock_fd = -1, passes_max, passes, i;
 
 	struct roadmap dep = {.size = 0};
 
@@ -1394,13 +1393,13 @@ main(int argc, char *argv[])
 		lock_fd = envint("REDO_LOCK_FD");
 
 
-	retries = envint("REDO_RETRIES");
+	passes_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
-	if ((lock_fd < 0) && (retries == 0))
-		retries = RETRIES_DEFAULT;
+	if ((lock_fd < 0) && (passes_max == 0))
+		passes_max = RETRIES_DEFAULT;
 
-	attempt = retries + 1;
+	passes = passes_max;
 
 
 	datebuild();
@@ -1410,7 +1409,7 @@ main(int argc, char *argv[])
 	fence(log_fd_prev, "return {", close_comment);
 
 	do {
-		hurry_up_if(attempt-- > retries);
+		hurry_up_if(passes-- == passes_max);
 
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
@@ -1422,7 +1421,7 @@ main(int argc, char *argv[])
 
 				if (err == 0) {
 					approve(&dep, i);
-					attempt = retries + 1;
+					passes = passes_max;
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
 						forget(&dep, i);
@@ -1431,7 +1430,7 @@ main(int argc, char *argv[])
 				}
 			}
 		}
-	} while (retries && (i == dep.num) && (dep.done < dep.todo) && (attempt > 0));
+	} while ((i == dep.num) && (dep.done < dep.todo) && (passes > 0));
 
 	fence(log_fd_prev, "}", open_comment);
 
