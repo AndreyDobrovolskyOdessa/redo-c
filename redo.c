@@ -1317,15 +1317,13 @@ forget(struct roadmap *m, int i)
 int
 main(int argc, char *argv[])
 {
-	int opt;
+	int opt, lock_fd = -1, retries, attempt, log_fd_prev, i;
 
 	struct roadmap dep = {.size = 0};
 
 	int dir_fd = keepdir();
 	const char *dirprefix = getenv("REDO_DIRPREFIX");
 	char updir[PATH_MAX];
-
-	int lock_fd = -1, retries, attempts, i, err, log_fd_prev;
 
 
 	log_fd = log_fd_prev = envint("REDO_LOG_FD");
@@ -1395,13 +1393,14 @@ main(int argc, char *argv[])
 	if (strcmp(base_name(argv[0], 0), "redo") != 0)
 		lock_fd = envint("REDO_LOCK_FD");
 
+
 	retries = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
 	if ((lock_fd < 0) && (retries == 0))
 		retries = RETRIES_DEFAULT;
 
-	attempts = retries + 1;
+	attempt = retries + 1;
 
 
 	datebuild();
@@ -1411,20 +1410,19 @@ main(int argc, char *argv[])
 	fence(log_fd_prev, "return {", close_comment);
 
 	do {
-		hurry_up_if(attempts >= retries);
+		hurry_up_if(attempt-- > retries);
 
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
 				int hint;
-
-				err = do_update_dep(dir_fd, dep.name[i], &hint);
+				int err = do_update_dep(dir_fd, dep.name[i], &hint);
 
 				if ((err == 0) && (lock_fd > 0))
 					err = write_dep(lock_fd, dep.name[i], dirprefix, updir, hint);
 
 				if (err == 0) {
 					approve(&dep, i);
-					attempts = retries + 1;
+					attempt = retries + 1;
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
 						forget(&dep, i);
@@ -1433,10 +1431,10 @@ main(int argc, char *argv[])
 				}
 			}
 		}
-	} while ((i == dep.num) && (dep.done < dep.todo) && (--attempts > 0));
+	} while (retries && (i == dep.num) && (dep.done < dep.todo) && (attempt > 0));
 
 	fence(log_fd_prev, "}", open_comment);
 
-	return (i < dep.num) ? err : ((dep.done < dep.num) ? BUSY : OK);
+	return (i < dep.num) ? ERROR : ((dep.done < dep.num) ? BUSY : OK);
 }
 
