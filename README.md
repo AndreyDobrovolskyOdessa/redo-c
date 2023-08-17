@@ -261,6 +261,11 @@ Searching in cwd and updirs:
     --]]
 
 
+### Troubleshooting
+
+If the build was interrupted then some locks may remain uncleared. Such locks can be located with the help of the build log. See samples/locks.
+
+
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 
 
