@@ -68,11 +68,7 @@ First parallel build pass will be sequential and will collect the build tree log
 
     redo t.parallel
 
-You will see warning messages about missing roadmap. The next builds:
-
-    redo t.parallel
-
-will be parallel utilizing default JOBS=2 variable. You can increase the number of parallel branches assigning desired JOBS value, for example:
+The next builds will be parallel utilizing default JOBS=2 variable. You can increase the number of parallel branches assigning desired JOBS value, for example:
 
     JOBS=8 redo t.parallel
 

@@ -159,6 +159,8 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found or it was not imported successfully then fallback to the command-line arguments as targets. If the roadmap was imported successfully then command-line targets are ignored.
 
+REDO_RETRIES environment variable defines the number of passes `redo` will take if all requested targets are busy before exiting itself returning BUSY. Default REDO_RETRIES for `redo` is 10 (RETRIES_DEFAULT defined in redo.c). For `depends-on` default REDO_RETRIES value is 0, meaning the single pass independent on the dependencies build statuses. REDO_RETRIES is being unset after getting its value, so it is not inherited by the child processes.
+
 
 ## Implementation details
 
@@ -229,6 +231,11 @@ Can be implemented using target's dependency on its own prerequisites:
 ### Recipes as targets
 
 The current `redo` version follows approach of "do-layers". File belongs to the Nth do-layer if its name ends with N `.do` suffices. Targets belonging to the Nth do-layer can be built by (N+1)th do-layer recipes only. Technically it means that no trailing `.do` suffix can be stripped from the target's filename during the search for an appropriate recipe.
+
+
+### `redo` retries
+
+Lock-free approach means that if no one among the requested targets was built successfully `redo` make the pause before the next attempt. Pause is random in interval [delay .. 2 * delay]. Minimal (starting) value of the delay is 10 msec and is doubled after each unsuccessful pass. This gives 8 sec mean wait time for the default REDO_RETRIES=10. Afer 11th retry exponential grows of the delay value is stopped.
 
 
 ### Hints
