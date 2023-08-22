@@ -50,7 +50,7 @@ Recipe stores the build result in $3 and register dependencies with
 
     depends-on [ dep [ ... ] ]
 
-`redo` captures the recipe exit code and in case of success replaces the target $1 with the temporary file $3, otherwise $3 is discarded.
+`redo` captures the recipe's exit code and in case of success replaces the target $1 with the temporary file $3, otherwise $3 is discarded.
 
 
 ## The magic of `redo`
@@ -58,6 +58,16 @@ Recipe stores the build result in $3 and register dependencies with
 In fact `depends-on` in the recipe envokes another instance of `redo` and the new instance communicate with the recipe caller `redo` "behind the closed doors". And if the requested dependency has its own build recipe, the process will recurse deeper independently of the current recipe execution.
 
 So the structure of the build tree and the target build steps are described per-node and can be easily modified, extended, truncated and any part of the tree may be easily reused by another build project using any node as an entry point.
+
+
+## `redo` vs `depends-on`
+
+`depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
+
+
+## Passes and retries
+
+The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (2).
 
 
 ## More details about recipes
@@ -159,7 +169,7 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found or it was not imported successfully then fallback to the command-line arguments as targets. If the roadmap was imported successfully then command-line targets are ignored.
 
-REDO_RETRIES environment variable defines the number of passes `redo` will take if all requested targets are busy before exiting itself returning BUSY. Default REDO_RETRIES for `redo` is 10 (RETRIES_DEFAULT defined in redo.c). For `depends-on` default REDO_RETRIES value is 0, meaning the single pass independent on the dependencies build statuses. REDO_RETRIES is being unset after getting its value, so it is not inherited by the child processes.
+`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single pass. `REDO_RETRIES` is being unset after getting its value, so it is not inherited by the child processes.
 
 
 ## Implementation details
@@ -233,9 +243,20 @@ Can be implemented using target's dependency on its own prerequisites:
 The current `redo` version follows approach of "do-layers". File belongs to the Nth do-layer if its name ends with N `.do` suffices. Targets belonging to the Nth do-layer can be built by (N+1)th do-layer recipes only. Technically it means that no trailing `.do` suffix can be stripped from the target's filename during the search for an appropriate recipe.
 
 
-### `redo` retries
+### `redo` retry delays.
 
-Lock-free approach means that if no one among the requested targets was built successfully `redo` make the pause before the next attempt. Pause is random in interval [delay .. 2 * delay]. Minimal (starting) value of the delay is 10 msec and is doubled after each unsuccessful pass. This gives 8 sec mean wait time for the default REDO_RETRIES=10. Afer 11th retry exponential grows of the delay value is stopped.
+Constants `SHORTEST` and `SCALEUPS` defined in redo.c determine the duration of the delays between the retries. After each unsuccessful pass the random delay in the range [x .. 2 * x] is inserted, where x is reset to SHORTEST msec after each successful pass (and at the startup) and is doubled after each consequent retry but no more than SCALEUPS times.  
+
+As an example
+
+    #define SHORTEST 10
+    #define SCALEUPS 6
+
+gives minimal dalay in the [10 .. 20] msec range (15 msec mean time) and the maximum delay in the range [640 .. 1280] msec (0.96 sec mean time).
+
+    #define RETRIES_DEFAULT 10
+
+gives 4 sec total wait mean time.
 
 
 ### Hints
