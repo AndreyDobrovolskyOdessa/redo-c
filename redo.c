@@ -17,7 +17,7 @@
 /************************************************************
 This redo-c version can be found at:
 
-https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/lualog
+https://github.com/AndreyDobrovolskyOdessa/redo-c
 
 which is the fork of:
 
