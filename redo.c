@@ -20,7 +20,7 @@
 /*
 This redo-c version can be found at:
 
-https://github.com/AndreyDobrovolskyOdessa/redo-c
+https://github.com/AndreyDobrovolskyOdessa/redo-c/tree/sweetlinuxsoft
 
 which is the fork of:
 
