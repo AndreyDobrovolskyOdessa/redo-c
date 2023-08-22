@@ -1096,10 +1096,9 @@ occurrences(const char *str, int ch)
 }
 
 
-#define RETRIES_DEFAULT 10
-
 #define SHORTEST 10
-#define LONGEST  (SHORTEST << RETRIES_DEFAULT)
+#define SCALEUPS 6
+#define LONGEST  (SHORTEST << SCALEUPS)
 
 #define MSEC_PER_SEC  1000
 #define NSEC_PER_MSEC 1000000
@@ -1312,6 +1311,8 @@ forget(struct roadmap *m, int i)
 	return 1;
 }
 
+
+#define RETRIES_DEFAULT 10
 
 int
 main(int argc, char *argv[])
