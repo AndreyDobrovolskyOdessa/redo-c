@@ -885,7 +885,7 @@ update_dep(int *dir_fd, char *dep_path)
 	char redofile[NAME_MAX + 1];
 	char lockfile[NAME_MAX + 1];
 
-	int uprel, lock_fd, err = 0, wanted = 1, hint;
+	int uprel, lock_fd, err = 0, wanted = 1, hint, is_dofile = 1;
 
 	struct stat redo_st = {0};
 
@@ -962,20 +962,20 @@ update_dep(int *dir_fd, char *dep_path)
 	if (fredo) {
 		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
 		char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
-		int is_dofile = 1;
 
 		while (fgets(line, sizeof line, fredo) && check_record(line)) {
 			int self = !strcmp(filename, dep);
 
-			hint = IS_SOURCE;
+			if (is_dofile) {
+				if (strcmp(filename, dofile_rel))
+					break;
+				is_dofile = 0;
+			}
 
-			if (is_dofile && strcmp(filename, dofile_rel))
-				strcpy(filename, dofile_rel);
-
-			if (!self)
+			if (self)
+				hint = IS_SOURCE;
+			else
 				err = do_update_dep(*dir_fd, filename, &hint);
-
-			is_dofile = 0;
 
 			if (err || dep_changed(line, hint))
 				break;
@@ -993,9 +993,10 @@ update_dep(int *dir_fd, char *dep_path)
 		}
 		fclose(fredo);
 		hint = 0;
-	} else {
-		err = do_update_dep(*dir_fd, dofile_rel, &hint);
 	}
+
+	if (!fredo || is_dofile)
+		err = do_update_dep(*dir_fd, dofile_rel, &hint);
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
 
