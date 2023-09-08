@@ -512,22 +512,23 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 	char *tail = end;
 	char *ext, *dep_trickpoint;
 
-	size_t doname_size = (end - dep) + sizeof redo_suffix;
+	size_t len = (end - dep) + SUFFIX_LEN + 1;	/* dofile name size */
 
-	int uprel, first_name_len;
+	int uprel;
 
 
 	/* rewind .do tail inside dependency name */
 
-	for (ext = end - SUFFIX_LEN; ext >= dep; ext -= SUFFIX_LEN) {
-		if (strncmp(ext, redo_suffix, SUFFIX_LEN))
+	while (1) {
+		ext = tail - SUFFIX_LEN;
+		if ((ext < dep) || strncmp(ext, redo_suffix, SUFFIX_LEN))
 			break;
-		if (!dflag)		/* skip dofile? */
-			return -1;
+		if (!dflag)
+			return -1;		/* skip dofile */
 		tail = ext;
 	}
 
-	reserve(doname_size);
+	reserve(len);
 
 	dep_trickpoint = strstr(dep, trickpoint);
 	if (dep_trickpoint == tail)
@@ -537,7 +538,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 	ext = strchr(dep, '.');
 
-	first_name_len = ext - dep;
+	len = ext - dep;	/* dependency first name length */
 
 	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
 
@@ -561,7 +562,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 		dep = ext;
 
 		if (uprel == 0)
-			dofile_free += first_name_len;
+			dofile_free += len;
 
 		reserve(sizeof dirup - 1);
 
