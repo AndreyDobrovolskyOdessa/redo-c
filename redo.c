@@ -44,7 +44,6 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
-#include <sys/time.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -839,37 +838,37 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-static void
-log_timestamp(char *description)
-{
-	struct timeval tv;
+#define USEC_PER_SEC	1000000
+#define NSEC_PER_USEC	1000
 
-	gettimeofday(&tv, 0);
-	dprintf(log_fd, "%*s%s = %ld, %su = %ld,\n", level + 8, "", description, tv.tv_sec, description, tv.tv_usec);
+static int64_t
+timestamp(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	return (int64_t)ts.tv_sec * USEC_PER_SEC + ts.tv_nsec / NSEC_PER_USEC;
 }
 
 
-static void
-log_dn()
-{
-	dprintf(log_fd, "%*s{\n", level, "");
-	log_timestamp("t0");
-}
+#define log_name(name)	if (log_fd > 0)\
+	dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
 
 
-static void
-log_up(int err)
-{
-	log_timestamp("t1");
-	dprintf(log_fd, "%*serr = %d,\n", level, "", err);
-	dprintf(log_fd, "%*s},\n", level, "");
-}
+#define log_level()	if (log_fd > 0)\
+	dprintf(log_fd, "%*s{\n%*serr = %d,\n%*s},\n",\
+			level, "", level, "", err, level, "");
 
 
-#define log_name(name)   if (log_fd > 0) dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
+#define open_level()	if (log_fd > 0)\
+	dprintf(log_fd, "%*s{\n%*st0 = %" PRId64 ",\n",\
+			level, "", level + 8, "", timestamp())
 
-#define open_level()     if (log_fd > 0) log_dn()
-#define close_level(err) if (log_fd > 0) log_up(err)
+
+#define close_level()	if (log_fd > 0)\
+	dprintf(log_fd, "%*st1 = %" PRId64 ",\n%*serr = %d,\n%*s},\n",\
+			level + 8, "", timestamp(), level, "", err, level, "");
 
 
 #define NAME_MAX 255
@@ -932,13 +931,11 @@ update_dep(int *dir_fd, char *dep_path)
 	if (uprel < 0)
 		return IS_SOURCE;
 
-	open_level();
-
 	stat(redofile, &redo_st);
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
-		close_level(err);
+		log_level();
 		return err;
 	}
 
@@ -950,13 +947,12 @@ update_dep(int *dir_fd, char *dep_path)
 			pperror("open exclusive");
 			err = ERROR;
 		}
-	}
-
-	if (err) {
-		close_level(err);
+		log_level();
 		return err;
 	}
 
+
+	open_level();
 
 	fredo = fopen(redofile, "r");
 
@@ -1027,7 +1023,7 @@ update_dep(int *dir_fd, char *dep_path)
 
 	close(lock_fd);
 
-	close_level(err);
+	close_level();
 
 /*
 	Now we will use target_full residing in track to construct
