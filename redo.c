@@ -537,7 +537,7 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 
 	ext = strchr(dep, '.');
 
-	len = ext - dep;	/* dependency first name length */
+	dofile_free += ext - dep;	/* dependency first name length */
 
 	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
 
@@ -559,9 +559,6 @@ find_dofile(char *dep, char *dofile_rel, size_t dofile_free, const char *slash)
 		}
 
 		dep = ext;
-
-		if (uprel == 0)
-			dofile_free += len;
 
 		reserve(sizeof dirup - 1);
 
