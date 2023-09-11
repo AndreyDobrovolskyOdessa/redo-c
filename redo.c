@@ -212,7 +212,7 @@ int dflag, xflag, wflag, fflag, log_fd, level;
 #define OPEN_COMMENT	"--[====================================================================[\n"
 #define CLOSE_COMMENT	"--]====================================================================]\n"
 
-#define comment_msg(comment)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, comment)
+#define comment_msg(s)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, s)
 
 
 static void
@@ -1112,7 +1112,7 @@ hurry_up_if(int successful)
 
 
 static void
-fence(int log_fd_buf, char *top, char *hill)
+fence(int log_fd_buf, const char *top, const char *hill)
 {
 	if (log_fd > 0) {
 		if (log_fd != log_fd_buf) {
