@@ -209,18 +209,19 @@ int dflag, xflag, wflag, fflag, log_fd, level;
 /********************************************/
 
 
-#define OPEN_COMMENT	"--[====================================================================[\n"
-#define CLOSE_COMMENT	"--]====================================================================]\n"
+static const char
+open_comment[]	= "--[====================================================================[\n",
+close_comment[]	= "--]====================================================================]\n";
 
-#define comment_msg(s)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, s)
+#define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
 
 
 static void
 msg(const char *name, const char *error)
 {
-	comment_msg(OPEN_COMMENT);
+	log_guard(open_comment);
 	dprintf(2, "%s : %s\n", name, error);
-	comment_msg(CLOSE_COMMENT);
+	log_guard(close_comment);
 }
 
 
@@ -844,7 +845,7 @@ timestamp(void)
 
 #define log_level()	if (log_fd > 0)\
 	dprintf(log_fd, "%*s{\n%*serr = %d,\n%*s},\n",\
-			level, "", level, "", err, level, "");
+			level, "", level, "", err, level, "")
 
 
 #define open_level()	if (log_fd > 0)\
@@ -854,7 +855,7 @@ timestamp(void)
 
 #define close_level()	if (log_fd > 0)\
 	dprintf(log_fd, "%*st1 = %" PRId64 ",\n%*serr = %d,\n%*s},\n",\
-			level + 8, "", timestamp(), level, "", err, level, "");
+			level + 8, "", timestamp(), level, "", err, level, "")
 
 
 #define NAME_MAX 255
@@ -989,10 +990,10 @@ update_dep(int *dir_fd, char *dep_path)
 		err = write_dep(lock_fd, dofile_rel, 0, 0, hint);
 
 		if (!err) {
-			comment_msg(OPEN_COMMENT);
+			log_guard(open_comment);
 			err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
 					target_base, base_name(target_full, uprel));
-			comment_msg(CLOSE_COMMENT);
+			log_guard(close_comment);
 
 			if (!err)
 				err = write_dep(lock_fd, dep, 0, 0, IS_SOURCE);
@@ -1000,10 +1001,10 @@ update_dep(int *dir_fd, char *dep_path)
 
 		if (err && (err != BUSY)) {
 			chmod(redofile, redo_st.st_mode & (~S_IRUSR));
-			comment_msg(OPEN_COMMENT);
+			log_guard(open_comment);
 			dprintf(2, "redo %*s%s\n", level, "", target_full);
 			dprintf(2, "     %*s%s -> %d\n", level, "", dofile_rel, err);
-			comment_msg(CLOSE_COMMENT);
+			log_guard(close_comment);
 		}
 	}
 
@@ -1391,7 +1392,7 @@ main(int argc, char *argv[])
 
 	srand(getpid());
 
-	fence(log_fd_prev, "return {\n", CLOSE_COMMENT);
+	fence(log_fd_prev, "return {\n", close_comment);
 
 	do {
 		hurry_up_if(passes-- == passes_max);
@@ -1417,7 +1418,7 @@ main(int argc, char *argv[])
 		}
 	} while ((i == dep.num) && (dep.done < dep.todo) && (passes > 0));
 
-	fence(log_fd_prev, "}\n", OPEN_COMMENT);
+	fence(log_fd_prev, "}\n", open_comment);
 
 	return (i < dep.num) ? ERROR : ((dep.done < dep.num) ? BUSY : OK);
 }
