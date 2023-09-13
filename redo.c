@@ -844,8 +844,7 @@ timestamp(void)
 
 
 #define log_level()	if (log_fd > 0)\
-	dprintf(log_fd, "%*s{\n%*serr = %d,\n%*s},\n",\
-			level, "", level, "", err, level, "")
+	dprintf(log_fd, "%*s{ err = %d },\n", level, "", err)
 
 
 #define open_level()	if (log_fd > 0)\
