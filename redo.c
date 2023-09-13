@@ -361,11 +361,19 @@ setenvfd(const char *name, int i)
 #define HEXHASH_LEN (2 * HASH_LEN)
 #define HEXDATE_LEN 16
 
-static char redoline[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
+#define HEXHASH_SIZE (HEXHASH_LEN + 1)
+#define HEXDATE_SIZE (HEXDATE_LEN + 1)
 
-static char * const hexhash = redoline;
-static char * const hexdate = redoline + HEXHASH_LEN + 1;
-static char * const namebuf = redoline + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+#define DATE_OFFSET (HEXHASH_SIZE)
+#define NAME_OFFSET (DATE_OFFSET + HEXDATE_SIZE)
+
+#define RECORD_SIZE (NAME_OFFSET + PATH_MAX + 1)
+
+static char record_buf[RECORD_SIZE];
+
+#define hexhash (record_buf)
+#define hexdate (record_buf + DATE_OFFSET)
+#define namebuf (record_buf + NAME_OFFSET)
 
 
 static char *
@@ -681,11 +689,11 @@ run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 
 
 static int
-check_record(char *line)
+check(char *record)
 {
-	char *w, *last = strchr(line, '\0') - 1;
+	char *w, *last = strchr(record, '\0') - 1;
 
-	if ((last - line) < HEXHASH_LEN + 1 + HEXDATE_LEN + 1) {
+	if ((last - record) < NAME_OFFSET) {
 		w = "Warning - dependency record too short. Target will be rebuilt";
 	} else if (*last != '\n') {
 		w = "Warning - dependency record truncated. Target will be rebuilt";
@@ -694,7 +702,7 @@ check_record(char *line)
 		return 1;
 	}
 
-	msg(line, w);
+	msg(record, w);
 
 	return 0;
 }
@@ -716,7 +724,7 @@ find_record(char *filename)
 
 	if (f) {
 
-		while (fgets(redoline, sizeof redoline, f) && check_record(redoline)) {
+		while (fgets(record_buf, RECORD_SIZE, f) && check(record_buf)) {
 			if (strcmp(target, namebuf) == 0) {
 				err = OK;
 				break;
@@ -734,31 +742,31 @@ find_record(char *filename)
 
 
 static int
-dep_changed(char *line, int hint)
+dep_changed(char *record, int hint)
 {
-	char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+	char *filename = record + NAME_OFFSET;
+	char *filedate = record + DATE_OFFSET;
 	int fd;
 
 	if (may_need_rehash(filename, hint)) {
-		if (strncmp(line + HEXHASH_LEN + 1, datefilename(filename), HEXDATE_LEN) == 0)
+		if (strncmp(filedate, datefilename(filename), HEXDATE_LEN) == 0)
 			return 0;
 
 		fd = open(filename, O_RDONLY);
 		hashfile(fd);
 		close(fd);
 	} else {
-		if (strncmp(line + HEXHASH_LEN + 1, hexdate, HEXDATE_LEN) == 0)
+		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 	}
 
-	return strncmp(line, hexhash, HEXHASH_LEN);
+	return strncmp(record, hexhash, HEXHASH_LEN);
 }
 
 
 static int
 write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 {
-	int err = 0;
 	int fd;
 	const char *prefix = "";
 
@@ -780,14 +788,15 @@ write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 			prefix = updir;
 	}
 
-	hexhash[HEXHASH_LEN] = 0;
-	hexdate[HEXDATE_LEN] = 0;
+	*(hexhash + HEXHASH_LEN) = '\0';
+	*(hexdate + HEXDATE_LEN) = '\0';
+
 	if (dprintf(lock_fd, "%s %s %s%s\n", hexhash, hexdate, prefix, file) < 0) {
 		pperror("dprintf");
-		err = ERROR;
+		return ERROR;
 	}
 
-	return err;
+	return OK;
 }
 
 
@@ -943,10 +952,10 @@ update_dep(int *dir_fd, char *dep_path)
 	fredo = fopen(redofile, "r");
 
 	if (fredo) {
-		char line[HEXHASH_LEN + 1 + HEXDATE_LEN + 1 + PATH_MAX + 1];
-		char *filename = line + HEXHASH_LEN + 1 + HEXDATE_LEN + 1;
+		char record[RECORD_SIZE];
+		char *filename = record + NAME_OFFSET;
 
-		while (fgets(line, sizeof line, fredo) && check_record(line)) {
+		while (fgets(record, RECORD_SIZE, fredo) && check(record)) {
 			int self = !strcmp(filename, dep);
 
 			if (is_dofile) {
@@ -960,10 +969,10 @@ update_dep(int *dir_fd, char *dep_path)
 			else
 				err = do_update_dep(*dir_fd, filename, &hint);
 
-			if (err || dep_changed(line, hint))
+			if (err || dep_changed(record, hint))
 				break;
 
-			memcpy(hexhash, line, HEXHASH_LEN);
+			memcpy(hexhash, record, HEXHASH_LEN);
 
 			err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (err)
