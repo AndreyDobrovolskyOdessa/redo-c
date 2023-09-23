@@ -1148,35 +1148,35 @@ struct roadmap {
 
 
 static int
-text2int(int32_t *x, int cnt, char **p)
+text2int(int32_t *x, int n, char **p)
 {
 	char *ep;
 	long v;
 
-	while (cnt--) {
+	while (n-- > 0) {
 		v = strtol(*p, &ep, 10);
 		if ((ep - *p) < (int) (sizeof (int32_t)))
-			return ERROR;
+			break;
 		*p = ep;
 		*x++ = (int32_t) v;
 	}
 
-	return OK;
+	return n != -1;
 }
 
 
 static int
-text2name(char **x, int cnt, char **p)
+text2name(char **x, int n, char **p)
 {
-	while (cnt--) {
+	while (n-- > 0) {
 		*p = strchr(*p, '\n');
 		if (*p == 0)
-			return ERROR;
+			break;
 		*(*p)++ = '\0';
 		*x++ = *p;
 	}
 
-	return OK;
+	return n != -1;
 }
 
 
