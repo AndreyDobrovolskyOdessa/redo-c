@@ -1183,18 +1183,27 @@ text2name(char **x, int n, char **p)
 static int
 test_map(struct roadmap *m)
 {
-	int i;
+	int i, n, last, c;
 
-	for (i = 0; i < m->num; i++)
+	n = m->num;
+
+	for (i = 0; i < n; i++)
 		m->status[i] = 0;
 
-	for (i = 0; i < m->children[m->num]; i++) {
-		int child = m->child[i];
+	last = m->children[0] = 0;
 
-		if ((child < 0) || (child >= m->num))
+	for (i = 1; i <= n; i++) {
+		c = m->children[i];
+		if (c < last)
 			return ERROR;
+		last = c;
+	}
 
-		m->status[child]++;
+	for (i = 0; i < last; i++) {
+		c = m->child[i];
+		if ((c < 0) || (c >= n))
+			return ERROR;
+		m->status[c]++;
 	}
 
 	return OK;
