@@ -1261,20 +1261,20 @@ import_map(struct roadmap *m, char *filename)
 
 
 static void
-init_map(struct roadmap *m, int argc, char **argv)
+init_map(struct roadmap *m, int n, char **argv)
 {
-	m->num  = argc;
-	m->todo = m->num;
+	m->num  = n;
+	m->todo = n;
 	m->done = 0;
 	m->name = argv;
 
-	m->status = calloc(2 * m->num + 1, sizeof (int32_t));
+	m->status = calloc(2 * n + 1, sizeof (int32_t));
 	if (m->status == 0) {
 		perror("calloc");
 		exit(ERROR);
 	}
 
-	m->children = m->status + m->num;
+	m->children = m->status + n;
 }
 
 
