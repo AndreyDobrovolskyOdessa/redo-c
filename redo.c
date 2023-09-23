@@ -834,9 +834,6 @@ do_update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-#define USEC_PER_SEC	1000000
-#define NSEC_PER_USEC	1000
-
 static int64_t
 timestamp(void)
 {
@@ -844,7 +841,7 @@ timestamp(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 
-	return (int64_t)ts.tv_sec * USEC_PER_SEC + ts.tv_nsec / NSEC_PER_USEC;
+	return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 
 
