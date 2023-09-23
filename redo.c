@@ -1180,14 +1180,14 @@ text2name(char **x, int n, char **p)
 static int
 test_map(struct roadmap *m)
 {
-	int i, n, last, c;
+	int i, c, n = m->num, last = m->children[0];
 
-	n = m->num;
+
+	if (last != 0)
+		return ERROR;
 
 	for (i = 0; i < n; i++)
 		m->status[i] = 0;
-
-	last = m->children[0] = 0;
 
 	for (i = 1; i <= n; i++) {
 		c = m->children[i];
@@ -1208,20 +1208,16 @@ test_map(struct roadmap *m)
 
 
 static int
-import_map(struct roadmap *m, char *filename)
+import_map(struct roadmap *m, int fd)
 {
 	struct stat st;
-	int fd;
+	int num;
 	char *ptr;
 
-	if (stat(filename, &st) < 0)
+	if (fstat(fd, &st) < 0)
 		return ERROR;
 
 	if (st.st_size == 0)
-		return ERROR;
-
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
 		return ERROR;
 
 	m->name = mmap(NULL, st.st_size + 1, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
@@ -1239,18 +1235,20 @@ import_map(struct roadmap *m, char *filename)
 	if (ptr == 0)
 		return ERROR;
 
-	m->num = (ptr - (char *)m->name) / 8;
-	m->todo = m->num;
+	num = (ptr - (char *)m->name) / 8;
+
+	m->num  = num;
+	m->todo = num;
 	m->done = 0;
 
 	m->status = (int32_t *) ptr;
-	m->children = m->status + m->num;
-	m->child = m->children + m->num + 1;
+	m->children = m->status + num;
+	m->child = m->children + num + 1;
 
-	if (text2int(m->status, m->num, &ptr) ||
-	    text2int(m->children, m->num + 1, &ptr) || 
-	    text2int(m->child, m->children[m->num], &ptr) ||
-	    text2name(m->name, m->num, &ptr))
+	if (text2int(m->status, num, &ptr) ||
+	    text2int(m->children, num + 1, &ptr) ||
+	    text2int(m->child, m->children[num], &ptr) ||
+	    text2name(m->name, num, &ptr))
 		return ERROR;
 
 	return test_map(m);
@@ -1316,7 +1314,7 @@ forget(struct roadmap *m, int i)
 int
 main(int argc, char *argv[])
 {
-	int opt, log_fd_prev, lock_fd = -1, passes_max, passes, i;
+	int opt, log_fd_prev, lock_fd = -1, fd, passes_max, passes, i;
 
 	struct roadmap dep = {.size = 0};
 
@@ -1358,14 +1356,16 @@ main(int argc, char *argv[])
 			setenvfd("REDO_LOG_FD", log_fd);
 			break;
 		case 'm':
-			if (import_map(&dep, optarg) == OK) {
-				file_chdir(&dir_fd, optarg);
-				dirprefix = 0;
+			fd = open(optarg, O_RDONLY);
+			if (fd < 0) {
+				dprintf(2, "Warning: unable to open roadmap : %s.\n", optarg);
 			} else {
-				dprintf(2, "Warning: failed to import the roadmap from %s.\n", optarg);
-				if (dep.size != 0) {
-					munmap(dep.name, dep.size);
-					dep.size = 0;
+				if (import_map(&dep, fd) == OK) {
+					file_chdir(&dir_fd, optarg);
+					dirprefix = 0;
+				} else {
+					dprintf(2, "Error reading roadmap: %s\n", optarg);
+					return ERROR;
 				}
 			}
 			break;
