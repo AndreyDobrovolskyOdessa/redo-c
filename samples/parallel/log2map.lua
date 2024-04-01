@@ -74,7 +74,7 @@ end
 -- Making the node names relative --
 ------------------------------------
 
-map_dir = os.getenv("MAP_DIR")
+local map_dir = os.getenv("MAP_DIR")
 
 if map_dir then
   map_dir = map_dir .. "/"
@@ -109,7 +109,7 @@ end
 -- Writing the roadmap --
 -------------------------
 
-io.write((" "):rep(#dict * 8))
+io.write(("<char *>"):rep(#dict)) -- placeholders for name pointers
 
 io.write("\n")
 

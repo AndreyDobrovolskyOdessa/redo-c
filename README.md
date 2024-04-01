@@ -157,17 +157,17 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 ### Options available
 
-* `-x` Non-executable recipes will be executed with `/bin/sh -ex`. `REDO_TRACE={0,1}`
-
 * `-d` Enables building of recipes. `REDO_DOFILES={0,1}`
 
 * `-w` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_WARNING={0,1}`
 
 * `-f` Log find_dofile() steps to stdout. `REDO_FIND={0,1}`
 
+* `-x` Non-executable recipes will be executed with `/bin/sh -ex`. `REDO_TRACE={0,1}`
+
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
-* `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found or it was not imported successfully then fallback to the command-line arguments as targets. If the roadmap was imported successfully then command-line targets are ignored.
+* `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found then command-line arguments are used as targets. If the roadmap was imported successfully then command-line targets are ignored. Errors during the roadmap import lead to `exit(ERROR)`.
 
 `REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single pass. `REDO_RETRIES` is being unset after getting its value, so it is not inherited by the child processes.
 

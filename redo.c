@@ -1370,7 +1370,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2, "Usage: redo [-dxwf] [-l <logname>] [-m <roadmap>] [TARGETS...]\n");
+			dprintf(2, "Usage: redo [-dwfx] [-l <logname>] [-m <roadmap>] [TARGETS...]\n");
 			return ERROR;
 		}
 	}
