@@ -845,22 +845,11 @@ timestamp(void)
 }
 
 
-#define log_name(name)	if (log_fd > 0)\
-	dprintf(log_fd, "%*s\"%s\",\n", level, "", name)
+#define log_err(prefix, suffix)	if (log_fd > 0)\
+	dprintf(log_fd, "%*s%serr = %d%s,\n", level, "", prefix, err, suffix)
 
-
-#define log_level()	if (log_fd > 0)\
-	dprintf(log_fd, "%*s{ err = %d },\n", level, "", err)
-
-
-#define open_level()	if (log_fd > 0)\
-	dprintf(log_fd, "%*s{\n%*st0 = %" PRId64 ",\n",\
-			level, "", level + 8, "", timestamp())
-
-
-#define close_level()	if (log_fd > 0)\
-	dprintf(log_fd, "%*st1 = %" PRId64 ",\n%*serr = %d,\n%*s},\n",\
-			level + 8, "", timestamp(), level, "", err, level, "")
+#define log_time(label)	if (log_fd > 0)\
+	dprintf(log_fd, "%*s%s = %" PRId64 ",\n", level + 8, "", label, timestamp())
 
 
 #define NAME_MAX 255
@@ -910,7 +899,9 @@ update_dep(int *dir_fd, char *dep_path)
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	log_name(target_full);
+	if (log_fd > 0)
+		dprintf(log_fd, "%*s\"%s\",\n", level, "", target_full);
+
 
 	if (fflag)
 		dprintf(1, "--[[\n");
@@ -927,7 +918,7 @@ update_dep(int *dir_fd, char *dep_path)
 
 	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
 		err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
-		log_level();
+		log_err("{ ", " }");
 		return err;
 	}
 
@@ -939,12 +930,15 @@ update_dep(int *dir_fd, char *dep_path)
 			pperror("open exclusive");
 			err = ERROR;
 		}
-		log_level();
+		log_err("{ ", " }");
 		return err;
 	}
 
 
-	open_level();
+	if (log_fd > 0)
+		dprintf(log_fd, "%*s{\n", level, "");
+
+	log_time("t0");
 
 	fredo = fopen(redofile, "r");
 
@@ -995,6 +989,7 @@ update_dep(int *dir_fd, char *dep_path)
 		err = write_dep(lock_fd, dofile_rel, 0, 0, hint);
 
 		if (!err) {
+			log_time("tdo");
 			log_guard(open_comment);
 			err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
 					target_base, base_name(target_full, uprel));
@@ -1015,7 +1010,13 @@ update_dep(int *dir_fd, char *dep_path)
 
 	close(lock_fd);
 
-	close_level();
+	log_time("t1");
+
+	log_err("", "");
+
+	if (log_fd > 0)
+		dprintf(log_fd, "%*s},\n", level, "");
+
 
 /*
 	Now we will use target_full residing in track to construct
