@@ -5,6 +5,8 @@ depends-on ${TDIR}.do..${TNAME}
 
 export MAP_DIR=$(test -n "$TDIR" && cd $TDIR; pwd)
 
+REDO_LOG_FD=
+
 if test -f "$1"
 then
 	JOBS=${JOBS:-2}
