@@ -610,7 +610,7 @@ choose(const char *old, const char *new, int err, void (*perror_f)(const char *)
 
 
 static int 
-run_script(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
+run_dofile(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 		const char *target_base, const char *target_rel)
 {
 	int err = ERROR;
@@ -803,17 +803,17 @@ write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 #define INDENT 2
 
 
-static int update_dep(int *dir_fd, char *dep_path);
+static int really_update_dep(int *dir_fd, char *dep_path);
 
 
 static int
-do_update_dep(int dir_fd, char *dep_path, int *hint)
+update_dep(int dir_fd, char *dep_path, int *hint)
 {
 	int dep_dir_fd = dir_fd, err;
 
 	level += INDENT;
 
-	err = update_dep(&dep_dir_fd, dep_path);
+	err = really_update_dep(&dep_dir_fd, dep_path);
 
 	if ((err & BAD_NAME) == 0)
 		track(0, 1);		/* strip the last record */
@@ -856,7 +856,7 @@ timestamp(void)
 
 
 static int
-update_dep(int *dir_fd, char *dep_path)
+really_update_dep(int *dir_fd, char *dep_path)
 {
 	char *dep, *target_full;
 	char target_base[NAME_MAX + 1];
@@ -938,7 +938,7 @@ update_dep(int *dir_fd, char *dep_path)
 	if (log_fd > 0)
 		dprintf(log_fd, "%*s{\n", level, "");
 
-	log_time("t0");
+	log_time("t0 ");
 
 	fredo = fopen(redofile, "r");
 
@@ -958,7 +958,7 @@ update_dep(int *dir_fd, char *dep_path)
 			if (self)
 				hint = IS_SOURCE;
 			else
-				err = do_update_dep(*dir_fd, filename, &hint);
+				err = update_dep(*dir_fd, filename, &hint);
 
 			if (err || dep_changed(record, hint))
 				break;
@@ -979,7 +979,7 @@ update_dep(int *dir_fd, char *dep_path)
 	}
 
 	if (!fredo || is_dofile)
-		err = do_update_dep(*dir_fd, dofile_rel, &hint);
+		err = update_dep(*dir_fd, dofile_rel, &hint);
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
 
@@ -991,7 +991,7 @@ update_dep(int *dir_fd, char *dep_path)
 		if (!err) {
 			log_time("tdo");
 			log_guard(open_comment);
-			err = run_script(*dir_fd, lock_fd, dofile_rel, dep,
+			err = run_dofile(*dir_fd, lock_fd, dofile_rel, dep,
 					target_base, base_name(target_full, uprel));
 			log_guard(close_comment);
 
@@ -1010,7 +1010,7 @@ update_dep(int *dir_fd, char *dep_path)
 
 	close(lock_fd);
 
-	log_time("t1");
+	log_time("t1 ");
 
 	log_err("", "");
 
@@ -1415,7 +1415,7 @@ main(int argc, char *argv[])
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
 				int hint;
-				int err = do_update_dep(dir_fd, dep.name[i], &hint);
+				int err = update_dep(dir_fd, dep.name[i], &hint);
 
 				if ((err == 0) && (lock_fd > 0))
 					err = write_dep(lock_fd, dep.name[i], dirprefix, updir, hint);
