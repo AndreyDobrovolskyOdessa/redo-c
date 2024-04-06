@@ -202,11 +202,11 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/***************** Globals ******************/
+/******************** Globals **********************/
 
-int dflag, xflag, wflag, fflag, log_fd, level;
+static int dflag, xflag, wflag, fflag, log_fd, level;
 
-/********************************************/
+/***************************************************/
 
 
 static const char
@@ -361,11 +361,8 @@ setenvfd(const char *name, int i)
 #define HEXHASH_LEN (2 * HASH_LEN)
 #define HEXDATE_LEN 16
 
-#define HEXHASH_SIZE (HEXHASH_LEN + 1)
-#define HEXDATE_SIZE (HEXDATE_LEN + 1)
-
-#define DATE_OFFSET (HEXHASH_SIZE)
-#define NAME_OFFSET (DATE_OFFSET + HEXDATE_SIZE)
+#define DATE_OFFSET (HEXHASH_LEN + 1)
+#define NAME_OFFSET (DATE_OFFSET + HEXDATE_LEN + 1)
 
 #define RECORD_SIZE (NAME_OFFSET + PATH_MAX + 1)
 
@@ -408,61 +405,56 @@ hashfile(int fd)
 #define stringize(s) stringyze(s)
 #define stringyze(s) #s
 
-static const char *
+static void
 datestat(struct stat *st)
 {
 	snprintf(hexdate, HEXDATE_LEN + 1, "%0" stringize(HEXDATE_LEN) PRIx64, (uint64_t)st->st_ctime);
-
-	return hexdate;
 }
 
 
-static const char *
+static void
 datefile(int fd)
 {
 	struct stat st = {0};
 
 	fstat(fd, &st);
-
-	return datestat(&st);
+	datestat(&st);
 }
 
 
-static const char *
+static void
 datefilename(const char *name)
 {
 	struct stat st = {0};
 
 	stat(name, &st);
-
-	return datestat(&st);
+	datestat(&st);
 }
 
 
-static const char *
+static char build_date[HEXDATE_LEN + 1] = {'\0'};
+
+
+static void
 datebuild()
 {
-	static char build_date[HEXDATE_LEN + 1] = {'\0'};
-	const char *dateptr;
+	const char *dateptr = getenv("REDO_BUILD_DATE");
 
 	FILE *f;
 
-	if (build_date[0])
-		return build_date;
 
-	build_date[HEXDATE_LEN] = '\0';
-
-	dateptr = getenv("REDO_BUILD_DATE");
-	if (dateptr)
-		return memcpy(build_date, dateptr, HEXDATE_LEN);
+	if (dateptr) {
+		memcpy(build_date, dateptr, HEXDATE_LEN);
+		return;
+	}
 
 	f = tmpfile();
-	memcpy(build_date, datefile(fileno(f)), HEXDATE_LEN);
+	datefile(fileno(f));
 	fclose(f);
 
-	setenv("REDO_BUILD_DATE", build_date, 1);
+	memcpy(build_date, hexdate, HEXDATE_LEN);
 
-	return build_date;
+	setenv("REDO_BUILD_DATE", build_date, 1);
 }
 
 
@@ -577,10 +569,9 @@ enum errors {
 
 
 enum hints {
-	BAD_NAME	     = 0x100,
-	IS_SOURCE	     = 0x200,
-	UPDATED_RECENTLY     = 0x400,
-	IMMEDIATE_DEPENDENCY = 0x800
+	IS_SOURCE	     = 0x100,
+	UPDATED_RECENTLY     = 0x200,
+	IMMEDIATE_DEPENDENCY = 0x400
 };
 
 #define HINTS (~ERRORS)
@@ -749,7 +740,8 @@ dep_changed(char *record, int hint)
 	int fd;
 
 	if (may_need_rehash(filename, hint)) {
-		if (strncmp(filedate, datefilename(filename), HEXDATE_LEN) == 0)
+		datefilename(filename);
+		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 
 		fd = open(filename, O_RDONLY);
@@ -802,21 +794,41 @@ write_dep(int lock_fd, char *file, const char *dp, const char *updir, int hint)
 
 #define INDENT 2
 
+#define NAME_MAX 255
 
-static int really_update_dep(int *dir_fd, char *dep_path);
+
+static int really_update_dep(int dir_fd, char *dep);
 
 
 static int
 update_dep(int dir_fd, char *dep_path, int *hint)
 {
-	int dep_dir_fd = dir_fd, err;
+	char *dep;
+	int dep_dir_fd = dir_fd, err = ERROR;
 
 	level += INDENT;
 
-	err = really_update_dep(&dep_dir_fd, dep_path);
+	do {
+		if (strchr(dep_path, TRACK_DELIMITER)) {
+			msg(dep_path, "Illegal symbol " stringize(TRACK_DELIMITER));
+			break;
+		}
 
-	if ((err & BAD_NAME) == 0)
-		track(0, 1);		/* strip the last record */
+		dep = file_chdir(&dep_dir_fd, dep_path);
+		if (dep == 0) {
+			msg(dep_path, "Missing dependency directory");
+			break;
+		}
+
+		if (strlen(dep) > (NAME_MAX + 1 - sizeof target_prefix)) {
+			msg(dep, "Dependency name too long");
+			break;
+		}
+
+		err = really_update_dep(dep_dir_fd, dep);
+		track(0, 1);	/* strip the last record */
+
+	} while (0);
 
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
@@ -845,20 +857,26 @@ timestamp(void)
 }
 
 
+#define log_name(name)	if (log_fd > 0)\
+	dprintf(log_fd, "%*s\"%s\",\n", level, "", name);
+
 #define log_err(prefix, suffix)	if (log_fd > 0)\
-	dprintf(log_fd, "%*s%serr = %d%s,\n", level, "", prefix, err, suffix)
+	dprintf(log_fd, "%*s" prefix "err = %d" suffix ",\n", level, "", err)
+
+#define log_level_open() if (log_fd > 0)\
+	dprintf(log_fd, "%*s{\n", level, "");
 
 #define log_time(label)	if (log_fd > 0)\
-	dprintf(log_fd, "%*s%s = %" PRId64 ",\n", level + 8, "", label, timestamp())
+	dprintf(log_fd, "%*s" label " = %" PRId64 ",\n", level + 8, "", timestamp())
 
-
-#define NAME_MAX 255
+#define log_level_close() if (log_fd > 0)\
+	dprintf(log_fd, "%*s},\n", level, "");
 
 
 static int
-really_update_dep(int *dir_fd, char *dep_path)
+really_update_dep(int dir_fd, char *dep)
 {
-	char *dep, *target_full;
+	char *target_full;
 	char target_base[NAME_MAX + 1];
 
 	char dofile_rel[PATH_MAX];
@@ -873,22 +891,6 @@ really_update_dep(int *dir_fd, char *dep_path)
 	FILE *fredo;
 
 
-	if (strchr(dep_path, TRACK_DELIMITER)) {
-		msg(dep_path, "Illegal symbol " stringize(TRACK_DELIMITER));
-		return ERROR | BAD_NAME;
-	}
-
-	dep = file_chdir(dir_fd, dep_path);
-	if (dep == 0) {
-		msg(dep_path, "Missing dependency directory");
-		return ERROR | BAD_NAME;
-	}
-
-	if (strlen(dep) > (sizeof target_base - sizeof target_prefix)) {
-		msg(dep, "Dependency name too long");
-		return ERROR | BAD_NAME;
-	}
-
 	target_full = track(dep, 1);
 	if (target_full == 0) {
 		msg(track(0, 0), "Dependency loop attempt");
@@ -899,9 +901,7 @@ really_update_dep(int *dir_fd, char *dep_path)
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
-	if (log_fd > 0)
-		dprintf(log_fd, "%*s\"%s\",\n", level, "", target_full);
-
+	log_name(target_full);
 
 	if (fflag)
 		dprintf(1, "--[[\n");
@@ -915,8 +915,9 @@ really_update_dep(int *dir_fd, char *dep_path)
 		return IS_SOURCE;
 
 	stat(redofile, &redo_st);
+	datestat(&redo_st);
 
-	if (strcmp(datestat(&redo_st), datebuild()) >= 0) {
+	if (strcmp(hexdate, build_date) >= 0) {
 		err = (redo_st.st_mode & S_IRUSR) ? OK : ERROR;
 		log_err("{ ", " }");
 		return err;
@@ -935,9 +936,7 @@ really_update_dep(int *dir_fd, char *dep_path)
 	}
 
 
-	if (log_fd > 0)
-		dprintf(log_fd, "%*s{\n", level, "");
-
+	log_level_open();
 	log_time("t0 ");
 
 	fredo = fopen(redofile, "r");
@@ -958,7 +957,7 @@ really_update_dep(int *dir_fd, char *dep_path)
 			if (self)
 				hint = IS_SOURCE;
 			else
-				err = update_dep(*dir_fd, filename, &hint);
+				err = update_dep(dir_fd, filename, &hint);
 
 			if (err || dep_changed(record, hint))
 				break;
@@ -979,7 +978,12 @@ really_update_dep(int *dir_fd, char *dep_path)
 	}
 
 	if (!fredo || is_dofile)
-		err = update_dep(*dir_fd, dofile_rel, &hint);
+		err = update_dep(dir_fd, dofile_rel, &hint);
+
+/*
+	track_buf may be relocated during the nested update_dep() calls.
+	target_full is the tail of the track_buf, so it must be refreshed.
+*/
 
 	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
 
@@ -991,7 +995,7 @@ really_update_dep(int *dir_fd, char *dep_path)
 		if (!err) {
 			log_time("tdo");
 			log_guard(open_comment);
-			err = run_dofile(*dir_fd, lock_fd, dofile_rel, dep,
+			err = run_dofile(dir_fd, lock_fd, dofile_rel, dep,
 					target_base, base_name(target_full, uprel));
 			log_guard(close_comment);
 
@@ -1011,12 +1015,8 @@ really_update_dep(int *dir_fd, char *dep_path)
 	close(lock_fd);
 
 	log_time("t1 ");
-
 	log_err("", "");
-
-	if (log_fd > 0)
-		dprintf(log_fd, "%*s},\n", level, "");
-
+	log_level_close();
 
 /*
 	Now we will use target_full residing in track to construct
