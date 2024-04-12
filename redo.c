@@ -240,65 +240,81 @@ static const char target_prefix[] =	".do...do...do..";
 
 static const char dirup[] = "../";
 
+
+static struct {
+	char *buf;
+	size_t size;
+	unsigned int used;
+} track;
+
 #define TRACK_DELIMITER ':'
 
-static char *
-track(const char *target, int track_op)
+
+static void
+track_init(char *heritage)
 {
-	static char *track_buf = 0;		/* this buffer will hold initial REDO_TRACK
-						stored once during the very first envocation
-						followed by target cwd and target basename
-						varying for consequent envocations */
-
-	static size_t track_buf_size = 0;	/* the whole track_buf size, sufficient for
-						holding initial REDO_TRACK and current target
-						full path */
-
-	size_t target_len, track_engaged, target_wd_offset;
-	char *target_wd, *ptr;
-
-	if (track_buf_size == 0) {				/* the very first invocation */
-		track_buf_size = PATH_MAX;
-		if (target)					/* suppose getenv("REDO_TRACK") */
-			track_buf_size += strlen(target);
-		track_buf = malloc(track_buf_size);
-		if (!track_buf) {
-			perror("malloc");
-			exit (-1);
-		}
-		*track_buf = 0;
-		if (target)
-			strcpy(track_buf, target);
-		track_op = 0;				/* enough for the first time */
+	track.used = heritage ? strlen(heritage) : 0;
+	track.size = PATH_MAX + track.used;
+	track.buf = malloc(track.size);
+	if (!track.buf) {
+		perror("malloc");
+		exit (-1);
 	}
+	strcpy(track.buf, heritage ? heritage : "");
+}
 
-	if (!track_op)
-		return track_buf;
 
-	if (!target) {					/* strip last path */
-		ptr = strrchr(track_buf, TRACK_DELIMITER);
-		if (ptr)
-			*ptr = 0;
-		return ptr;
-	}
+static void
+track_truncate(unsigned int cutoff)
+{
+	track.used = cutoff;
+	track.buf[cutoff] = 0;
+}
 
-	/* store cwd in the track_buf */
 
-	target_wd_offset = strlen(track_buf) + 1;
-	track_engaged = target_wd_offset + strlen(target) + sizeof lock_prefix + 2;
+static char *
+track_append(char *target)
+{
+	size_t track_engaged, record_len;
+	char *record, *target_full, *ptr;
+
+
+	/* store cwd in the track.buf */
+
+	track_engaged = track.used
+
+			+ 1			/* TRACK_DELIMITER */
+
+						/* target's directory */
+
+			+ 1			/* '/' */
+
+			+ strlen(target)	/* target */
+
+			+ sizeof lock_prefix	/* is to be reserved in order
+						to have enough free space to
+						construct the lockfile_full
+						later in really_update_dep() */
+
+			+ 1 ;			/* terminating '\0', actually
+						is not necessary, because
+						sizeof lock_prefix already
+						took care of it :-) */
 
 	while (1) {
-		if (track_buf_size > track_engaged) {
-			target_wd = getcwd(track_buf + target_wd_offset, track_buf_size - track_engaged);
-			if (target_wd)		/* getcwd successful */
+		if (track.size > track_engaged) {
+			target_full = getcwd(track.buf + track.used + 1,
+					     track.size - track_engaged);
+
+			if (target_full)	/* getcwd successful */
 				break;
 		} else
 			errno = ERANGE;
 
-		if (errno == ERANGE) {  /* track_buf_size is not sufficient */
-			track_buf_size += PATH_MAX;
-			track_buf = realloc(track_buf, track_buf_size);
-			if (!track_buf) {
+		if (errno == ERANGE) {  	/* track.size is not sufficient */
+			track.size += PATH_MAX;
+			track.buf = realloc(track.buf, track.size);
+			if (!track.buf) {
 				pperror("realloc");
 				return 0;
 			}
@@ -308,22 +324,27 @@ track(const char *target, int track_op)
 		}
 	}
 
-	ptr = strchr(target_wd, '\0');		/* construct target full path */
-	*ptr++ = '/';
-	strcpy(ptr, target);
 
-	*--target_wd = TRACK_DELIMITER;		/* join target full path with the track_buf */
+	/* construct the target's record and join it with the track */
 
-	/* searching for target full path inside track_buf */
+	record = track.buf + track.used;
 
-	ptr = track_buf;
-	target_len = strlen(target_wd);
+	*record = TRACK_DELIMITER;
+
+	record_len = stpcpy(stpcpy(strchr(record, '\0'), "/"), target) - record;
+
+	track.used += record_len;
+
+
+	/* search for the target's full path inside track.buf */
+
+	ptr = track.buf;
 
 	do {
-		ptr = strstr(ptr, target_wd);
-		if (ptr == target_wd)
-			return target_wd + 1;
-		ptr += target_len;
+		ptr = strstr(ptr, record);
+		if (ptr == record)
+			return target_full;
+		ptr += record_len;
 	} while (*ptr != TRACK_DELIMITER);
 
 	return 0;
@@ -432,19 +453,16 @@ datefilename(const char *name)
 }
 
 
-static char build_date[HEXDATE_LEN + 1] = {'\0'};
+static char build_date[HEXDATE_LEN + 1];
 
 
 static void
-datebuild()
+datebuild(const char *s)
 {
-	const char *dateptr = getenv("REDO_BUILD_DATE");
-
 	FILE *f;
 
-
-	if (dateptr) {
-		memcpy(build_date, dateptr, HEXDATE_LEN);
+	if (s) {
+		memcpy(build_date, s, HEXDATE_LEN);
 		return;
 	}
 
@@ -602,24 +620,24 @@ choose(const char *old, const char *new, int err, void (*perror_f)(const char *)
 
 static int 
 run_dofile(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
-		const char *target_base, const char *target_rel)
+		const char *target_class, const char *target_rel)
 {
 	int err = ERROR;
 
 	pid_t pid;
 
 	char *target_new;
-	char target_base_rel[PATH_MAX];
+	char target_class_rel[PATH_MAX];
 	char target_new_rel[PATH_MAX + sizeof target_prefix];
 
 
-	if (strlen(target_rel) >= sizeof target_base_rel) {
+	if (strlen(target_rel) >= sizeof target_class_rel) {
 		dprintf(2, "Target relative name too long -- %s\n", target_rel);
 		return ERROR;
 	}
 
-	strcpy(target_base_rel, target_rel);
-	strcpy(base_name(target_base_rel, 0), target_base);
+	strcpy(target_class_rel, target_rel);
+	strcpy(base_name(target_class_rel, 0), target_class);
 
 	strcpy(target_new_rel, target_rel);
 	target_new = base_name(target_new_rel, 0);
@@ -644,17 +662,17 @@ run_dofile(int dir_fd, int lock_fd, char *dofile_rel, const char *target,
 
 		if ((setenvfd("REDO_LOCK_FD", lock_fd) != 0) ||
 		    (setenv("REDO_DIRPREFIX", dirprefix, 1) != 0) ||
-		    (setenv("REDO_TRACK", track(0, 0), 1) != 0)) {
+		    (setenv("REDO_TRACK", track.buf, 1) != 0)) {
 			perror("setenv");
 			exit(ERROR);
 		}
 
 		if (access(dofile, X_OK) != 0)	/* run -x files with /bin/sh */
 			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e", dofile,
-				target_rel, target_base_rel, target_new_rel, (char *)0);
+				target_rel, target_class_rel, target_new_rel, (char *)0);
 		else
 			execl(dofile, dofile,
-				target_rel, target_base_rel, target_new_rel, (char *)0);
+				target_rel, target_class_rel, target_new_rel, (char *)0);
 
 		perror("execl");
 		exit(ERROR);
@@ -803,12 +821,14 @@ static int really_update_dep(int dir_fd, char *dep);
 static int
 update_dep(int dir_fd, char *dep_path, int *hint)
 {
-	char *dep;
 	int dep_dir_fd = dir_fd, err = ERROR;
 
 	level += INDENT;
 
 	do {
+		char *dep;
+		unsigned int origin = track.used;
+
 		if (strchr(dep_path, TRACK_DELIMITER)) {
 			msg(dep_path, "Illegal symbol " stringize(TRACK_DELIMITER));
 			break;
@@ -826,7 +846,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		}
 
 		err = really_update_dep(dep_dir_fd, dep);
-		track(0, 1);	/* strip the last record */
+		track_truncate(origin);	/* strip the fresh new record */
 
 	} while (0);
 
@@ -877,7 +897,7 @@ static int
 really_update_dep(int dir_fd, char *dep)
 {
 	char *target_full;
-	char target_base[NAME_MAX + 1];
+	char target_class[NAME_MAX + 1];
 
 	char dofile_rel[PATH_MAX];
 
@@ -890,14 +910,16 @@ really_update_dep(int dir_fd, char *dep)
 
 	FILE *fredo;
 
+	unsigned int target_full_offset = track.used + 1;
 
-	target_full = track(dep, 1);
+
+	target_full = track_append(dep);
 	if (target_full == 0) {
-		msg(track(0, 0), "Dependency loop attempt");
+		msg(track.buf, "Dependency loop attempt");
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
-	strcpy(target_base, dep);
+	strcpy(target_class, dep);
 	strcpy(stpcpy(redofile, redo_prefix), dep);
 	strcpy(stpcpy(lockfile, lock_prefix), dep);
 
@@ -906,7 +928,7 @@ really_update_dep(int dir_fd, char *dep)
 	if (fflag)
 		dprintf(1, "--[[\n");
 
-	uprel = find_dofile(target_base, dofile_rel, sizeof dofile_rel, target_full);
+	uprel = find_dofile(target_class, dofile_rel, sizeof dofile_rel, target_full);
 
 	if (fflag)
 		dprintf(1, "--]]\n");
@@ -962,7 +984,10 @@ really_update_dep(int dir_fd, char *dep)
 			if (err || dep_changed(record, hint))
 				break;
 
-			memcpy(hexhash, record, HEXHASH_LEN);
+			memcpy(hexhash, record, HEXHASH_LEN);	/* contemplation of
+								this call is recommended
+								if you want to possess
+								zen of redo */
 
 			err = write_dep(lock_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (err)
@@ -981,11 +1006,11 @@ really_update_dep(int dir_fd, char *dep)
 		err = update_dep(dir_fd, dofile_rel, &hint);
 
 /*
-	track_buf may be relocated during the nested update_dep() calls.
-	target_full is the tail of the track_buf, so it must be refreshed.
+	track.buf may be relocated during the nested update_dep() calls.
+	target_full is the tail of the track.buf, so it must be refreshed.
 */
 
-	target_full = strrchr(track(0, 0), TRACK_DELIMITER) + 1;
+	target_full = track.buf + target_full_offset;
 
 	if (!err && wanted) {
 		lseek(lock_fd, 0, SEEK_SET);
@@ -996,7 +1021,7 @@ really_update_dep(int dir_fd, char *dep)
 			log_time("tdo");
 			log_guard(open_comment);
 			err = run_dofile(dir_fd, lock_fd, dofile_rel, dep,
-					target_base, base_name(target_full, uprel));
+					target_class, base_name(target_full, uprel));
 			log_guard(close_comment);
 
 			if (!err)
@@ -1020,8 +1045,8 @@ really_update_dep(int dir_fd, char *dep)
 
 /*
 	Now we will use target_full residing in track to construct
-	the lockfile_full. If fchdir() in do_update_target() failed
-	then we need the full lockfile name.
+	the lockfile_full. If fchdir() in update_dep() failed then
+	we need the full lockfile name.
 */
 
 	strcpy(base_name(target_full, 0), lockfile);
@@ -1388,7 +1413,8 @@ main(int argc, char *argv[])
 
 	compute_updir(dirprefix, updir);
 
-	level = occurrences(track(getenv("REDO_TRACK"), 0), TRACK_DELIMITER) * INDENT;
+	track_init(getenv("REDO_TRACK"));
+	level = occurrences(track.buf, TRACK_DELIMITER) * INDENT;
 
 	if (strcmp(base_name(argv[0], 0), "redo") != 0)
 		lock_fd = envint("REDO_LOCK_FD");
@@ -1403,7 +1429,7 @@ main(int argc, char *argv[])
 	passes = passes_max;
 
 
-	datebuild();
+	datebuild(getenv("REDO_BUILD_DATE"));
 
 	srand(getpid());
 
