@@ -28,7 +28,7 @@ https://github.com/leahneukirchen/redo-c
 
 1. Optimized recipes envocations.
 
-2. Dependency loops detected during parallel builds.
+2. Dependency loops could be detected during parallel builds.
 
 3. Build log is Lua table.
 
@@ -598,17 +598,19 @@ enum hints {
 static int
 choose(const char *old, const char *new, int err, void (*perror_f)(const char *))
 {
+	struct stat st;
+
 	if (err) {
-		if ((access(new, F_OK) == 0) && (remove(new) != 0)) {
+		if ((lstat(new, &st) == 0) && remove(new)) {
 			(*perror_f)("remove new");
 			err |= ERROR;
 		}
 	} else {
-		if ((access(old, F_OK) == 0) && (remove(old) != 0)) {
+		if ((lstat(old, &st) == 0) && remove(old)) {
 			(*perror_f)("remove old");
 			err |= ERROR;
 		}
-		if ((access(new, F_OK) == 0) && (rename(new, old) != 0)) {
+		if ((lstat(new, &st) == 0) && rename(new, old)) {
 			(*perror_f)("rename");
 			err |= ERROR;
 		}
