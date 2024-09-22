@@ -243,6 +243,11 @@ Can be implemented using target's dependency on its own prerequisites:
 The current `redo` version follows approach of "do-layers". File belongs to the Nth do-layer if its name ends with N `.do` suffices. Targets belonging to the Nth do-layer can be built by (N+1)th do-layer recipes only. Technically it means that no trailing `.do` suffix can be stripped from the target's filename during the search for an appropriate recipe.
 
 
+### Note about the soft links as targets
+
+Recipes may create soft links as the targets. In case such target is linked to non-existing file then it will be hashed as non-existing (empty) file. And if the link will be removed redo will not be able to detect its disappearance and restore it.
+
+
 ### `redo` retry delays.
 
 Constants `SHORTEST` and `SCALEUPS` defined in redo.c determine the duration of the delays between the retries. After each unsuccessful pass the random delay in the range [x .. 2 * x] is inserted, where x is reset to SHORTEST msec after each successful pass (and at the startup) and is doubled after each consequent retry but no more than SCALEUPS times.  
@@ -286,6 +291,12 @@ Searching in cwd and updirs:
     .updirs.do.too.do
     ../.and.updirs.do.too.do
     ../.updirs.do.too.do
+    --]]
+
+Making file invisible for all dofiles incuding `.do`:
+
+    $ redo -f .do.not.build
+    --[[
     --]]
 
 
