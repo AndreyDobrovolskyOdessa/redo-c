@@ -21,9 +21,9 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## General description
 
-`redo` is incremental build systems engine. Build system to be driven by `redo` is the set of the recipes. `redo` implements an effective interface between the recipes, allowing to design reliable, flexible and easily extendable build systems.
+`redo` is incremental build systems engine. Any build project may be described as directed acyclic graph. The nodes of such graph are files (sources and targets) while branches indicate dependencies and are directed. The targets are built by the corresponding recipes. Recipe builds the target and describe the target's dependencies.
 
-The targets and sources of such build tree may be interpreted as nodes of some directed acyclic graph (DAG), while recipes contain the branches descriptions.
+The build system to be driven by `redo` is the set of the recipes. `redo` implements an effective interface between the recipes, allowing to design reliable, flexible and easily extendable build systems.
 
 
 ## Build process quick overview
@@ -39,7 +39,7 @@ During the build process `redo` executes build recipes for targets with outdated
 
 $1 - target's name
 
-$2 - target's class (explained below)
+$2 - target's family (explained below)
 
 $3 - temporary file name to store the recipe output
 
@@ -53,21 +53,16 @@ Recipe stores the build result in $3 and register dependencies with
 `redo` captures the recipe's exit code and in case of success replaces the target $1 with the temporary file $3, otherwise $3 is discarded.
 
 
+### `redo` vs `depends-on`
+
+`depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
+
+
 ## The magic of `redo`
 
 In fact `depends-on` in the recipe envokes another instance of `redo` and the new instance communicate with the recipe caller `redo` "behind the closed doors". And if the requested dependency has its own build recipe, the process will recurse deeper independently of the current recipe execution.
 
 So the structure of the build tree and the target build steps are described per-node and can be easily modified, extended, truncated and any part of the tree may be easily reused by another build project using any node as an entry point.
-
-
-## `redo` vs `depends-on`
-
-`depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
-
-
-## Passes and retries
-
-The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (2).
 
 
 ## More details about recipes
@@ -87,7 +82,7 @@ Only files having `.do` suffix are identified as recipes by `redo`.
     .b.c.do        *.b.c, */*.b.c, */*/*.b.c, ...
 
 
-Dot-started recipes are able to build classes of targets in their current dirs and all subdirs.
+Dot-started recipes are able to build families of targets in their current dirs and all subdirs.
 
 
 ### Selecting an appropriate recipe.
@@ -110,9 +105,9 @@ will be looked for in the `x.y.z` directory
 
 If no recipe able to build the requested target will be found, then `redo` exits successfully doing nothing.
 
-In case the appropriate recipe will be found, then it will be executed passing 3 described above positional parameters. The target class name ($2) will be derived from the recipe and target names:
+In case the appropriate recipe will be found, then it will be executed passing 3 described above positional parameters. The target family name ($2) will be derived from the recipe and target names:
 
-    Recipe        Target ($1)     Class ($2)
+    Recipe        Target ($1)     Family ($2)
 
     a.b.c.do      a.b.c           (empty)
 
@@ -157,13 +152,13 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 ### Options available
 
-* `-d` Enables building of recipes. `REDO_DOFILES={0,1}`
+* `-e`, `-d` Enables building of recipes. `REDO_RECIPES={0,1}`
 
 * `-w` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_WARNING={0,1}`
 
-* `-f` Log find_dofile() steps to stdout. `REDO_FIND={0,1}`
+* `-f` Log find_recipe() steps to stdout. `REDO_FIND={0,1}`
 
-* `-x` Non-executable recipes will be executed with `/bin/sh -ex`. `REDO_TRACE={0,1}`
+* `-t`, `-x` Tracing of non-executable recipes executing them with `/bin/sh -ex`. `REDO_TRACE={0,1}`
 
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
@@ -174,13 +169,17 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 ## Implementation details
 
-### Prerequisites
+### Journals
 
-Prerequisites are created by `redo` for every successfully built target. They consist of records. Each record describes certain dependency and contains its filename, ctime and hash of the content. If `x` target was built by the `x.do` recipe using `a`, `b` and `c` dependencies then prerequisites file `.do..x` will contain the records describing `x.do`, `a`, `b`, `c` and `x` files.
+Journals are created by `redo` for every successfully built target. The name of the journal file starts with `.do..` prefix followed by the target's filename. The journal consists of records. Each record describes certain dependency and contains its filename, ctime and hash of the content. If `x` target was built by the `x.do` recipe using `a`, `b` and `c` dependencies then journal `.do..x` will contain the records describing `x.do`, `a`, `b`, `c` and `x` files.
 
-If some file is referenced by `depends-on` but have no recipe to be built, such file is source. Sources have no prerequisites. 
+If some file is referenced by `depends-on` but have no recipe to be built, such file is source. Sources have no journals. 
 
-Prerequisites can not be targets, but can be used as sources.
+The journals can not be targets, but can be used as sources.
+
+#### WARNING!
+
+Using files which names start with the journal prefix `.do..` may cause unexpected behaviour. Probably it is the good idea to not use such prefix for filenames in Your project's directories.
 
 
 ### More details of `redo` program flow
@@ -193,7 +192,7 @@ Prerequisites can not be targets, but can be used as sources.
 
 3. If recipe is found then the next conditions are tested:
 
-	3.1 Target's prerequisites `.do..xxx` found.
+	3.1 Target's journal `.do..xxx` found.
 
 	3.2 The most recent build of `xxx` was performed by the same recipe.
 
@@ -201,16 +200,16 @@ Prerequisites can not be targets, but can be used as sources.
 
 	3.4 The target `xxx` was not changed.
 
-If all the described conditions are true, then refresh '.do..xxx' prerquisites and exit successfully.
+If all the described conditions are true, then refresh '.do..xxx' journal and exit successfully.
 
-Worth mentioning that testing of the 3.3 condition is recursive. The steps described above - search for an appropriate recipe and testing the corresponding prerequisites - are performed for all dependencies.
+Worth mentioning that testing of the 3.3 condition is recursive. The steps described above - search for an appropriate recipe and testing the corresponding journal - are performed for all dependencies.
 
 4. Execute the recipe and if it exits successfully, then write the result into `xxx`, else `redo` fails.
 
-5. Update `.do..xxx` prerequisites.
+5. Update `.do..xxx` journal.
 
 
-### Hashed sources aka self-targets or semi-targets.
+### Hashed sources aka self-targets
 
 Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
 
@@ -221,19 +220,9 @@ Conversion can be provided with the help of the following simple recipe:
 Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active recipes to self-targets. Such conversion may slow-down projects with lot of small sources.
 
 
-### Loop dependencies
-
-Are monitored unconditionally and issue error or warning if found.
-
-
-### Parallel builds
-
-The technique for parallel builds implementation in recipes is described in `samples/parallel` examples.
-
-
 ### Always out-of-date targets
 
-Can be implemented using target's dependency on its own prerequisites:
+Can be implemented using target's dependency on its own journal:
 
     depends-on .do..$1
 
@@ -246,6 +235,21 @@ The current `redo` version follows approach of "do-layers". File belongs to the 
 ### Note about the soft links as targets
 
 Recipes may create soft links as the targets. In case such target is linked to non-existing file then it will be hashed as non-existing (empty) file. And if the link will be removed redo will not be able to detect its disappearance and restore it.
+
+
+### Loop dependencies
+
+Are monitored unconditionally and issue error or warning if found.
+
+
+### Parallel builds
+
+The technique for parallel builds implementation in recipes is described in `samples/parallel` examples.
+
+
+### Passes and retries
+
+The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (2).
 
 
 ### `redo` retry delays.
@@ -266,14 +270,14 @@ gives 4 sec total wait mean time.
 
 ### Hints
 
-You can test which dofiles will be encountered by `redo` appropriate to build certain <target> with
+You can test which recipes will be encountered by `redo` appropriate to build certain `<target>` with
 
     redo -f <target>
 
 
 ### Tricks
 
-The sequence `.do.` found inside the supposed target's name during the find_dofile() search for appropriate recipe will interrupt the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
+The sequence `.do.` found inside the supposed target's name during the find_recipe() search for appropriate recipe will interrupt the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
 
 Searching in cwd only:
 
@@ -293,7 +297,7 @@ Searching in cwd and updirs:
     ../.updirs.do.too.do
     --]]
 
-Making file invisible for all dofiles incuding `.do`:
+Making file invisible for all recipes incuding `.do`:
 
     $ redo -f .do.not.build
     --[[
