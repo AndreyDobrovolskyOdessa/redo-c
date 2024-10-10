@@ -1,37 +1,63 @@
-# Parallel builds examples
+# Using `redo` for parallel builds
 
-## Loop
+This implementation of `redo` is single-thread and parallel-friendly. It means that any number of the `redo` binary instances can successfully co-operate over the same project tree. So the question is how to choose the entry points for `redo` instances.
 
-This example demonstrates how lock-free approach allows to locate and avoid loop dependencies even in parallel builds.
+Let's assume we have some project (the set of recipes) which builds the target `t`.
 
-Starting in redo-c git directory:
+First of all we need the knowledge of the project tree topology. This `redo` implementation
+writes its log in the Lua table format. So
 
-    . ./redo.do
-    cd samples/parallel/loop
-    redo parallel
+	redo -l t.log t
 
+will build `t` and store the whole project tree in `t.log`. Now we can provide analysis of this tree and recode it into the roadmap format.
 
 ## Roadmap
 
-Roadmap file contains the numeric representation of the build tree along with the target names (absolute or relative). The project build log(s) may be transponded into the roadmap file with the help of `log2map.lua` utility.
+In fact it is the main control structure of this `redo` implementation. It consists of
 
-    lua log2map.lua logfile > roadmap
+* array of the nodes' relative names
 
-for absolute target names or
+* arrays of the nodes' childs
 
-    MAP_DIR=$(pwd) lua log2map.lua logfile > roadmap
+* array of the nodes' statuses
 
-to write the roadmap with the relative target names.
+Status is an integer indicating the number of unresolved dependencies of the node. Obviously the nodes with status equal to 0 are ready to be build, while those with the positive status are not. `redo` sequentially builds the nodes with 0 status and in case of success marks the node as done with negative status and decrement the statuses of all the node's children. If the node was already built by another `redo` instance then it is simply marked as done.
 
-An example of roadmap usage is shown in `.parallel.do`. If `some.target` is built with
+If `redo` is not supplied with the roadmap it falls back to the list of the targets and uses them to build the trivial roadmap, where every node has no children and its status is initially 0.
 
-    redo some.target
+Trascoding the log into the roadmap with relative targets' names:
 
-then it may be built in parallel with
+	MAP_DIR=$(pwd) lua log2map.lua t.log > t.roadmap
 
-    JOBS=4 redo some.target.parallel
+Now we can build the `t` target with any number of `redo` instances in parallel
 
-Default is JOBS=2. `some.target.parallel` will appear to be the roadmap file.
+	for I in $(seq $JOBS)
+	do
+		redo -m t.roadmap &
+	done
+	wait
+
+This code will work nice for the projects with the stable trees. But if the project tree is altering we need to adjust the roadmap after each successful build to keep the build process closer to the optimum. The working example is `samples/parallel/.parallel.do`. It can be applied to any target. If
+
+	redo some-target
+
+builds `some-target` in the single-precess way then
+
+	redo some-target.parallel
+
+will create `some-target.parallel` roadmap at the first run and later use this roadmap to build `some-target` in parallel
+
+	JOBS=8 redo some-target.parallel
+
+
+### Analogies between `redo` and `Meson/ninja`
+
+	create the project               configure Meson project
+	recipes
+
+	redo project.parallel            Meson builddir
+
+	JOBS=8 redo project.parallel     ninja -j 8
 
 
 ## mk.lua
@@ -46,6 +72,8 @@ Utility for creating test projects. Accepts thr next CLI parameters:
 Each target script implements random delay in the range [0s ... 1s].
 
 ## mktest
+
+The playground for parallel builds testing.
 
     . ./redo.do
     cd samples/parallel/mktest
@@ -81,5 +109,19 @@ Full clean the test directory for another instance testing:
 
 ## mktest2
 
-An example of managing logs in massively parallel build
+An example of managing logs in massively parallel build. An approach described above collects the information about the project tree during initial sequential build. Such an approach is easy to implement because the project recipes has no additional requirements. If You want an initial build to be parallel, the recipes must be written paying additional efforts to handle correctly the log files.
+
+NOTE: this example needs the shell to allow writing into arbitrary file handler, busybox ash for example. Most shells will need some additional utility to accomplish this task.
+
+
+## Loop
+
+This example demonstrates how lock-free approach allows to locate and avoid loop dependencies even in parallel builds.
+
+Starting in redo-c git directory:
+
+    . ./redo.do
+    cd samples/parallel/loop
+    redo parallel
+
 

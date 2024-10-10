@@ -379,14 +379,14 @@ setenvfd(const char *name, int i)
 }
 
 
-#define HASH_LEN    32
-#define HEXHASH_LEN (2 * HASH_LEN)
-#define HEXDATE_LEN 16
+#define HASH_LEN	32
+#define HEXHASH_LEN	(2 * HASH_LEN)
+#define HEXDATE_LEN	16
 
-#define DATE_OFFSET (HEXHASH_LEN + 1)
-#define NAME_OFFSET (DATE_OFFSET + HEXDATE_LEN + 1)
+#define DATE_OFFSET	(HEXHASH_LEN + 1)
+#define NAME_OFFSET	(DATE_OFFSET + HEXDATE_LEN + 1)
 
-#define RECORD_SIZE (NAME_OFFSET + PATH_MAX + 1)
+#define RECORD_SIZE	(NAME_OFFSET + PATH_MAX + 1)
 
 static char record_buf[RECORD_SIZE];
 
@@ -597,9 +597,9 @@ enum errors {
 
 
 enum hints {
-	IS_SOURCE	     = 0x100,
-	UPDATED_RECENTLY     = 0x200,
-	IMMEDIATE_DEPENDENCY = 0x400
+	IS_SOURCE		= 0x100,
+	UPDATED_RECENTLY	= 0x200,
+	IMMEDIATE_DEPENDENCY	= 0x400
 };
 
 #define HINTS (~ERRORS)
@@ -1125,12 +1125,12 @@ occurrences(const char *str, int ch)
 }
 
 
-#define SHORTEST 10
-#define SCALEUPS 6
-#define LONGEST  (SHORTEST << SCALEUPS)
+#define SHORTEST	10
+#define SCALEUPS	6
+#define LONGEST		(SHORTEST << SCALEUPS)
 
-#define MSEC_PER_SEC  1000
-#define NSEC_PER_MSEC 1000000
+#define MSEC_PER_SEC	1000
+#define NSEC_PER_MSEC	1000000
 
 static void
 hurry_up_if(int successful)
@@ -1350,7 +1350,6 @@ forget(struct roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
-
 int
 main(int argc, char *argv[])
 {
@@ -1367,7 +1366,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+dextwfl:m:")) != -1) {
+	while ((opt = getopt(argc, argv, "+dextwfrl:m:")) != -1) {
 		switch (opt) {
 		case 'x':
 		case 't':
@@ -1381,6 +1380,7 @@ main(int argc, char *argv[])
 			setenvfd("REDO_RECIPES", 1);
 			break;
 		case 'f':
+		case 'r':
 			setenvfd("REDO_FIND", 1);
 			break;
 		case 'l':
