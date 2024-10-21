@@ -44,6 +44,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/times.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -204,7 +205,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 /******************** Globals **********************/
 
-static int dflag, xflag, wflag, fflag, log_fd, level;
+static int wflag, eflag, fflag, tflag, log_fd, level;
 
 /***************************************************/
 
@@ -234,8 +235,8 @@ pperror(const char *s)
 
 
 static const char	journal_prefix[] = ".do..",
-			draft_prefix[]   = ".do...do..",
-			tmp_prefix[]     = ".do...do...do..",
+			draft_prefix[]	 = ".do...do..",
+			tmp_prefix[]	 = ".do...do...do..",
 
 			recipe_suffix[]  = ".do",
 
@@ -247,6 +248,7 @@ static struct {
 	size_t		size;
 	unsigned int	used;
 } track;
+
 
 #define TRACK_DELIMITER ':'
 
@@ -534,8 +536,8 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 
 		/* if we are still here means the dep is a recipe */
 
-		if (!dflag)		/* if doing recipes is not allowed */
-			return -1;	/* then leave */
+		if (!eflag)
+			return -1;
 
 		tail = ext;
 	}
@@ -680,7 +682,7 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		}
 
 		if (access(recipe, X_OK) != 0)	/* run -x files with /bin/sh */
-			execl("/bin/sh", "/bin/sh", xflag ? "-ex" : "-e", recipe,
+			execl("/bin/sh", "/bin/sh", tflag ? "-ex" : "-e", recipe,
 				target_rel, family_rel, tmp_rel, (char *)0);
 		else
 			execl(recipe, recipe,
@@ -873,14 +875,14 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-static int64_t
-timestamp(void)
+static long
+process_times(void)
 {
-	struct timespec ts;
+	struct tms t;
 
-	clock_gettime(CLOCK_MONOTONIC, &ts);
+	times(&t);
 
-	return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+	return t.tms_utime + t.tms_stime + t.tms_cutime + t.tms_cstime;
 }
 
 
@@ -894,7 +896,7 @@ timestamp(void)
 	dprintf(log_fd, "%*s{\n", level, "");
 
 #define log_time(label)	if (log_fd > 0)\
-	dprintf(log_fd, "%*s" label " = %" PRId64 ",\n", level + 8, "", timestamp())
+	dprintf(log_fd, "%*s" label "%ld,\n", level + 8, "", process_times())
 
 #define log_level_close() if (log_fd > 0)\
 	dprintf(log_fd, "%*s},\n", level, "");
@@ -971,7 +973,7 @@ really_update_dep(int dir_fd, char *dep)
 
 
 	log_level_open();
-	log_time("t0 ");
+	log_time("t0 = ");
 
 	f = fopen(journal, "r");
 
@@ -1032,7 +1034,7 @@ really_update_dep(int dir_fd, char *dep)
 		err = write_dep(fd, recipe_rel, 0, 0, hint);
 
 		if (!err) {
-			log_time("tdo");
+			log_time("     ");
 			log_guard(open_comment);
 			err = run_recipe(dir_fd, fd, recipe_rel, target_rel,
 					family, dirprefix_len);
@@ -1053,7 +1055,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	close(fd);
 
-	log_time("t1 ");
+	log_time("t1 = ");
 	log_err("", "");
 	log_level_close();
 
@@ -1131,6 +1133,7 @@ occurrences(const char *str, int ch)
 
 #define MSEC_PER_SEC	1000
 #define NSEC_PER_MSEC	1000000
+
 
 static void
 hurry_up_if(int successful)
@@ -1366,22 +1369,22 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+dextwfrl:m:")) != -1) {
+	while ((opt = getopt(argc, argv, "+weftdrxl:m:")) != -1) {
 		switch (opt) {
-		case 'x':
-		case 't':
-			setenvfd("REDO_TRACE", 1);
-			break;
 		case 'w':
 			setenvfd("REDO_WARNING", 1);
 			break;
-		case 'd':
 		case 'e':
+		case 'd':
 			setenvfd("REDO_RECIPES", 1);
 			break;
 		case 'f':
 		case 'r':
 			setenvfd("REDO_FIND", 1);
+			break;
+		case 't':
+		case 'x':
+			setenvfd("REDO_TRACE", 1);
 			break;
 		case 'l':
 			if (strcmp(optarg, "1") == 0) {
@@ -1417,10 +1420,10 @@ main(int argc, char *argv[])
 		}
 	}
 
-	xflag = envint("REDO_TRACE");
 	wflag = envint("REDO_WARNING");
-	dflag = envint("REDO_RECIPES");
+	eflag = envint("REDO_RECIPES");
 	fflag = envint("REDO_FIND");
+	tflag = envint("REDO_TRACE");
 
 
 	if (dep.size == 0)
@@ -1465,6 +1468,8 @@ main(int argc, char *argv[])
 				if (err == 0) {
 					approve(&dep, i);
 					passes = passes_max;
+					if (passes_max > 0)
+						i = dep.num - 1; /* break */
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
 						forget(&dep, i);
