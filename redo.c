@@ -1468,8 +1468,9 @@ main(int argc, char *argv[])
 				if (err == 0) {
 					approve(&dep, i);
 					passes = passes_max;
-					if (passes_max > 0)
-						i = dep.num - 1; /* break */
+					if (passes_max > 0) {
+						i = dep.num; break;
+					}
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
 						forget(&dep, i);
