@@ -39,18 +39,15 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 
 #define _GNU_SOURCE 1
 
+#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
 #include <sys/times.h>
+#include <sys/wait.h>
 
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -615,16 +612,16 @@ choose(const char *old, const char *new, int err, void (*perror_f)(const char *)
 	if (err) {
 		if ((lstat(new, &st) == 0) && remove(new)) {
 			(*perror_f)("remove new");
-			err |= ERROR;
+			err = ERROR;
 		}
 	} else {
 		if ((lstat(old, &st) == 0) && remove(old)) {
 			(*perror_f)("remove old");
-			err |= ERROR;
+			err = ERROR;
 		}
 		if ((lstat(new, &st) == 0) && rename(new, old)) {
 			(*perror_f)("rename");
-			err |= ERROR;
+			err = ERROR;
 		}
 	}
 
@@ -1318,13 +1315,16 @@ init_map(struct roadmap *m, int n, char **argv)
 static void
 approve(struct roadmap *m, int i)
 {
-	int j;
+	int own = m->children[i];
+	int num = m->children[i + 1] - own;
+
+	int32_t *ch = m->child + own;
 
 	m->status[i] = -1;
 	m->done++;
 
-	for (j = m->children[i]; j < m->children[i + 1]; j++)
-		m->status[m->child[j]]--;
+	while (num--)
+		m->status[*ch++]--;
 }
 
 
@@ -1356,7 +1356,8 @@ forget(struct roadmap *m, int i)
 int
 main(int argc, char *argv[])
 {
-	int opt, log_fd_prev, fd = -1, map_fd, passes_max, passes, i;
+	int opt, log_fd_prev, fd = -1, map_fd;
+	int passes_max, passes, i, err = OK;
 
 	struct roadmap dep = {.size = 0};
 
@@ -1435,15 +1436,15 @@ main(int argc, char *argv[])
 	track_init(getenv("REDO_TRACK"));
 	level = occurrences(track.buf, TRACK_DELIMITER) * INDENT;
 
-	if (strcmp(base_name(argv[0], 0), "redo") != 0)
-		fd = envint("REDO_FD");
-
 
 	passes_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
-	if ((fd < 0) && (passes_max == 0))
-		passes_max = RETRIES_DEFAULT;
+	if (strcmp(base_name(argv[0], 0), "redo") == 0) {
+		if (passes_max == 0)
+			passes_max = RETRIES_DEFAULT;
+	} else
+		fd = envint("REDO_FD");
 
 	passes = passes_max;
 
@@ -1460,29 +1461,34 @@ main(int argc, char *argv[])
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
 				int hint;
-				int err = update_dep(dir_fd, dep.name[i], &hint);
+
+				err = update_dep(dir_fd, dep.name[i], &hint);
 
 				if ((err == 0) && (fd > 0))
 					err = write_dep(fd, dep.name[i], dirprefix, updir, hint);
 
-				if (err == 0) {
+				if (err == OK) {
 					approve(&dep, i);
-					passes = passes_max;
 					if (passes_max > 0) {
-						i = dep.num; break;
+						passes = passes_max;
+						break;
 					}
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
 						forget(&dep, i);
 				} else {
+					err = ERROR;
 					break;
 				}
 			}
 		}
-	} while ((i == dep.num) && (dep.done < dep.todo) && (passes > 0));
+	} while ((err != ERROR) && (dep.done < dep.todo) && (passes > 0));
 
 	fence(log_fd_prev, "}\n", open_comment);
 
-	return (i < dep.num) ? ERROR : ((dep.done < dep.num) ? BUSY : OK);
+	if (err != ERROR)
+		err = (dep.done < dep.num) ? BUSY : OK;
+
+	return err; 
 }
 
