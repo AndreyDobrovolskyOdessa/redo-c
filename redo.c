@@ -13,29 +13,27 @@
    http://creativecommons.org/publicdomain/zero/1.0/
 */
 
+/***********************************************************
 
-/************************************************************
 This redo-c version can be found at:
 
-https://github.com/AndreyDobrovolskyOdessa/redo-c
+	https://github.com/AndreyDobrovolskyOdessa/redo-c
 
 which is the fork of:
 
-https://github.com/leahneukirchen/redo-c
+	https://github.com/leahneukirchen/redo-c
 
 
 	Features:
 
-1. Optimized recipes envocations.
-
-2. Dependency loops could be detected during parallel builds.
-
-3. Build log is Lua table.
+- Optimized recipes envocations.
+- Dependency loops could be detected during parallel builds.
+- Build log is Lua table.
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
-************************************************************/
 
+***********************************************************/
 
 #define _GNU_SOURCE 1
 
@@ -51,6 +49,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 #include <unistd.h>
 #include <time.h>
 
@@ -200,16 +199,50 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/******************** Globals **********************/
+/* ------------ Globals ------------ */
 
 static int wflag, eflag, fflag, tflag, log_fd, level;
 
-/***************************************************/
+static struct {
+	char		*buf;
+	size_t		size;
+	unsigned int	used;
+} track;
 
+#define HASH_LEN	32
+#define HEXHASH_LEN	(2 * HASH_LEN)
+#define HEXDATE_LEN	16
+
+#define DATE_OFFSET	(HEXHASH_LEN + 1)
+#define NAME_OFFSET	(DATE_OFFSET + HEXDATE_LEN + 1)
+
+#define RECORD_SIZE	(NAME_OFFSET + PATH_MAX + 1)
+
+static char record_buf[RECORD_SIZE];
+
+#define hexhash (record_buf)
+#define hexdate (record_buf + DATE_OFFSET)
+#define namebuf (record_buf + NAME_OFFSET)
+
+static char build_date[HEXDATE_LEN + 1];
+
+/* ------------ Literals ------------- */
 
 static const char
-open_comment[]	= "--[====================================================================[\n",
-close_comment[]	= "--]====================================================================]\n";
+
+	recipe_suffix[]  = ".do",
+
+	journal_prefix[] = ".do..",
+	draft_prefix[]	 = ".do...do..",
+	tmp_prefix[]	 = ".do...do...do..",
+
+	dirup[] = "../",
+
+	open_comment[]	= "--[====================================================================[\n",
+	close_comment[]	= "--]====================================================================]\n";
+
+/* --------------------------------- */
+
 
 
 #define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
@@ -229,22 +262,6 @@ pperror(const char *s)
 {
 	msg(s, strerror(errno));
 }
-
-
-static const char	journal_prefix[] = ".do..",
-			draft_prefix[]	 = ".do...do..",
-			tmp_prefix[]	 = ".do...do...do..",
-
-			recipe_suffix[]  = ".do",
-
-			dirup[] = "../";
-
-
-static struct {
-	char		*buf;
-	size_t		size;
-	unsigned int	used;
-} track;
 
 
 #define TRACK_DELIMITER ':'
@@ -378,22 +395,6 @@ setenvfd(const char *name, int i)
 }
 
 
-#define HASH_LEN	32
-#define HEXHASH_LEN	(2 * HASH_LEN)
-#define HEXDATE_LEN	16
-
-#define DATE_OFFSET	(HEXHASH_LEN + 1)
-#define NAME_OFFSET	(DATE_OFFSET + HEXDATE_LEN + 1)
-
-#define RECORD_SIZE	(NAME_OFFSET + PATH_MAX + 1)
-
-static char record_buf[RECORD_SIZE];
-
-#define hexhash (record_buf)
-#define hexdate (record_buf + DATE_OFFSET)
-#define namebuf (record_buf + NAME_OFFSET)
-
-
 static char *
 hashfile(int fd)
 {
@@ -451,9 +452,6 @@ datefilename(const char *name)
 	stat(name, &st);
 	datestat(&st);
 }
-
-
-static char build_date[HEXDATE_LEN + 1];
 
 
 static void
@@ -587,9 +585,9 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 
 
 enum errors {
-	OK    = 0,
-	ERROR = 1,
-	BUSY  = 2
+	OK	= 0,
+	ERROR	= 1,
+	BUSY	= EX_TEMPFAIL
 };
 
 #define ERRORS 0xff
@@ -1124,13 +1122,12 @@ occurrences(const char *str, int ch)
 }
 
 
-#define SHORTEST	10
+#define SHORTEST	10 /* ms */
 #define SCALEUPS	6
 #define LONGEST		(SHORTEST << SCALEUPS)
 
-#define MSEC_PER_SEC	1000
-#define NSEC_PER_MSEC	1000000
-
+#define MS_PER_S	1000
+#define NS_PER_MS	1000000
 
 static void
 hurry_up_if(int successful)
@@ -1149,8 +1146,8 @@ hurry_up_if(int successful)
 	if (night < LONGEST)
 		night *= 2;
 
-	s.tv_sec  =  asleep / MSEC_PER_SEC;
-	s.tv_nsec = (asleep % MSEC_PER_SEC) * NSEC_PER_MSEC;
+	s.tv_sec  =  asleep / MS_PER_S;
+	s.tv_nsec = (asleep % MS_PER_S) * NS_PER_MS;
 
 	nanosleep(&s, &r);
 }

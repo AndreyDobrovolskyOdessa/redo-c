@@ -2,6 +2,9 @@
 -- Capture the build graph in symbolic form --
 ----------------------------------------------
 
+local ERRORS = 0xff
+local BUSY = 75
+
 local node = {}
 
 local explore
@@ -16,11 +19,11 @@ explore = function(dep, target)
       if record.err < node[name][1] then
         node[name][1] = record.err
       end
-      if record.err == 0 or record.err == 2 then
+      if record.err == 0 or record.err == BUSY then
         if target then node[name][target] = true end
         explore(record, name)
       else
-        assert((record.err & 0xff) == 2, name .. ".error = " .. tostring(record.err))
+        assert((record.err & ERRORS) == BUSY, name .. ".error = " .. tostring(record.err))
       end
     end
   end
