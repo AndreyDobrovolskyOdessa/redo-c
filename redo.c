@@ -204,9 +204,8 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 static int wflag, eflag, fflag, tflag, log_fd, level;
 
 static struct {
-	char		*buf;
-	size_t		size;
-	unsigned int	used;
+	char	*buf;
+	size_t	size, used;
 } track;
 
 #define HASH_LEN	32
@@ -280,7 +279,7 @@ track_init(char *heritage)
 
 
 static void
-track_truncate(unsigned int cutoff)
+track_truncate(size_t cutoff)
 {
 	track.used = cutoff;
 	track.buf[cutoff] = 0;
@@ -298,23 +297,19 @@ track_append(char *dep)
 
 	track_engaged = track.used
 
-			+ 1			/* TRACK_DELIM */
+		+ 1			/* TRACK_DELIM */
 
-						/* dep's directory */
+					/* dep's directory */
 
-			+ 1			/* '/' */
+		+ 1			/* '/' */
 
-			+ strlen(dep)		/* dep */
+		+ sizeof draft_prefix	/* is to be reserved in order to have enough free space
+					to construct the draft_full in really_update_dep() */
 
-			+ sizeof draft_prefix	/* is to be reserved in order
-						to have enough free space to
-						construct the draft_full
-						later in really_update_dep() */
+		+ strlen(dep)		/* dep */
 
-			+ 1 ;			/* terminating '\0', actually
-						is not necessary, because
-						sizeof draft_prefix already
-						took care of it :-) */
+		+ 1;			/* terminating '\0' */
+
 
 	while (1) {
 		if (track.size > track_engaged) {
@@ -326,17 +321,25 @@ track_append(char *dep)
 		} else
 			errno = ERANGE;
 
-		if (errno == ERANGE) {		/* track.size not sufficient */
-			track.size += PATH_MAX;
-			track.buf = realloc(track.buf, track.size);
-			if (!track.buf) {
+		do {
+			if (errno != ERANGE) {
+				pperror("getcwd");
+			} else if (track.size < (SIZE_MAX - PATH_MAX)) {
+				size_t next_size = track.size + PATH_MAX;
+				char  *next_buf = realloc(track.buf, next_size);
+
+				if (next_buf) {
+					track.size = next_size;
+					track.buf  = next_buf;
+					break;
+				}
 				pperror("realloc");
-				return 0;
 			}
-		} else {
-			pperror ("getcwd");
+
+			wflag = 0;	/* suppress warning flag, ensure error */
 			return 0;
-		}
+
+		} while(0);
 	}
 
 
@@ -627,7 +630,7 @@ choose(const char *old, const char *new, int err, void (*perr_f)(const char *))
 }
 
 
-static int 
+static int
 run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		const char *family, size_t dirprefix_len)
 {
@@ -839,7 +842,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 	do {
 		char *dep;
-		unsigned int origin = track.used;
+		size_t origin = track.used;
 
 		if (strchr(dep_path, TRACK_DELIM)) {
 			msg(dep_path, "Illegal symbol " stringize(TRACK_DELIM));
@@ -920,9 +923,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	FILE *f;
 
-	unsigned int	whole_pos = track.used + 1,
-			target_rel_off,
-			dirprefix_len;
+	size_t whole_pos = track.used + 1, target_rel_off, dirprefix_len;
 
 
 	whole = track_append(dep);
@@ -1494,6 +1495,5 @@ main(int argc, char *argv[])
 	if (err != ERROR)
 		err = (dep.done < dep.num) ? BUSY : OK;
 
-	return err; 
+	return err;
 }
-
