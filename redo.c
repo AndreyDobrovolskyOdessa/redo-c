@@ -303,8 +303,9 @@ track_append(char *dep)
 
 		+ 1			/* '/' */
 
-		+ sizeof draft_prefix	/* is to be reserved in order to have enough free space
-					to construct the draft_full in really_update_dep() */
+		+ sizeof draft_prefix	/* is to be reserved in order to have
+					enough free space to construct the
+					draft_full in really_update_dep() */
 
 		+ strlen(dep)		/* dep */
 
@@ -336,7 +337,7 @@ track_append(char *dep)
 				pperror("realloc");
 			}
 
-			wflag = 0;	/* suppress warning flag, ensure error */
+			wflag = 0;	/* suppress warning, ensure error */
 			return 0;
 
 		} while(0);
