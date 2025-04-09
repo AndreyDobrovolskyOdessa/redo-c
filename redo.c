@@ -246,10 +246,10 @@ static const char
 #define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
 
 static void
-msg(const char *name, const char *error)
+msg(const char *x, const char *y)
 {
 	log_guard(open_comment);
-	dprintf(2, "%s : %s\n", name, error);
+	dprintf(2, "%s : %s\n", x, y);
 	log_guard(close_comment);
 }
 
@@ -336,6 +336,8 @@ track_append(char *dep)
 				}
 				pperror("realloc");
 			}
+
+			msg("Failed to get cwd", dep);
 
 			wflag = 0;	/* suppress warning, ensure error */
 			return 0;
@@ -669,7 +671,7 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		const char *recipe = file_chdir(&dir_fd, recipe_rel);
 
 		if (!recipe) {
-			dprintf(2, "Damn! Someone have stolen my favorite recipe %s ...\n", recipe_rel);
+			dprintf(2, "Recipe disappeared : %s\n", recipe_rel);
 			exit(ERROR);
 		}
 
@@ -719,7 +721,7 @@ valid(char *record, char *journal)
 	char *last = strchr(record, '\0') - 1;
 
 	if (((last - record) < NAME_OFFSET) || (*last != '\n')) {
-		msg(journal, "is truncated (warning)");
+		msg("Warning! Journal is truncated", journal);
 		return 0;
 	}
 
@@ -846,18 +848,18 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		size_t origin = track.used;
 
 		if (strchr(dep_path, TRACK_DELIM)) {
-			msg(dep_path, "Illegal symbol " stringize(TRACK_DELIM));
+			msg("Illegal symbol " stringize(TRACK_DELIM), dep_path);
 			break;
 		}
 
 		dep = file_chdir(&dep_dir_fd, dep_path);
 		if (dep == 0) {
-			msg(dep_path, "Missing dependency directory");
+			msg("Missing dependency directory", dep_path);
 			break;
 		}
 
 		if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix)) {
-			msg(dep, "Dependency name too long");
+			msg("Dependency name too long", dep);
 			break;
 		}
 
@@ -929,7 +931,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	whole = track_append(dep);
 	if (whole == 0) {
-		msg(track.buf, "Dependency loop attempt");
+		msg("Dependency loop attempt", track.buf);
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
