@@ -164,6 +164,16 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found then command-line arguments are used as targets. If the roadmap was imported successfully then command-line targets are ignored. Errors during the roadmap import lead to `exit(ERROR)`.
 
+#### Tip
+
+If log is written to stdout or stderr then recipes' output is enclosed properly and appears in the log as comments, keeping log as a valid Lua table. Debugging tastes better with
+
+    redo -l 2 target 2>target.log
+
+or
+
+    redo -l 1 target >target.log 2>&1
+
 
 ## Implementation details
 
