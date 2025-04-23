@@ -162,7 +162,7 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 
-* `-m <roadmap>` Build according to the roadmap. If the requested roadmap file is not found then command-line arguments are used as targets. If the roadmap was imported successfully then command-line targets are ignored. Errors during the roadmap import lead to `exit(ERROR)`.
+* `-m <roadmap>` Build according to the [roadmap](samples/parallel#roadmap). If the requested roadmap file is not found then command-line arguments are used as targets. If the roadmap was imported successfully then command-line targets are ignored. Errors during the roadmap import lead to `exit(ERROR)`.
 
 #### Tip
 
@@ -252,7 +252,7 @@ Are monitored unconditionally and issue error or warning if found.
 
 ### Parallel builds
 
-The technique for parallel builds implementation in recipes is described in `samples/parallel` examples.
+The technique for parallel builds implementation in recipes is described in [samples/parallel](samples/parallel).
 
 
 ### Passes and retries
@@ -316,7 +316,7 @@ Making file invisible for all recipes incuding `.do`:
 
 ### Troubleshooting
 
-If the build was interrupted then some locks may remain uncleared. Such locks can be located with the help of the build log. See samples/locks.
+If the build was interrupted then some locks may remain uncleared. Such locks can be located with the help of the build log. See [samples/locks](samples/locks).
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
