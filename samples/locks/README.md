@@ -16,7 +16,7 @@ Lock file names.
 
     REDO_RETRIES=1 redo -l target.log target
     echo $?
-    2
+    75
     LOCK=$(lua log2lock.lua target.log) || fuser -s $LOCK || rm -f $LOCK
 
 
