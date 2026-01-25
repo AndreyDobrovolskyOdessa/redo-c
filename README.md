@@ -57,6 +57,7 @@ Recipe stores the build result in $3 and register dependencies with
 
 `depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
 
+Let's note that there is no dedicated name for the link to `redo` binary making it behave as `depends-on`. The only factor affecting `redo` behaviour is the way `redo` was called, as `redo` or as not-`redo`. So any link to `redo` binary (for example `redo-ifchange`) will have the same functionality as `depends-on`. Various links may be used during the same build and even in the same reciept. 
 
 ## The magic of `redo`
 
