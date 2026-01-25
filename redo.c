@@ -35,6 +35,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 
 ***********************************************************/
 
+
 #define _GNU_SOURCE 1
 
 #include <sys/mman.h>
@@ -52,6 +53,7 @@ Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
 #include <sysexits.h>
 #include <unistd.h>
 #include <time.h>
+
 
 /* ------------------------------------------------------------------------- */
 /* from musl/src/crypt/crypt_sha256.c */
@@ -199,7 +201,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/* -------------- Globals --------------- */
+/********************* Globals *********************/
 
 static int wflag, eflag, fflag, tflag, log_fd, level;
 
@@ -225,7 +227,7 @@ static char record_buf[RECORD_SIZE];
 
 static char build_date[HEXDATE_LEN + 1];
 
-/* ------------- Literals --------------- */
+/***************** Literals ******************/
 
 static const char
 
@@ -240,7 +242,7 @@ static const char
 	open_comment[]	= "--[====================================================================[\n",
 	close_comment[]	= "--]====================================================================]\n";
 
-/* -------------------------------------- */
+/*********************************************/
 
 
 #define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
@@ -261,20 +263,19 @@ pperror(const char *s)
 }
 
 
-#define TRACK_DELIM ':'
-
-
 static void
 track_init(char *heritage)
 {
-	track.used = heritage ? strlen(heritage) : 0;
-	track.size = PATH_MAX + track.used;
+	if (!heritage)
+		heritage = "";
+	track.used = strlen(heritage);
+	track.size = track.used + PATH_MAX;
 	track.buf = malloc(track.size);
 	if (!track.buf) {
 		perror("malloc");
-		exit (-1);
+		exit(-1);
 	}
-	strcpy(track.buf, heritage ? heritage : "");
+	strcpy(track.buf, heritage);
 }
 
 
@@ -286,16 +287,14 @@ track_truncate(size_t cutoff)
 }
 
 
+#define TRACK_DELIM ':'
+
 static char *
 track_append(char *dep)
 {
-	size_t track_engaged, record_len;
 	char *record, *dep_full, *ptr;
 
-
-	/* store cwd in the track.buf */
-
-	track_engaged = track.used
+	size_t record_len, track_engaged = track.used
 
 		+ 1			/* TRACK_DELIM */
 
@@ -311,6 +310,8 @@ track_append(char *dep)
 
 		+ 1;			/* terminating '\0' */
 
+
+	/* store cwd in the track.buf */
 
 	while (1) {
 		if (track.size > track_engaged) {
