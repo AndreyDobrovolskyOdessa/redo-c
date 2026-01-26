@@ -62,7 +62,7 @@ will create `some-target.parallel` roadmap at the first run and later use this r
 
 ## mk.lua
 
-Utility for creating test projects. Accepts thr next CLI parameters:
+Utility for creating test projects. Accepts the next CLI parameters:
 
 * $1 - number of nodes in project. Default is 30.
 * $2 - number of sources. Default is 10. Sources are named `t<N>.src`. Other nodes (targets) are named `t<N>`.
@@ -90,6 +90,10 @@ Conventional build
 Cleaning sources
 
     rm -f *.src
+
+Resetting build preserving sources and reciepts
+
+    rm -f .do..*
 
 
 First parallel build pass will be sequential and will collect the build tree log:
