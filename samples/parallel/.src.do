@@ -1,14 +1,8 @@
 #!/usr/bin/env lua
 
-local f = io.open("/dev/urandom")
-
-local c = f:read(1):byte()
-
-f:close()
-
-f = io.open(arg[3], "w")
-
-f:write(tostring(c), "\n")
-
-f:close()
+if os.execute("test -f " .. arg[1]) then
+  os.rename(arg[1], arg[3])
+else
+  io.open(arg[3], "w"):write(tostring(io.open("/dev/urandom"):read(1):byte()), "\n")
+end
 
