@@ -15,7 +15,12 @@ then
 
 	for LOG in $LOGS
 	do
-		redo -l $LOG -m $1 &
+		if test -n "$QUIET"
+		then
+			redo -l 1 -m $1 >$LOG 2>&1 &
+		else 
+			redo -l 2 -m $1 2>$LOG &
+		fi
 	done
 
 	wait
@@ -23,7 +28,12 @@ then
 else
 	LOGS=$1.log
 
-	JOBS="" redo -l $LOGS $2
+	if test -n "$QUIET"
+	then
+		JOBS= redo -l 1 $2 >$LOGS 2>&1
+	else 
+		JOBS= redo -l 2 $2 2>$LOGS
+	fi
 fi
 
 lua log2map.lua $LOGS > $3

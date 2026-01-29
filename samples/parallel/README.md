@@ -49,6 +49,14 @@ will create `some-target.parallel` roadmap at the first run and later use this r
 
 	JOBS=8 redo some-target.parallel
 
+Log files being used for the roadmap creation are named `some-target.parallel.log` (initial single-thread pass) and `some-target.parallel.N.log` for consequent roadmap-based builds.
+
+By default `stdout` of the build's recipes is beaing shown on the launcher tty while `stderr` is being stored in the log files. You may use
+
+	QUIET=1 redo some-target.parallel
+
+for storing both standard output files in the log.
+
 
 ### Analogies between `redo` and `Meson/ninja`
 
@@ -60,9 +68,18 @@ will create `some-target.parallel` roadmap at the first run and later use this r
 	JOBS=8 redo project.parallel     ninja -j 8
 
 
-## mk.lua
+## Parallelizing inside the recipes
 
-Utility for creating test projects. Accepts the next CLI parameters:
+Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` recipe.
+
+## Playground
+
+Equipped with two Lua scrips producing different types of projects - mkmesh.lua and mktree.lua. First produces recipes for the project without limitations on cross dependencies, while the second produces recipes for the project with pure tree topology.
+
+
+### `mkmesh.lua`
+
+Accepts the next CLI parameters:
 
 * $1 - number of nodes in project. Default is 30.
 * $2 - number of sources. Default is 10. Sources are named `t<N>.src`. Other nodes (targets) are named `t<N>`.
@@ -71,51 +88,92 @@ Utility for creating test projects. Accepts the next CLI parameters:
 
 Each target script implements random delay in the range [0s ... 1s].
 
-## mktest
-
-The playground for parallel builds testing.
-
-    . ./redo.do
-    cd samples/parallel/mktest
-    lua ../mk.lua
-
-produce files for project `t` in `mktest` directory.
+Main target named `t`.
 
 
-Conventional build
+### `mktree.lua`
 
-    redo t
+* $1 - number of targets. Default is 30.
+* $2 - branching coefficient. Default is 3. Greater or equal than 2 and less or equal than 10, float. 
 
-
-Cleaning sources
-
-    rm -f *.src
-
-Resetting build preserving sources and reciepts
-
-    rm -f .do..*
+Main target named `t`.
 
 
-First parallel build pass will be sequential and will collect the build tree log:
+### `recipe.seq` and `recipe.par`
 
-    redo t.parallel
+May be engaged in the project with the help of link
 
-The next builds will be parallel utilizing default JOBS=2 variable. You can increase the number of parallel branches assigning desired JOBS value, for example:
+	ln -sf recipe.seq recipe
 
-    JOBS=8 redo t.parallel
+or
 
-
-Full clean the test directory for another instance testing:
-
-    rm -f t* *.do .do..*
-    lua ../mk.lua 100 20 10 20
+	ln -sf recipe.par recipe
 
 
-## mktest2
+### Examples
 
-An example of managing logs in massively parallel build. An approach described above collects the information about the project tree during initial sequential build. Such an approach is easy to implement because the project recipes has no additional requirements. If You want an initial build to be parallel, the recipes must be written paying additional efforts to handle correctly the log files.
+Supposed to be done once before testing:
 
-NOTE: this example needs the shell to allow writing into arbitrary file handler, busybox ash for example. Most shells will need some additional utility to accomplish this task.
+	. ./redo.do
+	cd samples/parallel/playground
+
+
+#### Usefull commands
+
+Full clean:
+
+	rm -f t* .do..*
+
+Cleaning sources:
+
+	rm -f *.src
+
+Resetting project preserving sources and recipes:
+
+	rm -f .do..*
+
+
+#### Example 1
+
+Creating default mesh and build it in plain single-thread manner:
+
+	rm -f t* .do..*
+	lua mkmesh.lua
+	ln -sf recipe.seq recipe
+	redo t
+
+Creating roadmap:
+
+	redo t.parallel
+
+Resetting project and building with the roadmap:
+
+	rm -f .do..*
+	JOBS=4 redo t.parallel
+
+#### Example 2
+
+Creating the tree with 50 targets and 200 sources and building in the sequential way:
+
+	rm -f t* .do..*
+	lua mktree.lua 50 5
+	ln -sf recipe.seq recipe
+	redo t
+
+Cleaning and building the same project using in-recipe parallelizing:
+
+	rm -f .do..*
+	ln -sf recipe.par recipe
+	redo t
+
+Creating roadmap:
+
+	redo t.parallel
+
+Resetting project and building with the roadmap:
+
+	rm -f .do..*
+	JOBS=4 QUIET=y redo t.parallel
 
 
 ## Loop

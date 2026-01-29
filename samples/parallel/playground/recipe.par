@@ -1,0 +1,55 @@
+echo $1
+
+
+parallel_depends_on ()
+{
+	if test -n "$JOBS"		# jobs are controlled externally
+	then
+		depends-on $*
+	else				# jobs to be controlled internally
+
+		if test -n "$REDO_LOG_FD"	# parseable log requested
+		then
+			LOGS=
+
+			for DEP in $*
+			do
+				LOG=$(mktemp /tmp/redoXXXXXXXX)
+				LOGS="$LOGS $LOG"
+				if test -n "$QUIET"
+				then
+					redo -l 1 $DEP >$LOG 2>&1 &
+				else
+					redo -l 2 $DEP 2>$LOG &
+				fi
+			done
+
+			wait
+
+			cat $LOGS >&"$REDO_LOG_FD"
+			rm -f $LOGS
+		else					# no log
+			for DEP in $*
+			do
+				redo $DEP &
+			done
+
+			wait
+		fi
+
+		for DEP in $*
+		do
+			DNAME=${DEP##*/}
+			DDIR=${DEP%$DNAME}
+			test -r "$DDIR".do.."$DNAME"	# is journal readable?
+		done
+
+		REDO_LOG_FD="" depends-on $*
+	fi
+}
+
+parallel_depends_on $DEPS
+
+lua -e 'local t = os.clock() + '$DELAY' repeat until os.clock() > t'
+cat $DEPS > $3
+
