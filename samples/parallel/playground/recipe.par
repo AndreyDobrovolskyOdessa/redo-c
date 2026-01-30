@@ -41,11 +41,12 @@ parallel_depends_on ()
 		do
 			DNAME=${DEP##*/}
 			DDIR=${DEP%$DNAME}
-			if ! test -r "$DDIR".do.."$DNAME"	# is journal absent?
+			JOURNAL="$DDIR".do.."$DNAME"
+			if ! test -f "$JOURNAL"		# is journal absent?
 			then
-				exit 75				# BUSY
+				exit 75			# BUSY
 			fi
-			test -r "$DDIR".do.."$DNAME"		# is journal readable?
+			test -r "$JOURNAL"		# is journal readable?
 		done
 
 		REDO_LOG_FD="" depends-on $*
