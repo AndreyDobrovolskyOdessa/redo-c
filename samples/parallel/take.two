@@ -1,7 +1,0 @@
-(
-  redo $DEPS &
-  redo $DEPS &
-  wait
-)
-
-depends-on $DEPS

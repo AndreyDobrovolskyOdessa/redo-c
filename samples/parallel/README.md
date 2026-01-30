@@ -4,8 +4,7 @@ This implementation of `redo` is single-thread and parallel-friendly. It means t
 
 Let's assume we have some project (the set of recipes) which builds the target `t`.
 
-First of all we need the knowledge of the project tree topology. This `redo` implementation
-writes its log in the Lua table format. So
+First of all we need the knowledge of the project tree topology. This `redo` implementation writes its log in the Lua table format. So
 
 	redo -l t.log t
 
@@ -51,7 +50,7 @@ will create `some-target.parallel` roadmap at the first run and later use this r
 
 Log files being used for the roadmap creation are named `some-target.parallel.log` (initial single-thread pass) and `some-target.parallel.N.log` for consequent roadmap-based builds.
 
-By default `stdout` of the build's recipes is beaing shown on the launcher tty while `stderr` is being stored in the log files. You may use
+By default `stdout` of the build's recipes is being sent on the launcher tty while `stderr` is being stored in the log files. You may use
 
 	QUIET=1 redo some-target.parallel
 
@@ -70,7 +69,7 @@ for storing both standard output files in the log.
 
 ## Parallelizing inside the recipes
 
-Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` recipe.
+Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` rule.
 
 ## Playground
 
@@ -83,8 +82,8 @@ Accepts the next CLI parameters:
 
 * $1 - number of nodes in project. Default is 30.
 * $2 - number of sources. Default is 10. Sources are named `t<N>.src`. Other nodes (targets) are named `t<N>`.
-* $3 - maximum number of dependences per node. Default is 5. Actual dependences number is random in the range [1 ... $3].
-* $4 - dependences window. Default is $2 + $3. Increase nesting of the project tree. Must be greater or equal than $2.
+* $3 - maximum number of dependencies per node. Default is 5. Actual dependencies number is random in the range [1 ... $3].
+* $4 - dependencies window. Default is $2 + $3. Increase nesting of the project tree. Must be greater or equal than $2.
 
 Each target script implements random delay in the range [0s ... 1s].
 
