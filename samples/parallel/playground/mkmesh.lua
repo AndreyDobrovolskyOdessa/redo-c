@@ -66,7 +66,7 @@ for i = sources + 1, targets do
   end
   append("'\n")
   append("DELAY=") append(tostring(math.random())) append("\n")
-  append(". ./reciept\n")
+  append(". ./recipe\n")
 
   local f = assert(io.open("t" .. tostring(i) .. ".do", "w"))
   assert(f:write(table.concat(text)))
@@ -86,7 +86,7 @@ for i, ch in ipairs(children) do
 end
 append("'\n")
 append("DELAY=0\n")
-append(". ./reciept\n")
+append(". ./recipe\n")
 
 local f = assert(io.open("t.do", "w"))
 assert(f:write(table.concat(text)))
