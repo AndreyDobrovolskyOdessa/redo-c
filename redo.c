@@ -227,7 +227,7 @@ static char record_buf[RECORD_SIZE];
 
 static char build_date[HEXDATE_LEN + 1];
 
-/***************** Literals ******************/
+/****************** Literals ********************/
 
 static const char
 
@@ -242,7 +242,7 @@ static const char
 	open_comment[]	= "--[====================================================================[\n",
 	close_comment[]	= "--]====================================================================]\n";
 
-/*********************************************/
+/***************** end globals ******************/
 
 
 #define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
@@ -1053,7 +1053,10 @@ really_update_dep(int dir_fd, char *dep)
 		}
 
 		if (err && (err != BUSY)) {
-			chmod(journal, st.st_mode & (~S_IRUSR));
+			if (!f)
+				close(open(journal, O_CREAT | O_WRONLY | O_TRUNC, 0222));
+			else
+				chmod(journal, st.st_mode & (~S_IRUSR));
 			log_guard(open_comment);
 			dprintf(2, "redo %*s%s\n", level, "", whole);
 			dprintf(2, "     %*s%s -> %d\n", level, "", recipe_rel, err);
@@ -1412,14 +1415,12 @@ main(int argc, char *argv[])
 			break;
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
-			if (map_fd < 0) {
-				dprintf(2, "Warning: unable to open roadmap : %s.\n", optarg);
-			} else {
+			if (map_fd >= 0) {
 				if (import_map(&dep, map_fd) == OK) {
 					file_chdir(&dir_fd, optarg);
 					dirprefix = 0;
 				} else {
-					dprintf(2, "Error reading roadmap: %s\n", optarg);
+					dprintf(2, "Bad roadmap: %s\n", optarg);
 					return ERROR;
 				}
 			}
