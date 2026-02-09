@@ -1,3 +1,9 @@
+#	Controlled by JOBS and QUIET variables. Logs can be found
+#	in <target>.parallel.<N>.log files. If QUIET is not defined
+#	then log contains stderr of the recipes. In case QUIET is
+#	defined (for example QUIET=y) then the log will contain both
+#	stdout and stderr.
+
 TNAME=${1##*/}
 TDIR=${1%$TNAME}
 
@@ -10,31 +16,24 @@ REDO_LOG_FD=
 if test -f "$1"
 then
 	JOBS=${JOBS:-2}
-
-	LOGS=$(lua -e "for i = 1, $JOBS do print(('$1.%d.log'):format(i)) end")
-
-	for LOG in $LOGS
-	do
-		if test -n "$QUIET"
-		then
-			redo -l 1 -m $1 >$LOG 2>&1 &
-		else 
-			redo -l 2 -m $1 2>$LOG &
-		fi
-	done
-
-	wait
-
 else
-	LOGS=$1.log
+	JOBS=1
+	export MAXJOBS=y
+fi
 
+LOGS=$(lua -e "for i = 1, $JOBS do print(('$1.%d.log'):format(i)) end")
+
+for LOG in $LOGS
+do
 	if test -n "$QUIET"
 	then
-		JOBS= redo -l 1 $2 >$LOGS 2>&1
+		redo -l 1 -m $1 $2 >$LOG 2>&1 &
 	else 
-		JOBS= redo -l 2 $2 2>$LOGS
+		redo -l 2 -m $1 $2 2>$LOG &
 	fi
-fi
+done
+
+wait
 
 lua log2map.lua $LOGS > $3
 

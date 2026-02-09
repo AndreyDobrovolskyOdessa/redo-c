@@ -48,7 +48,7 @@ will create `some-target.parallel` roadmap at the first run and later use this r
 
 	JOBS=8 redo some-target.parallel
 
-Log files being used for the roadmap creation are named `some-target.parallel.log` (initial single-thread pass) and `some-target.parallel.N.log` for consequent roadmap-based builds.
+Log files being used for the roadmap creation are named `<target>.parallel.<N>.log` where N is in the range 1 .. $JOBS.
 
 By default `stdout` of the build's recipes is being sent on the launcher tty while `stderr` is being stored in the log files. You may use
 
@@ -69,7 +69,7 @@ for storing both standard output files in the log.
 
 ## Parallelizing inside the recipes
 
-Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` rule.
+Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in separate processes, linearizing the resulting logs in case logs are requested. Due to the shell limitations in the MAXJOBS=y mode only `-l 2` and `-l 1 ... 2>&1` may be used.
 
 ## Playground
 
@@ -163,7 +163,19 @@ Cleaning and building the same project using in-recipe parallelizing:
 
 	rm -f .do..*
 	ln -sf recipe.par recipe
-	redo t
+	MAXJOBS=y redo t
+
+Cleaning and building the same project using in-recipe parallelizing with linearized log containing stderr:
+
+	rm -f .do..*
+	ln -sf recipe.par recipe
+	MAXJOBS=y redo -l 2 t
+
+Cleaning and building the same project using in-recipe parallelizing with linearized log containing both stdout and stderr:
+
+	rm -f .do..*
+	ln -sf recipe.par recipe
+	MAXJOBS=y redo -l 1 t 2>&1
 
 Creating roadmap:
 
