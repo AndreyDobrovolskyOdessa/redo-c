@@ -2,6 +2,7 @@
 
 redo-c is an implementation of the [redo build system](http://cr.yp.to/redo.html) (designed by Daniel J. Bernstein) in portable C with zero external dependencies.
 
+See also [baredo](https://github.com/gotroyb127/baredo).
 
 ## Documentation
 
