@@ -69,7 +69,7 @@ for storing both standard output files in the log.
 
 ## Parallelizing inside the recipes
 
-Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe.par`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in separate processes, linearizing the resulting logs in case logs are requested. Due to the shell limitations in the MAXJOBS=y mode only `-l 2` and `-l 1 ... 2>&1` may be used.
+Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in separate processes, linearizing the resulting logs in case logs are requested. Due to the shell limitations in the MAXJOBS=y mode only `-l 2` and `-l 1 ... 2>&1` may be used.
 
 ## Playground
 
@@ -96,17 +96,6 @@ Main target named `t`.
 * $2 - branching coefficient. Default is 3. Greater or equal than 2 and less or equal than 10, float. 
 
 Main target named `t`.
-
-
-### `recipe.seq` and `recipe.par`
-
-May be engaged in the project with the help of link
-
-	ln -sf recipe.seq recipe
-
-or
-
-	ln -sf recipe.par recipe
 
 
 ### Examples
@@ -138,7 +127,6 @@ Creating default mesh and build it in plain single-thread manner:
 
 	rm -f t* .do..*
 	lua mkmesh.lua
-	ln -sf recipe.seq recipe
 	redo t
 
 Creating roadmap:
@@ -156,25 +144,21 @@ Creating the tree with 50 targets and 200 sources and building in the sequential
 
 	rm -f t* .do..*
 	lua mktree.lua 50 5
-	ln -sf recipe.seq recipe
 	redo t
 
 Cleaning and building the same project using in-recipe parallelizing:
 
 	rm -f .do..*
-	ln -sf recipe.par recipe
 	MAXJOBS=y redo t
 
 Cleaning and building the same project using in-recipe parallelizing with linearized log containing stderr:
 
 	rm -f .do..*
-	ln -sf recipe.par recipe
 	MAXJOBS=y redo -l 2 t
 
 Cleaning and building the same project using in-recipe parallelizing with linearized log containing both stdout and stderr:
 
 	rm -f .do..*
-	ln -sf recipe.par recipe
 	MAXJOBS=y redo -l 1 t 2>&1
 
 Creating roadmap:

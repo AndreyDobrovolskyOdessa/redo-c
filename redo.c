@@ -763,7 +763,8 @@ find_record(char *target_path)
 }
 
 
-#define may_need_rehash(f,h)	(\
+#define may_need_rehash(f,h) \
+(\
 	(h & IS_SOURCE) || (\
 		(!(h & UPDATED_RECENTLY)) &&\
 		find_record(f)\
@@ -872,7 +873,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
 			pperror("chdir back");
-			err |= ERROR;
+			err = ERROR;
 		}
 		close(dep_dir_fd);
 	}
@@ -1066,7 +1067,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	close(fd);
 
-	log_close_level("        t1 = %ld, err  = %d");
+	log_close_level("        t1 = %ld, err = %d");
 
 /*
 	If fchdir() in update_dep() failed then we need to create
