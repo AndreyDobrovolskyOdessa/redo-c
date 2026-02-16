@@ -1,68 +1,67 @@
 #	Controlled by MAXJOBS variable.
 #
-#	If MAXJOBS is not defined parallel_depends_on() works as usual
-#	depends-on. If MAXJOBS is defined then parallel_depends_on()
-#	builds each target in seperate process. In this mode stdout
-#	and stderr are scattered. If logging is requested logs are baked
-#	together to be readable with stderr (-l 2) or both stdout and
-#	stderr (-l 1 ... 2>&1). Due to shell redirection limitations
-#	other log handlers can not be used in MAXJOBS=y mode.
+#	If MAXJOBS is not defined then parallel_depends_on() works as
+#	usual depends-on. If MAXJOBS is defined then parallel_depends_on()
+#	builds each target in the separate process all in parallel.
+#
+#	The standard streams which are redirected to the files are
+#	sequentialized. In order to obtain a valid log one of the standard
+#	streams should be used for logging followed with redirection
+#	of this stream to a file.
 
 parallel_depends_on ()
 {
-	if test -z "$MAXJOBS"		# jobs are controlled externally
+	if test -n "$MAXJOBS"		# jobs to be controlled internally
 	then
-		depends-on $*
-	else
-		if test -z "$REDO_LOG_FD"	# no log
+		OLOGS=
+		ELOGS=
+
+		for DEP in $*
+		do
+			if test -t 1
+			then		# stdout is not captured
+				if test -t 2
+				then		# stderr is not captured
+					redo $DEP &
+				else		# stderr is captured
+					ELOG=$(mktemp /tmp/redoXXXXXXXX)
+					ELOGS="$ELOGS $ELOG"
+					redo $DEP 2>$ELOG &
+				fi
+			else		# stdout is captured		
+				OLOG=$(mktemp /tmp/redoXXXXXXXX)
+				OLOGS="$OLOGS $OLOG"
+				if test -t 2
+				then		# stderr is not captured
+					redo $DEP >$OLOG &
+				else		# stderr is captured
+					if test /proc/self/fd/1 -ef /proc/self/fd/2
+					then		# single output file
+						redo $DEP >$OLOG 2>&1 &
+					else		# different output files
+						ELOG=$(mktemp /tmp/redoXXXXXXXX)
+						ELOGS="$ELOGS $ELOG"
+						redo $DEP >$OLOG 2>$ELOG &
+					fi
+				fi
+			fi
+		done
+		wait
+
+		if test -n "$OLOGS"
 		then
-			for DEP in $*
-			do
-				redo $DEP &
-			done
-			wait
-			depends-on $*
+			cat $OLOGS
+			rm -f $OLOGS
+		fi
 
-		elif test "$REDO_LOG_FD" = 2
+		if test -n "$ELOGS"
 		then
-			LOGS=
-
-			for DEP in $*
-			do
-				LOG=$(mktemp /tmp/redoXXXXXXXX)
-				LOGS="$LOGS $LOG"
-				redo -l 2 $DEP 2>$LOG &
-			done
-
-			wait
-
-			cat $LOGS >&2
-			rm -f $LOGS
-
-			depends-on $*
-
-		elif test "$REDO_LOG_FD" = 1
-		then
-			LOGS=
-
-			for DEP in $*
-			do
-				LOG=$(mktemp /tmp/redoXXXXXXXX)
-				LOGS="$LOGS $LOG"
-				redo -l 1 $DEP >$LOG 2>&1 &
-			done
-
-			wait
-
-			cat $LOGS
-			rm -f $LOGS
-
-			depends-on $* 2>&1
-		else
-			echo Bad log file descriptor
-			exit 1
+			cat $ELOGS >&2
+			rm -f $ELOGS
 		fi
 	fi
+
+	depends-on $*
 }
 
 echo $1

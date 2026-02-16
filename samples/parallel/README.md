@@ -69,7 +69,7 @@ for storing both standard output files in the log.
 
 ## Parallelizing inside the recipes
 
-Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in separate processes, linearizing the resulting logs in case logs are requested. Due to the shell limitations in the MAXJOBS=y mode only `-l 2` and `-l 1 ... 2>&1` may be used.
+Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in the separate processes, sequentializing the resulting log if it is redirected to one of the standard output streams.
 
 ## Playground
 
