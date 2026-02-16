@@ -401,7 +401,7 @@ setenvfd(const char *name, int i)
 
 
 static char *
-hashfile(int fd)
+hashfd(int fd)
 {
 	static const char hex[] = {'0', '1', '2', '3', '4', '5', '6', '7',
 				   '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -442,22 +442,22 @@ datestat(struct stat *st)
 
 
 static void
-datefile(int fd)
+datefd(int fd)
 {
-	struct stat st = {0};
+	struct stat st;
 
-	fstat(fd, &st);
+	if (fstat(fd, &st))
+		st.st_ctime = 0;
 	datestat(&st);
 }
 
 
 static void
-datefilename(const char *name)
+datefile(const char *name, struct stat *st)
 {
-	struct stat st = {0};
-
-	stat(name, &st);
-	datestat(&st);
+	if(stat(name, st))
+		st->st_ctime = 0;;
+	datestat(st);
 }
 
 
@@ -472,7 +472,7 @@ datebuild(const char *s)
 	}
 
 	f = tmpfile();
-	datefile(fileno(f));
+	datefd(fileno(f));
 	fclose(f);
 
 	memcpy(build_date, hexdate, HEXDATE_LEN);
@@ -676,9 +676,9 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 			exit(ERROR);
 		}
 
-		if ((setenvfd("REDO_FD", fd) != 0) ||
-		    (setenv("REDO_DIRPREFIX", dirprefix, 1) != 0) ||
-		    (setenv("REDO_TRACK", track.buf, 1) != 0)) {
+		if (setenvfd("REDO_FD", fd) ||
+		    setenv("REDO_DIRPREFIX", dirprefix, 1) ||
+		    setenv("REDO_TRACK", track.buf, 1)) {
 			perror("setenv");
 			exit(ERROR);
 		}
@@ -765,26 +765,29 @@ find_record(char *target_path)
 
 #define may_need_rehash(f,h) \
 (\
-	(h & IS_SOURCE) || (\
-		(!(h & UPDATED_RECENTLY)) &&\
-		find_record(f)\
+	(h & IS_SOURCE) ||\
+	(\
+		!(h & UPDATED_RECENTLY) &&\
+		(find_record(f) != OK)\
 	)\
 )
 
 static int
 dep_changed(char *record, int hint)
 {
+	struct stat st;
+
 	char *filename = record + NAME_OFFSET;
 	char *filedate = record + DATE_OFFSET;
 	int fd;
 
 	if (may_need_rehash(filename, hint)) {
-		datefilename(filename);
+		datefile(filename, &st);
 		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
 			return 0;
 
 		fd = open(filename, O_RDONLY);
-		hashfile(fd);
+		hashfd(fd);
 		close(fd);
 	} else {
 		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
@@ -803,8 +806,8 @@ write_dep(int fd, char *dep, const char *dirprefix, const char *updir, int hint)
 
 	if (may_need_rehash(dep, hint)) {
 		int dep_fd = open(dep, O_RDONLY);
-		hashfile(dep_fd);
-		datefile(dep_fd);
+		hashfd(dep_fd);
+		datefd(dep_fd);
 		if (dep_fd > 0)
 			close(dep_fd);
 	}
@@ -924,7 +927,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	int uprel, fd, err = 0, wanted = 1, hint, is_recipe = 1;
 
-	struct stat st = {0};
+	struct stat st;
 
 	FILE *f;
 
@@ -956,8 +959,7 @@ really_update_dep(int dir_fd, char *dep)
 	dirprefix_len = strlen(target_rel) - strlen(dep);
 
 	strcpy(stpcpy(journal, journal_prefix), dep);
-	stat(journal, &st);
-	datestat(&st);
+	datefile(journal, &st);
 
 	if (strcmp(hexdate, build_date) >= 0) {
 		err = (st.st_mode & S_IRUSR) ? OK : ERROR;
@@ -1054,10 +1056,10 @@ really_update_dep(int dir_fd, char *dep)
 		}
 
 		if (err && (err != BUSY)) {
-			if (!f)
-				close(open(journal, O_CREAT | O_WRONLY | O_TRUNC, 0222));
-			else
+			if (f)
 				chmod(journal, st.st_mode & (~S_IRUSR));
+			else
+				close(open(journal, O_CREAT | O_WRONLY | O_TRUNC, 0222));
 			log_guard(open_comment);
 			dprintf(2, "redo %*s%s\n", level, "", whole);
 			dprintf(2, "     %*s%s -> %d\n", level, "", recipe_rel, err);
@@ -1316,7 +1318,7 @@ init_map(struct roadmap *m, int n, char **argv)
 	m->name = argv;
 
 	m->status = calloc(2 * n + 1, sizeof (int32_t));
-	if (m->status == 0) {
+	if (!m->status) {
 		perror("calloc");
 		exit(ERROR);
 	}
@@ -1503,3 +1505,4 @@ main(int argc, char *argv[])
 
 	return err;
 }
+
