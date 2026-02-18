@@ -736,19 +736,19 @@ find_record(char *target_path)
 {
 	int err = ERROR;
 
-	char journal_path[PATH_MAX + sizeof journal_prefix];
+	char journal[PATH_MAX + sizeof journal_prefix];
 	char *target = base_name(target_path, 0);
 	size_t dp_len = target - target_path;
 
 
-	memcpy(journal_path, target_path, dp_len);
-	strcpy(stpcpy(journal_path + dp_len, journal_prefix), target);
+	memcpy(journal, target_path, dp_len);
+	strcpy(stpcpy(journal + dp_len, journal_prefix), target);
 
-	FILE *f = fopen(journal_path, "r");
+	FILE *f = fopen(journal, "r");
 
 	if (f) {
 		while (fgets(record_buf, RECORD_SIZE, f) &&
-			valid(record_buf, journal_path))
+			valid(record_buf, journal))
 		{
 			if (strcmp(target, namebuf) == 0) {
 				err = OK;
@@ -858,7 +858,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		}
 
 		dep = file_chdir(&dep_dir_fd, dep_path);
-		if (dep == 0) {
+		if (!dep) {
 			msg("Missing dependency directory", dep_path);
 			break;
 		}
@@ -919,23 +919,21 @@ really_update_dep(int dir_fd, char *dep)
 {
 	char *whole, *target_rel;
 	char family[NAME_MAX + 1];
-
 	char recipe_rel[PATH_MAX];
-
 	char journal[NAME_MAX + 1];
 	char draft[NAME_MAX + 1];
 
-	int uprel, fd, err = 0, wanted = 1, hint, is_recipe = 1;
+	int uprel, draft_fd, err = 0, wanted = 1, hint, is_recipe = 1;
 
 	struct stat st;
 
-	FILE *f;
+	FILE *j;
 
 	size_t whole_pos = track.used + 1, target_rel_off, dirprefix_len;
 
 
 	whole = track_append(dep);
-	if (whole == 0) {
+	if (!whole) {
 		msg("Dependency loop attempt", track.buf);
 		return wflag ? IS_SOURCE : ERROR;
 	}
@@ -968,8 +966,9 @@ really_update_dep(int dir_fd, char *dep)
 	}
 
 	strcpy(stpcpy(draft, draft_prefix), dep);
-	fd = open(draft, O_CREAT | O_WRONLY | O_EXCL, 0666);
-	if (fd < 0) {
+	draft_fd = open(draft, O_CREAT | O_WRONLY | O_EXCL, 0666);
+
+	if (draft_fd < 0) {
 		if (errno == EEXIST) {
 			err = BUSY | IMMEDIATE_DEPENDENCY;
 		} else {
@@ -983,13 +982,14 @@ really_update_dep(int dir_fd, char *dep)
 
 	log_time("{       t0 = %ld,");
 
-	f = fopen(journal, "r");
+	j = fopen(journal, "r");
 
-	if (f) {
+	if (j) {
 		char record[RECORD_SIZE];
 		char *filename = record + NAME_OFFSET;
 
-		while (fgets(record, RECORD_SIZE, f) && valid(record, journal)) {
+		while (fgets(record, RECORD_SIZE, j) && valid(record, journal))
+		{
 			int self = !strcmp(filename, dep);
 
 			if (is_recipe) {
@@ -1014,7 +1014,7 @@ really_update_dep(int dir_fd, char *dep)
 
 			memcpy(hexhash, record, HEXHASH_LEN);
 
-			err = write_dep(fd, filename, 0, 0, UPDATED_RECENTLY);
+			err = write_dep(draft_fd, filename, 0, 0, UPDATED_RECENTLY);
 			if (err)
 				break;
 
@@ -1024,11 +1024,11 @@ really_update_dep(int dir_fd, char *dep)
 			}
 		}
 
-		fclose(f);
+		fclose(j);
 		hint = 0;
 	}
 
-	if (!f || is_recipe)
+	if (!j || is_recipe)
 		err = update_dep(dir_fd, recipe_rel, &hint);
 
 /*
@@ -1040,23 +1040,23 @@ really_update_dep(int dir_fd, char *dep)
 	target_rel = whole + target_rel_off;
 
 	if (!err && wanted) {
-		lseek(fd, 0, SEEK_SET);
+		lseek(draft_fd, 0, SEEK_SET);
 
-		err = write_dep(fd, recipe_rel, 0, 0, hint);
+		err = write_dep(draft_fd, recipe_rel, 0, 0, hint);
 
 		if (!err) {
 			log_time("             %ld, -- tdo");
 			log_guard(open_comment);
-			err = run_recipe(dir_fd, fd, recipe_rel, target_rel,
-					family, dirprefix_len);
+			err = run_recipe(dir_fd, draft_fd, recipe_rel,
+					target_rel, family, dirprefix_len);
 			log_guard(close_comment);
 
 			if (!err)
-				err = write_dep(fd, dep, 0, 0, IS_SOURCE);
+				err = write_dep(draft_fd, dep, 0, 0, IS_SOURCE);
 		}
 
 		if (err && (err != BUSY)) {
-			if (f)
+			if (j)
 				chmod(journal, st.st_mode & (~S_IRUSR));
 			else
 				close(open(journal, O_CREAT | O_WRONLY | O_TRUNC, 0222));
@@ -1067,7 +1067,7 @@ really_update_dep(int dir_fd, char *dep)
 		}
 	}
 
-	close(fd);
+	close(draft_fd);
 
 	log_close_level("        t1 = %ld, err = %d");
 
@@ -1286,7 +1286,7 @@ import_map(struct roadmap *m, int fd)
 	ptr[st.st_size] = '\0';
 
 	ptr = strchr(ptr, '\n');
-	if (ptr == 0)
+	if (!ptr)
 		return ERROR;
 
 	num = (ptr - (char *)m->name) / 8;
@@ -1355,7 +1355,7 @@ forget(struct roadmap *m, int i)
 	if (num == 1) {
 		int child = m->child[own];
 
-		if ((m->status[child] > 1) || (forget(m, child) == 0))
+		if ((m->status[child] > 1) || !forget(m, child))
 			return 0;
 	}
 
@@ -1477,11 +1477,11 @@ main(int argc, char *argv[])
 
 				err = update_dep(dir_fd, dep.name[i], &hint);
 
-				if ((err == OK) && (fd > 0))
+				if (!err && (fd > 0))
 					err = write_dep(fd, dep.name[i],
 							dirprefix, updir, hint);
 
-				if (err == OK) {
+				if (!err) {
 					approve(&dep, i);
 					if (passes_max > 0) {
 						passes = passes_max;
