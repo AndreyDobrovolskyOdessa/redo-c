@@ -297,17 +297,12 @@ track_append(char *dep)
 	size_t record_len, track_engaged = track.used
 
 		+ 1			/* TRACK_DELIM */
-
 					/* dep's directory */
-
 		+ 1			/* '/' */
-
 		+ sizeof draft_prefix	/* is to be reserved in order to have
 					enough free space to construct the
 					draft_full in really_update_dep() */
-
 		+ strlen(dep)		/* dep */
-
 		+ 1;			/* terminating '\0' */
 
 
@@ -328,7 +323,7 @@ track_append(char *dep)
 				pperror("getcwd");
 			} else if (track.size < (SIZE_MAX - PATH_MAX)) {
 				size_t next_size = track.size + PATH_MAX;
-				char  *next_buf = realloc(track.buf, next_size);
+				char *next_buf = realloc(track.buf, next_size);
 
 				if (next_buf) {
 					track.size = next_size;
@@ -350,11 +345,8 @@ track_append(char *dep)
 	/* construct the dep's record and join it with the track */
 
 	record = track.buf + track.used;
-
 	*record = TRACK_DELIM;
-
 	record_len = stpcpy(stpcpy(strchr(record, '\0'), "/"), dep) - record;
-
 	track.used += record_len;
 
 
@@ -821,8 +813,8 @@ write_dep(int fd, char *dep, const char *dirprefix, const char *updir, int hint)
 			prefix = updir;
 	}
 
-	*(hexhash + HEXHASH_LEN) = '\0';
-	*(hexdate + HEXDATE_LEN) = '\0';
+	hexhash[HEXHASH_LEN] = '\0';
+	hexdate[HEXDATE_LEN] = '\0';
 
 	if (dprintf(fd, "%s %s %s%s\n", hexhash, hexdate, prefix, dep) < 0) {
 		pperror("dprintf");
@@ -914,6 +906,9 @@ process_times(void)
 			level, "", process_times(), err, level, "")
 
 
+#define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
+
+
 static int
 really_update_dep(int dir_fd, char *dep)
 {
@@ -940,6 +935,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	log_name(whole);
 
+
 	if (fflag)
 		dprintf(1, "--[[\n");
 
@@ -951,6 +947,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	if (uprel < 0)
 		return IS_SOURCE;
+
 
 	target_rel = base_name(whole, uprel);
 	target_rel_off = target_rel - whole;
@@ -964,6 +961,7 @@ really_update_dep(int dir_fd, char *dep)
 		log_err();
 		return err;
 	}
+
 
 	strcpy(stpcpy(draft, draft_prefix), dep);
 	draft_fd = open(draft, O_CREAT | O_WRONLY | O_EXCL, 0666);
@@ -1014,7 +1012,8 @@ really_update_dep(int dir_fd, char *dep)
 
 			memcpy(hexhash, record, HEXHASH_LEN);
 
-			err = write_dep(draft_fd, filename, 0, 0, UPDATED_RECENTLY);
+			err = write_dep(draft_fd, filename,
+						0, 0, UPDATED_RECENTLY);
 			if (err)
 				break;
 
@@ -1052,17 +1051,18 @@ really_update_dep(int dir_fd, char *dep)
 			log_guard(close_comment);
 
 			if (!err)
-				err = write_dep(draft_fd, dep, 0, 0, IS_SOURCE);
+				err = write_dep(draft_fd, dep,
+						0, 0, IS_SOURCE);
 		}
 
 		if (err && (err != BUSY)) {
 			if (j)
 				chmod(journal, st.st_mode & (~S_IRUSR));
 			else
-				close(open(journal, O_CREAT | O_WRONLY | O_TRUNC, 0222));
+				close(open(journal, CR_WR_TR, 0222));
 			log_guard(open_comment);
-			dprintf(2, "redo %*s%s\n", level, "", whole);
-			dprintf(2, "     %*s%s -> %d\n", level, "", recipe_rel, err);
+			dprintf(2, "redo %*s%s\n     %*s%s -> %d\n",
+				level, "", whole, level, "", recipe_rel, err);
 			log_guard(close_comment);
 		}
 	}
@@ -1368,6 +1368,7 @@ forget(struct roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
+
 int
 main(int argc, char *argv[])
 {
@@ -1408,7 +1409,7 @@ main(int argc, char *argv[])
 			} else if (strcmp(optarg, "2") == 0) {
 				log_fd = 2;
 			} else {
-				log_fd =  open(optarg, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+				log_fd =  open(optarg, CR_WR_TR, 0666);
 				if (log_fd < 0) {
 					perror("logfile");
 					return ERROR;
@@ -1429,7 +1430,8 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2, "Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n");
+			dprintf(2, "Usage: redo [-weft] [-l <logname>]"
+					"[-m <roadmap>] [TARGET [...]]\n");
 			return ERROR;
 		}
 	}
@@ -1479,7 +1481,7 @@ main(int argc, char *argv[])
 
 				if (!err && (fd > 0))
 					err = write_dep(fd, dep.name[i],
-							dirprefix, updir, hint);
+						dirprefix, updir, hint);
 
 				if (!err) {
 					approve(&dep, i);
