@@ -792,7 +792,8 @@ dep_changed(char *record, int hint)
 
 
 static int
-write_dep(int fd, char *dep, const char *dirprefix, const char *updir, int hint)
+write_dep(int fd, char *dep, const char *dirprefix,
+				const char *updir, int hint)
 {
 	const char *prefix = "";
 
@@ -846,7 +847,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		size_t origin = track.used;
 
 		if (strchr(dep_path, TRACK_DELIM)) {
-			msg("Illegal symbol " stringize(TRACK_DELIM), dep_path);
+			msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
 			break;
 		}
 
@@ -1424,7 +1425,7 @@ main(int argc, char *argv[])
 					file_chdir(&dir_fd, optarg);
 					dirprefix = 0;
 				} else {
-					dprintf(2, "Bad roadmap: %s\n", optarg);
+					dprintf(2, "Bad map : %s\n", optarg);
 					return ERROR;
 				}
 			}
