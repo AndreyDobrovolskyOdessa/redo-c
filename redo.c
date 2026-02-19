@@ -382,9 +382,9 @@ base_name(char *name, int uprel)
 
 
 static int
-setenvfd(const char *name, int i)
+setenvint(const char *name, int i)
 {
-	char buf[16];
+	char buf[32];
 
 	snprintf(buf, sizeof buf, "%d", i);
 
@@ -395,8 +395,7 @@ setenvfd(const char *name, int i)
 static char *
 hashfd(int fd)
 {
-	static const char hex[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-				   '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+	static const char hexdigit[] = "0123456789abcdef";
 
 	struct sha256 ctx;
 	char buf[4096];
@@ -414,8 +413,8 @@ hashfd(int fd)
 	sha256_sum(&ctx, hash);
 
 	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hex[hash[i] / sizeof hex];
-		*a++ = hex[hash[i] % sizeof hex];
+		*a++ = hexdigit[hash[i] / (sizeof hexdigit - 1)];
+		*a++ = hexdigit[hash[i] % (sizeof hexdigit - 1)];
 	}
 
 	return hexhash;
@@ -668,7 +667,7 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 			exit(ERROR);
 		}
 
-		if (setenvfd("REDO_FD", fd) ||
+		if (setenvint("REDO_FD", fd) ||
 		    setenv("REDO_DIRPREFIX", dirprefix, 1) ||
 		    setenv("REDO_TRACK", track.buf, 1)) {
 			perror("setenv");
@@ -730,17 +729,19 @@ find_record(char *target_path)
 
 	char journal[PATH_MAX + sizeof journal_prefix];
 	char *target = base_name(target_path, 0);
-	size_t dp_len = target - target_path;
+	size_t len = target - target_path;
+
+	FILE *jrn;
 
 
-	memcpy(journal, target_path, dp_len);
-	strcpy(stpcpy(journal + dp_len, journal_prefix), target);
+	memcpy(journal, target_path, len);
+	strcpy(stpcpy(journal + len, journal_prefix), target);
 
-	FILE *f = fopen(journal, "r");
+	jrn = fopen(journal, "r");
 
-	if (f) {
-		while (fgets(record_buf, RECORD_SIZE, f) &&
-			valid(record_buf, journal))
+	if (jrn) {
+		while (fgets(record_buf, RECORD_SIZE, jrn) &&
+					valid(record_buf, journal))
 		{
 			if (strcmp(target, namebuf) == 0) {
 				err = OK;
@@ -748,7 +749,7 @@ find_record(char *target_path)
 			}
 		}
 
-		fclose(f);
+		fclose(jrn);
 	}
 
 	return err;
@@ -922,7 +923,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	struct stat st;
 
-	FILE *j;
+	FILE *jrn;
 
 	size_t whole_pos = track.used + 1, target_rel_off, dirprefix_len;
 
@@ -980,13 +981,14 @@ really_update_dep(int dir_fd, char *dep)
 
 	log_time("{       t0 = %ld,");
 
-	j = fopen(journal, "r");
+	jrn = fopen(journal, "r");
 
-	if (j) {
+	if (jrn) {
 		char record[RECORD_SIZE];
 		char *filename = record + NAME_OFFSET;
 
-		while (fgets(record, RECORD_SIZE, j) && valid(record, journal))
+		while (fgets(record, RECORD_SIZE, jrn) &&
+					valid(record, journal))
 		{
 			int self = !strcmp(filename, dep);
 
@@ -1003,13 +1005,11 @@ really_update_dep(int dir_fd, char *dep)
 
 			if (err || dep_changed(record, hint))
 				break;
-
 /*
 			The next memcpy() call restores the correct hexhash for
 			write_dep(), handling the case of the matching dates
 			not followed with dependency rehashing.
 */
-
 			memcpy(hexhash, record, HEXHASH_LEN);
 
 			err = write_dep(draft_fd, filename,
@@ -1023,11 +1023,11 @@ really_update_dep(int dir_fd, char *dep)
 			}
 		}
 
-		fclose(j);
+		fclose(jrn);
 		hint = 0;
 	}
 
-	if (!j || is_recipe)
+	if (!jrn || is_recipe)
 		err = update_dep(dir_fd, recipe_rel, &hint);
 
 /*
@@ -1056,7 +1056,7 @@ really_update_dep(int dir_fd, char *dep)
 		}
 
 		if (err && (err != BUSY)) {
-			if (j)
+			if (jrn)
 				chmod(journal, st.st_mode & (~S_IRUSR));
 			else
 				close(open(journal, CR_WR_TR, 0222));
@@ -1389,19 +1389,19 @@ main(int argc, char *argv[])
 	while ((opt = getopt(argc, argv, "+weftdrxl:m:")) != -1) {
 		switch (opt) {
 		case 'w':
-			setenvfd("REDO_WARNING", 1);
+			setenvint("REDO_WARNING", 1);
 			break;
 		case 'e':
 		case 'd':
-			setenvfd("REDO_RECIPES", 1);
+			setenvint("REDO_RECIPES", 1);
 			break;
 		case 'f':
 		case 'r':
-			setenvfd("REDO_FIND", 1);
+			setenvint("REDO_FIND", 1);
 			break;
 		case 't':
 		case 'x':
-			setenvfd("REDO_TRACE", 1);
+			setenvint("REDO_TRACE", 1);
 			break;
 		case 'l':
 			if (strcmp(optarg, "1") == 0) {
@@ -1415,7 +1415,7 @@ main(int argc, char *argv[])
 					return ERROR;
 				}
 			}
-			setenvfd("REDO_LOG_FD", log_fd);
+			setenvint("REDO_LOG_FD", log_fd);
 			break;
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
