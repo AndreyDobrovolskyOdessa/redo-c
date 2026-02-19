@@ -227,6 +227,7 @@ static char record_buf[RECORD_SIZE];
 
 static char build_date[HEXDATE_LEN + 1];
 
+
 /****************** Literals ********************/
 
 static const char
@@ -246,6 +247,7 @@ static const char
 
 
 #define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
+
 
 static void
 msg(const char *x, const char *y)
@@ -635,12 +637,10 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 
 	const char *target = target_rel + dirprefix_len;
 
+	char dirprefix[PATH_MAX];
 	char family_rel[PATH_MAX];
-
 	char tmp_rel[PATH_MAX + sizeof tmp_prefix];
 	char *tmp = tmp_rel + dirprefix_len;
-
-	char dirprefix[PATH_MAX];
 
 
 	if (strlen(target_rel) >= PATH_MAX) {
