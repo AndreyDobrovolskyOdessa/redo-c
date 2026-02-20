@@ -156,11 +156,11 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-w` Treat loop dependencies as warnings and continue partial build. Handle with care and keep away from children. `REDO_WARNING={0,1}`
 
-* `-e`, `-d` Enables building of recipes. `REDO_RECIPES={0,1}`
+* `-e` Enables building of recipes. `REDO_RECIPES={0,1}`
 
-* `-f`, `-r` Log find_recipe() steps to stdout. `REDO_FIND={0,1}`
+* `-f` Log find_recipe() steps to stdout. `REDO_FIND={0,1}`
 
-* `-t`, `-x` Tracing of non-executable recipes executing them with `/bin/sh -ex`. `REDO_TRACE={0,1}`
+* `-t` Tracing of non-executable recipes executing them with `/bin/sh -ex`. `REDO_TRACE={0,1}`
 
 * `-l <log_name>` Log build process as Lua table. Requires log filename. Filename "1" redirects log to stdout, "2" to stderr.
 

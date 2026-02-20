@@ -415,8 +415,8 @@ hashfd(int fd)
 	sha256_sum(&ctx, hash);
 
 	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hexdigit[hash[i] / (sizeof hexdigit - 1)];
-		*a++ = hexdigit[hash[i] % (sizeof hexdigit - 1)];
+		*a++ = hexdigit[hash[i] / 16];
+		*a++ = hexdigit[hash[i] % 16];
 	}
 
 	return hexhash;
@@ -731,17 +731,17 @@ find_record(char *target_path)
 	char *target = base_name(target_path, 0);
 	size_t len = target - target_path;
 
-	FILE *jrn;
+	FILE *journal_f;
 
 
 	memcpy(journal, target_path, len);
 	strcpy(stpcpy(journal + len, journal_prefix), target);
 
-	jrn = fopen(journal, "r");
+	journal_f = fopen(journal, "r");
 
-	if (jrn) {
-		while (fgets(record_buf, RECORD_SIZE, jrn) &&
-					valid(record_buf, journal))
+	if (journal_f) {
+		while (fgets(record_buf, RECORD_SIZE, journal_f) &&
+						valid(record_buf, journal))
 		{
 			if (strcmp(target, namebuf) == 0) {
 				err = OK;
@@ -749,7 +749,7 @@ find_record(char *target_path)
 			}
 		}
 
-		fclose(jrn);
+		fclose(journal_f);
 	}
 
 	return err;
@@ -924,7 +924,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	struct stat st;
 
-	FILE *jrn;
+	FILE *journal_f;
 
 	size_t whole_pos = track.used + 1, target_rel_off, dirprefix_len;
 
@@ -982,14 +982,14 @@ really_update_dep(int dir_fd, char *dep)
 
 	log_time("{       t0 = %ld,");
 
-	jrn = fopen(journal, "r");
+	journal_f = fopen(journal, "r");
 
-	if (jrn) {
+	if (journal_f) {
 		char record[RECORD_SIZE];
 		char *filename = record + NAME_OFFSET;
 
-		while (fgets(record, RECORD_SIZE, jrn) &&
-					valid(record, journal))
+		while (fgets(record, RECORD_SIZE, journal_f) &&
+						valid(record, journal))
 		{
 			int self = !strcmp(filename, dep);
 
@@ -1024,11 +1024,11 @@ really_update_dep(int dir_fd, char *dep)
 			}
 		}
 
-		fclose(jrn);
+		fclose(journal_f);
 		hint = 0;
 	}
 
-	if (!jrn || is_recipe)
+	if (!journal_f || is_recipe)
 		err = update_dep(dir_fd, recipe_rel, &hint);
 
 /*
@@ -1057,7 +1057,7 @@ really_update_dep(int dir_fd, char *dep)
 		}
 
 		if (err && (err != BUSY)) {
-			if (jrn)
+			if (journal_f)
 				chmod(journal, st.st_mode & (~S_IRUSR));
 			else
 				close(open(journal, CR_WR_TR, 0222));
@@ -1393,15 +1393,12 @@ main(int argc, char *argv[])
 			setenvint("REDO_WARNING", 1);
 			break;
 		case 'e':
-		case 'd':
 			setenvint("REDO_RECIPES", 1);
 			break;
 		case 'f':
-		case 'r':
 			setenvint("REDO_FIND", 1);
 			break;
 		case 't':
-		case 'x':
 			setenvint("REDO_TRACE", 1);
 			break;
 		case 'l':
