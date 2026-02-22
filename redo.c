@@ -372,6 +372,7 @@ base_name(char *name, int uprel)
 {
 	char *ptr = strchr(name, '\0');
 
+
 	do {
 		while ((ptr != name) && (*--ptr != '/'));
 	} while (uprel--);
@@ -405,6 +406,7 @@ hashfd(int fd)
 	unsigned char hash[HASH_LEN];
 	int i;
 	ssize_t r;
+
 
 	sha256_init(&ctx);
 
@@ -480,6 +482,7 @@ file_chdir(int *fd, char *name)
 	int fd_new;
 	char *slash = strrchr(name, '/');
 
+
 	if (!slash)
 		return name;
 
@@ -550,7 +553,6 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 	Omitting increases the free space for recipe_rel and is done only
 	once, that's why it can be done preliminarily.
 */
-
 	ext = strchr(dep, '.');
 	recipe_free += ext - dep;
 
@@ -718,6 +720,7 @@ valid(char *record, char *journal)
 	}
 
 	*last = '\0';
+
 	return 1;
 }
 
@@ -839,6 +842,7 @@ static int
 update_dep(int dir_fd, char *dep_path, int *hint)
 {
 	int dep_dir_fd = dir_fd, err = ERROR;
+
 
 	level += INDENT;
 
@@ -1035,7 +1039,6 @@ really_update_dep(int dir_fd, char *dep)
 	track.buf may be relocated during the nested update_dep() calls.
 	whole and target_rel reside in it and need to be refreshed.
 */
-
 	whole = track.buf + whole_pos;
 	target_rel = whole + target_rel_off;
 
@@ -1076,7 +1079,6 @@ really_update_dep(int dir_fd, char *dep)
 	If fchdir() in update_dep() failed then we need to create
 	the full draft name inside the whole dep path.
 */
-
 	strcpy(target_rel + dirprefix_len, draft);
 
 	return choose(journal, whole, err, pperror) | UPDATED_RECENTLY;
@@ -1268,6 +1270,7 @@ import_map(struct roadmap *m, int fd)
 	int num;
 	char *ptr;
 
+
 	if (fstat(fd, &st) < 0)
 		return ERROR;
 
@@ -1369,7 +1372,6 @@ forget(struct roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
-
 int
 main(int argc, char *argv[])
 {
@@ -1387,7 +1389,7 @@ main(int argc, char *argv[])
 
 	opterr = 0;
 
-	while ((opt = getopt(argc, argv, "+weftdrxl:m:")) != -1) {
+	while ((opt = getopt(argc, argv, "+weftl:m:")) != -1) {
 		switch (opt) {
 		case 'w':
 			setenvint("REDO_WARNING", 1);
@@ -1428,7 +1430,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2, "Usage: redo [-weft] [-l <logname>]"
+			dprintf(2, "Usage: redo [-weft] [-l <logname>] "
 					"[-m <roadmap>] [TARGET [...]]\n");
 			return ERROR;
 		}
