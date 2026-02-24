@@ -461,6 +461,7 @@ datebuild(const char *s)
 {
 	FILE *f;
 
+
 	if (s) {
 		memcpy(build_date, s, HEXDATE_LEN);
 		return;
@@ -518,7 +519,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 
 	char *end  = strchr(dep, '\0');
 	char *tail = end;
-	char *ext, *trickpoint;
+	char *ext, *shadow;
 
 	size_t recipe_size = (end - dep) + sizeof recipe_suffix;
 
@@ -540,9 +541,9 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 		tail = ext;
 	}
 
-	trickpoint = strstr(dep, ".do.");
-	if (trickpoint == tail)
-		trickpoint = 0;
+	shadow = strstr(dep, ".do.");
+	if (shadow == tail)
+		shadow = 0;
 
 	reserve(recipe_size);		/* initial recipe name size */
 	strcpy(end, recipe_suffix);
@@ -559,7 +560,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 
 	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
 
-		while (dep != trickpoint) {
+		while (dep != shadow) {
 			strcpy(recipe, dep);
 
 			if (fflag)
@@ -608,6 +609,7 @@ static int
 choose(const char *old, const char *new, int err, void (*perr_f)(const char *))
 {
 	struct stat st;
+
 
 	if (err) {
 		if ((lstat(new, &st) == 0) && remove(new)) {
@@ -776,6 +778,7 @@ dep_changed(char *record, int hint)
 	char *filename = record + NAME_OFFSET;
 	char *filedate = record + DATE_OFFSET;
 	int fd;
+
 
 	if (may_need_rehash(filename, hint)) {
 		datefile(filename, &st);
@@ -1142,7 +1145,7 @@ occurrences(const char *str, int ch)
 }
 
 
-#define SHORTEST	10 /* ms */
+#define SHORTEST	10
 #define SCALEUPS	6
 #define LONGEST		(SHORTEST << SCALEUPS)
 
@@ -1150,18 +1153,19 @@ occurrences(const char *str, int ch)
 #define NS_PER_MS	1000000
 
 static void
-hurry_up_if(int successful)
+hurry_up_on(int startup_or_success)
 {
 	static int night = SHORTEST;
 	int asleep;
 	struct timespec s, r;
 
-	if (successful) {
+
+	if (startup_or_success) {
 		night = SHORTEST;
 		return;
 	}
 
-	asleep = night + (rand() % night);
+	asleep = night + (rand() % night); /* ms */
 
 	if (night < LONGEST)
 		night *= 2;
@@ -1461,8 +1465,6 @@ main(int argc, char *argv[])
 	} else
 		fd = envint("REDO_FD");
 
-	passes = passes_max;
-
 
 	datebuild(getenv("REDO_BUILD_DATE"));
 
@@ -1470,8 +1472,10 @@ main(int argc, char *argv[])
 
 	fence(log_fd_prev, "return {\n", close_comment);
 
+	passes = passes_max;
+
 	do {
-		hurry_up_if(passes-- == passes_max);
+		hurry_up_on(passes-- == passes_max);
 
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
