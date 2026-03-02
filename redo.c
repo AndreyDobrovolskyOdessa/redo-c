@@ -874,6 +874,8 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 	} while (0);
 
+	level -= INDENT;
+
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
 			pperror("chdir back");
@@ -883,8 +885,6 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 	}
 
 	*hint = err & HINTS;
-
-	level -= INDENT;
 
 	return err & ERRORS;
 }
@@ -1193,7 +1193,6 @@ fence(int log_fd_buf, const char *top, const char *hill)
 
 
 struct roadmap {
-	size_t	size;
 	int	num;
 	int	todo;
 	int	done;
@@ -1213,12 +1212,12 @@ text2int(int32_t *x, int n, char **p)
 	while (n-- > 0) {
 		v = strtol(*p, &ep, 10);
 		if ((ep - *p) < (int) (sizeof (int32_t)))
-			break;
+			return ERROR;
 		*p = ep;
 		*x++ = (int32_t) v;
 	}
 
-	return n != -1;
+	return OK;
 }
 
 
@@ -1228,12 +1227,12 @@ text2name(char **x, int n, char **p)
 	while (n-- > 0) {
 		*p = strchr(*p, '\n');
 		if (*p == 0)
-			break;
+			return ERROR;
 		*(*p)++ = '\0';
 		*x++ = *p;
 	}
 
-	return n != -1;
+	return strchr(*p, '\n') != 0; /* next name? */
 }
 
 
@@ -1272,37 +1271,30 @@ import_map(struct roadmap *m, int fd)
 {
 	struct stat st;
 	int num;
-	char *ptr;
+	char *buf, *ptr;
 
 
-	if (fstat(fd, &st) < 0)
+	if (fstat(fd, &st) || (st.st_size >= (off_t) INT_MAX))
 		return ERROR;
 
-	if (st.st_size == 0)
-		return ERROR;
-
-	m->name = mmap(NULL, st.st_size + 1, PROT_READ | PROT_WRITE,
-					MAP_PRIVATE, fd, 0);
+	buf = mmap(NULL, st.st_size + 1, PROT_READ | PROT_WRITE,
+						MAP_PRIVATE, fd, 0);
 	close(fd);
-	if (m->name == MAP_FAILED)
+	if (buf == MAP_FAILED)
 		return ERROR;
 
-	m->size = st.st_size + 1;
-
-	ptr = (char *) m->name;
-
-	ptr[st.st_size] = '\0';
-
-	ptr = strchr(ptr, '\n');
+	buf[st.st_size] = '\0';
+	ptr = strchr(buf, '\n');
 	if (!ptr)
 		return ERROR;
 
-	num = (ptr - (char *)m->name) / 8;
+	num = (ptr - buf) / sizeof (int64_t);
 
 	m->num  = num;
 	m->todo = num;
 	m->done = 0;
 
+	m->name = (char **) buf;
 	m->status = (int32_t *) ptr;
 	m->children = m->status + num;
 	m->child = m->children + num + 1;
@@ -1340,7 +1332,6 @@ approve(struct roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
-
 	int32_t *ch = m->child + own;
 
 	m->status[i] = -1;
@@ -1376,13 +1367,14 @@ forget(struct roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
+
 int
 main(int argc, char *argv[])
 {
 	int opt, log_fd_prev, fd = -1, map_fd;
-	int passes_max, passes, i, err = OK;
+	int retries_max, retries, i, err = OK;
 
-	struct roadmap dep = {.size = 0};
+	struct roadmap dep = {.name = 0};
 
 	int dir_fd = keepdir();
 	const char *dirprefix = getenv("REDO_DIRPREFIX");
@@ -1446,7 +1438,7 @@ main(int argc, char *argv[])
 	tflag = envint("REDO_TRACE");
 
 
-	if (dep.size == 0)
+	if (!dep.name)
 		init_map(&dep, argc - optind, argv + optind);
 
 
@@ -1456,12 +1448,12 @@ main(int argc, char *argv[])
 	level = occurrences(track.buf, TRACK_DELIM) * INDENT;
 
 
-	passes_max = envint("REDO_RETRIES");
+	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
 	if (strcmp(base_name(argv[0], 0), "redo") == 0) {
-		if (passes_max == 0)
-			passes_max = RETRIES_DEFAULT;
+		if (retries_max == 0)
+			retries_max = RETRIES_DEFAULT;
 	} else
 		fd = envint("REDO_FD");
 
@@ -1472,10 +1464,10 @@ main(int argc, char *argv[])
 
 	fence(log_fd_prev, "return {\n", close_comment);
 
-	passes = passes_max;
+	retries = retries_max;
 
 	do {
-		hurry_up_on(passes-- == passes_max);
+		hurry_up_on(retries-- == retries_max);
 
 		for (i = 0; i < dep.num ; i++) {
 			if (dep.status[i] == 0) {
@@ -1489,8 +1481,8 @@ main(int argc, char *argv[])
 
 				if (!err) {
 					approve(&dep, i);
-					if (passes_max > 0) {
-						passes = passes_max;
+					if (retries_max > 0) {
+						retries = retries_max;
 						break;
 					}
 				} else if (err == BUSY) {
@@ -1502,7 +1494,7 @@ main(int argc, char *argv[])
 				}
 			}
 		}
-	} while ((err != ERROR) && (dep.done < dep.todo) && (passes > 0));
+	} while ((err != ERROR) && (dep.done < dep.todo) && (retries > 0));
 
 	fence(log_fd_prev, "}\n", open_comment);
 
