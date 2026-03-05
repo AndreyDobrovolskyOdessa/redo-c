@@ -712,18 +712,20 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 
 
 static int
-valid(char *record, char *journal)
+read_record(char *buf, FILE *f, char *filename)
 {
-	char *last = strchr(record, '\0') - 1;
+	if(fgets(buf, RECORD_SIZE, f)) {
+		char *eol_ch = strchr(buf, '\n');
 
-	if (((last - record) < NAME_OFFSET) || (*last != '\n')) {
-		msg("Warning! Journal is truncated", journal);
-		return 0;
+		if (eol_ch && ((eol_ch - buf) >= NAME_OFFSET)) {
+			*eol_ch = '\0';
+			return 1;
+		}
+
+		msg("Warning! Truncated record found", filename);
 	}
 
-	*last = '\0';
-
-	return 1;
+	return 0;
 }
 
 
@@ -745,9 +747,7 @@ find_record(char *target_path)
 	journal_f = fopen(journal, "r");
 
 	if (journal_f) {
-		while (fgets(record_buf, RECORD_SIZE, journal_f) &&
-						valid(record_buf, journal))
-		{
+		while (read_record(record_buf, journal_f, journal)) {
 			if (strcmp(target, namebuf) == 0) {
 				err = OK;
 				break;
@@ -773,10 +773,9 @@ find_record(char *target_path)
 static int
 dep_changed(char *record, int hint)
 {
-	struct stat st;
-
 	char *filename = record + NAME_OFFSET;
 	char *filedate = record + DATE_OFFSET;
+	struct stat st;
 	int fd;
 
 
@@ -787,7 +786,8 @@ dep_changed(char *record, int hint)
 
 		fd = open(filename, O_RDONLY);
 		hashfd(fd);
-		close(fd);
+		if (fd > 0)
+			close(fd);
 	} else {
 		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
 			return 0;
@@ -806,6 +806,7 @@ write_dep(int fd, char *dep, const char *dirprefix,
 
 	if (may_need_rehash(dep, hint)) {
 		int dep_fd = open(dep, O_RDONLY);
+
 		hashfd(dep_fd);
 		datefd(dep_fd);
 		if (dep_fd > 0)
@@ -927,7 +928,7 @@ really_update_dep(int dir_fd, char *dep)
 	char journal[NAME_MAX + 1];
 	char draft[NAME_MAX + 1];
 
-	int uprel, draft_fd, err = 0, wanted = 1, hint, is_recipe = 1;
+	int uprel, draft_fd, err = 0, wanted = 1, hint, new_recipe = 1;
 
 	struct stat st;
 
@@ -995,15 +996,13 @@ really_update_dep(int dir_fd, char *dep)
 		char record[RECORD_SIZE];
 		char *filename = record + NAME_OFFSET;
 
-		while (fgets(record, RECORD_SIZE, journal_f) &&
-						valid(record, journal))
-		{
+		while (read_record(record, journal_f, journal)) {
 			int self = !strcmp(filename, dep);
 
-			if (is_recipe) {
+			if (new_recipe) {
 				if (strcmp(filename, recipe_rel))
 					break;
-				is_recipe = 0;
+				new_recipe = 0;
 			}
 
 			if (self)
@@ -1035,7 +1034,7 @@ really_update_dep(int dir_fd, char *dep)
 		hint = 0;
 	}
 
-	if (!journal_f || is_recipe)
+	if (new_recipe)
 		err = update_dep(dir_fd, recipe_rel, &hint);
 
 /*
@@ -1232,7 +1231,7 @@ text2name(char **x, int n, char **p)
 		*x++ = *p;
 	}
 
-	return strchr(*p, '\n') != 0; /* next name? */
+	return strchr(*p, '\n') != 0; /* no more filenames allowed */
 }
 
 
@@ -1315,14 +1314,13 @@ init_map(struct roadmap *m, int n, char **argv)
 	m->num  = n;
 	m->todo = n;
 	m->done = 0;
-	m->name = argv;
 
+	m->name = argv;
 	m->status = calloc(2 * n + 1, sizeof (int32_t));
 	if (!m->status) {
 		perror("calloc");
 		exit(ERROR);
 	}
-
 	m->children = m->status + n;
 }
 
@@ -1333,6 +1331,7 @@ approve(struct roadmap *m, int i)
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
 	int32_t *ch = m->child + own;
+
 
 	m->status[i] = -1;
 	m->done++;
@@ -1347,6 +1346,7 @@ forget(struct roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
+
 
 	if (num > 1)
 		return 0;
