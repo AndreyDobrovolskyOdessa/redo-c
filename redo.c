@@ -201,9 +201,9 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/********************* Globals *********************/
+/********************* Globals **********************/
 
-static int wflag, eflag, fflag, tflag, log_fd, level;
+static int wflag, eflag, fflag, tflag, log_fd, indent;
 
 static struct {
 	char	*buf;
@@ -285,7 +285,7 @@ static void
 track_truncate(size_t cutoff)
 {
 	track.used = cutoff;
-	track.buf[cutoff] = 0;
+	track.buf[cutoff] = '\0';
 }
 
 
@@ -324,12 +324,12 @@ track_append(char *dep)
 			if (errno != ERANGE) {
 				pperror("getcwd");
 			} else if (track.size < (SIZE_MAX - PATH_MAX)) {
-				size_t next_size = track.size + PATH_MAX;
-				char *next_buf = realloc(track.buf, next_size);
+				size_t new_size = track.size + PATH_MAX;
+				char  *new_buf = realloc(track.buf, new_size);
 
-				if (next_buf) {
-					track.size = next_size;
-					track.buf  = next_buf;
+				if (new_buf) {
+					track.size = new_size;
+					track.buf  = new_buf;
 					break;
 				}
 				pperror("realloc");
@@ -367,6 +367,10 @@ track_append(char *dep)
 }
 
 
+#define track_buf() (track.buf)
+#define track_used() (track.used)
+
+
 static char *
 base_name(char *name, int uprel)
 {
@@ -395,7 +399,7 @@ setenvint(const char *name, int i)
 }
 
 
-static char *
+static void
 hashfd(int fd)
 {
 	static const char hexdigit[] = "0123456789abcdef";
@@ -420,8 +424,6 @@ hashfd(int fd)
 		*a++ = hexdigit[hash[i] / 16];
 		*a++ = hexdigit[hash[i] % 16];
 	}
-
-	return hexhash;
 }
 
 
@@ -606,23 +608,23 @@ enum hints {
 
 
 static int
-choose(const char *old, const char *new, int err, void (*perr_f)(const char *))
+choose(const char *old, const char *new, int err)
 {
 	struct stat st;
 
 
 	if (err) {
 		if ((lstat(new, &st) == 0) && remove(new)) {
-			(*perr_f)("remove new");
+			pperror("remove new");
 			err = ERROR;
 		}
 	} else {
 		if ((lstat(old, &st) == 0) && remove(old)) {
-			(*perr_f)("remove old");
+			pperror("remove old");
 			err = ERROR;
 		}
 		if ((lstat(new, &st) == 0) && rename(new, old)) {
-			(*perr_f)("rename");
+			pperror("rename");
 			err = ERROR;
 		}
 	}
@@ -631,9 +633,23 @@ choose(const char *old, const char *new, int err, void (*perr_f)(const char *))
 }
 
 
+static long
+process_times(void)
+{
+	struct tms t;
+
+	times(&t);
+
+	return t.tms_utime + t.tms_stime + t.tms_cutime + t.tms_cstime;
+}
+
+
+#define log_time(format) if (log_fd > 0)\
+	dprintf(log_fd, "%*s" format "\n", indent, "", process_times())
+
 static int
 run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
-		const char *family, size_t dirprefix_len)
+				const char *family, size_t dirprefix_len)
 {
 	int err = ERROR;
 
@@ -647,10 +663,8 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 	char *tmp = tmp_rel + dirprefix_len;
 
 
-	if (strlen(target_rel) >= PATH_MAX) {
-		dprintf(2, "Target relative name too long : %s\n", target_rel);
-		return ERROR;
-	}
+	log_time("             %ld, -- tdo");
+	log_guard(open_comment);
 
 	memcpy(dirprefix, target_rel, dirprefix_len);
 	dirprefix[dirprefix_len] = '\0';
@@ -673,7 +687,7 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 
 		if (setenvint("REDO_FD", fd) ||
 		    setenv("REDO_DIRPREFIX", dirprefix, 1) ||
-		    setenv("REDO_TRACK", track.buf, 1)) {
+		    setenv("REDO_TRACK", track_buf(), 1)) {
 			perror("setenv");
 			exit(ERROR);
 		}
@@ -707,7 +721,9 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		}
 	}
 
-	return choose(target, tmp, err, perror);
+	log_guard(close_comment);
+
+	return choose(target, tmp, err);
 }
 
 
@@ -776,21 +792,20 @@ dep_changed(char *record, int hint)
 	char *filename = record + NAME_OFFSET;
 	char *filedate = record + DATE_OFFSET;
 	struct stat st;
-	int fd;
+	int fd, missing = may_need_rehash(filename, hint);
 
 
-	if (may_need_rehash(filename, hint)) {
+	if (missing)
 		datefile(filename, &st);
-		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
-			return 0;
 
+	if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
+		return 0;
+
+	if (missing) {
 		fd = open(filename, O_RDONLY);
 		hashfd(fd);
 		if (fd > 0)
 			close(fd);
-	} else {
-		if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
-			return 0;
 	}
 
 	return strncmp(record, hexhash, HEXHASH_LEN);
@@ -834,7 +849,7 @@ write_dep(int fd, char *dep, const char *dirprefix,
 }
 
 
-#define INDENT 2
+#define INDENT_PER_LEVEL 2
 
 #define NAME_MAX 255
 
@@ -848,11 +863,11 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 	int dep_dir_fd = dir_fd, err = ERROR;
 
 
-	level += INDENT;
+	indent += INDENT_PER_LEVEL;
 
 	do {
 		char *dep;
-		size_t origin = track.used;
+		size_t cutoff = track_used();
 
 		if (strchr(dep_path, TRACK_DELIM)) {
 			msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
@@ -871,11 +886,11 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		}
 
 		err = really_update_dep(dep_dir_fd, dep);
-		track_truncate(origin);	/* strip the fresh new record */
 
+		track_truncate(cutoff);
 	} while (0);
 
-	level -= INDENT;
+	indent -= INDENT_PER_LEVEL;
 
 	if (dir_fd != dep_dir_fd) {
 		if (fchdir(dir_fd) < 0) {
@@ -891,29 +906,15 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-static long
-process_times(void)
-{
-	struct tms t;
-
-	times(&t);
-
-	return t.tms_utime + t.tms_stime + t.tms_cutime + t.tms_cstime;
-}
-
-
 #define log_name(name) if (log_fd > 0)\
-	dprintf(log_fd, "%*s\"%s\",\n", level, "", name);
+	dprintf(log_fd, "%*s\"%s\",\n", indent, "", name);
 
 #define log_err() if (log_fd > 0)\
-	dprintf(log_fd, "%*s{ err = %d },\n", level, "", err)
-
-#define log_time(format) if (log_fd > 0)\
-	dprintf(log_fd, "%*s" format "\n", level, "", process_times())
+	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
 
 #define log_close_level(format) if (log_fd > 0)\
 	dprintf(log_fd, "%*s" format "\n%*s},\n",\
-			level, "", process_times(), err, level, "")
+			indent, "", process_times(), err, indent, "")
 
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
@@ -934,17 +935,18 @@ really_update_dep(int dir_fd, char *dep)
 
 	FILE *journal_f;
 
-	size_t whole_pos = track.used + 1, target_rel_off, dirprefix_len;
+	size_t target_rel_off, target_rel_len, dirprefix_len,
+					whole_pos = track_used() + 1;
 
 
 	whole = track_append(dep);
 	if (!whole) {
-		msg("Dependency loop attempt", track.buf);
+		msg("Dependency loop attempt", track_buf());
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
-	log_name(whole);
 
+	log_name(whole);
 
 	if (fflag)
 		dprintf(1, "--[[\n");
@@ -961,7 +963,14 @@ really_update_dep(int dir_fd, char *dep)
 
 	target_rel = base_name(whole, uprel);
 	target_rel_off = target_rel - whole;
-	dirprefix_len = strlen(target_rel) - strlen(dep);
+	target_rel_len = strlen(target_rel);
+	dirprefix_len = target_rel_len - strlen(dep);
+
+	if (target_rel_len >= PATH_MAX) {
+		msg("Target relative name too long", target_rel);
+		return ERROR;
+	}
+
 
 	strcpy(stpcpy(journal, journal_prefix), dep);
 	datefile(journal, &st);
@@ -1041,25 +1050,18 @@ really_update_dep(int dir_fd, char *dep)
 	track.buf may be relocated during the nested update_dep() calls.
 	whole and target_rel reside in it and need to be refreshed.
 */
-	whole = track.buf + whole_pos;
+	whole = track_buf() + whole_pos;
 	target_rel = whole + target_rel_off;
 
 	if (!err && wanted) {
 		lseek(draft_fd, 0, SEEK_SET);
 
-		err = write_dep(draft_fd, recipe_rel, 0, 0, hint);
-
-		if (!err) {
-			log_time("             %ld, -- tdo");
-			log_guard(open_comment);
-			err = run_recipe(dir_fd, draft_fd, recipe_rel,
-					target_rel, family, dirprefix_len);
-			log_guard(close_comment);
-
-			if (!err)
-				err = write_dep(draft_fd, dep,
-						0, 0, IS_SOURCE);
-		}
+		(void)(
+			(err = write_dep(draft_fd, recipe_rel, 0, 0, hint)) ||
+			(err = run_recipe(dir_fd, draft_fd, recipe_rel,
+					target_rel, family, dirprefix_len)) ||
+			(err = write_dep(draft_fd, dep, 0, 0, IS_SOURCE))
+		);
 
 		if (err && (err != BUSY)) {
 			if (journal_f)
@@ -1068,7 +1070,7 @@ really_update_dep(int dir_fd, char *dep)
 				close(open(journal, CR_WR_TR, 0222));
 			log_guard(open_comment);
 			dprintf(2, "redo %*s%s\n     %*s%s -> %d\n",
-				level, "", whole, level, "", recipe_rel, err);
+				indent,"", whole, indent,"", recipe_rel, err);
 			log_guard(close_comment);
 		}
 	}
@@ -1083,7 +1085,7 @@ really_update_dep(int dir_fd, char *dep)
 */
 	strcpy(target_rel + dirprefix_len, draft);
 
-	return choose(journal, whole, err, pperror) | UPDATED_RECENTLY;
+	return choose(journal, whole, err) | UPDATED_RECENTLY;
 }
 
 
@@ -1374,7 +1376,7 @@ main(int argc, char *argv[])
 	int opt, log_fd_prev, fd = -1, map_fd;
 	int retries_max, retries, i, err = OK;
 
-	struct roadmap dep = {.name = 0};
+	struct roadmap map = {.name = 0};
 
 	int dir_fd = keepdir();
 	const char *dirprefix = getenv("REDO_DIRPREFIX");
@@ -1416,7 +1418,7 @@ main(int argc, char *argv[])
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
 			if (map_fd >= 0) {
-				if (import_map(&dep, map_fd) == OK) {
+				if (import_map(&map, map_fd) == OK) {
 					file_chdir(&dir_fd, optarg);
 					dirprefix = 0;
 				} else {
@@ -1438,14 +1440,14 @@ main(int argc, char *argv[])
 	tflag = envint("REDO_TRACE");
 
 
-	if (!dep.name)
-		init_map(&dep, argc - optind, argv + optind);
+	if (!map.name)
+		init_map(&map, argc - optind, argv + optind);
 
 
 	compute_updir(dirprefix, updir);
 
 	track_init(getenv("REDO_TRACK"));
-	level = occurrences(track.buf, TRACK_DELIM) * INDENT;
+	indent = occurrences(track_buf(), TRACK_DELIM) * INDENT_PER_LEVEL;
 
 
 	retries_max = envint("REDO_RETRIES");
@@ -1469,37 +1471,37 @@ main(int argc, char *argv[])
 	do {
 		hurry_up_on(retries-- == retries_max);
 
-		for (i = 0; i < dep.num ; i++) {
-			if (dep.status[i] == 0) {
+		for (i = 0; i < map.num ; i++) {
+			if (map.status[i] == 0) {
 				int hint;
 
-				err = update_dep(dir_fd, dep.name[i], &hint);
+				err = update_dep(dir_fd, map.name[i], &hint);
 
 				if (!err && (fd > 0))
-					err = write_dep(fd, dep.name[i],
+					err = write_dep(fd, map.name[i],
 						dirprefix, updir, hint);
 
 				if (!err) {
-					approve(&dep, i);
+					approve(&map, i);
 					if (retries_max > 0) {
 						retries = retries_max;
 						break;
 					}
 				} else if (err == BUSY) {
 					if (hint & IMMEDIATE_DEPENDENCY)
-						forget(&dep, i);
+						forget(&map, i);
 				} else {
 					err = ERROR;
 					break;
 				}
 			}
 		}
-	} while ((err != ERROR) && (dep.done < dep.todo) && (retries > 0));
+	} while ((err != ERROR) && (map.done < map.todo) && (retries > 0));
 
 	fence(log_fd_prev, "}\n", open_comment);
 
 	if (err != ERROR)
-		err = (dep.done < dep.num) ? BUSY : OK;
+		err = (map.done < map.num) ? BUSY : OK;
 
 	return err;
 }
