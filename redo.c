@@ -228,7 +228,7 @@ static char record_buf[RECORD_SIZE];
 static char build_date[HEXDATE_LEN + 1];
 
 
-/****************** Literals ********************/
+/****************** Literals ***************/
 
 static const char
 
@@ -240,14 +240,18 @@ static const char
 
 	dirup[] = "../",
 
-	open_comment[]	= "--[====================================================================[\n",
-	close_comment[]	= "--]====================================================================]\n";
+	open_comment[]	=
 
-/***************** end globals ******************/
+"--[====================================================================[\n",
+
+	close_comment[]	=
+
+"--]====================================================================]\n";
+
+/***************** end globals *********************************************/
 
 
-#define log_guard(str)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, str)
-
+#define log_guard(s)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, s)
 
 static void
 msg(const char *x, const char *y)
@@ -282,10 +286,10 @@ track_init(char *heritage)
 
 
 static void
-track_truncate(size_t cutoff)
+track_truncate(size_t used)
 {
-	track.used = cutoff;
-	track.buf[cutoff] = '\0';
+	track.used = used;
+	track.buf[used] = '\0';
 }
 
 
@@ -308,7 +312,7 @@ track_append(char *dep)
 		+ 1;			/* terminating '\0' */
 
 
-	/* store cwd in the track.buf */
+	/* store cwd in the track */
 
 	while (1) {
 		if (track.size > track_engaged) {
@@ -346,13 +350,13 @@ track_append(char *dep)
 
 	/* construct the dep's record and join it with the track */
 
-	record = track.buf + track.used;
+	record = dep_full - 1;
 	*record = TRACK_DELIM;
 	record_len = stpcpy(stpcpy(strchr(record, '\0'), "/"), dep) - record;
 	track.used += record_len;
 
 
-	/* search for the dep's full path inside track.buf */
+	/* search for the dep's full path inside track */
 
 	ptr = track.buf;
 
@@ -367,15 +371,15 @@ track_append(char *dep)
 }
 
 
-#define track_buf() (track.buf)
-#define track_used() (track.used)
+#define track_buf()	(track.buf + 0)
+
+#define track_used()	(track.used + 0)
 
 
 static char *
 base_name(char *name, int uprel)
 {
 	char *ptr = strchr(name, '\0');
-
 
 	do {
 		while ((ptr != name) && (*--ptr != '/'));
@@ -462,7 +466,6 @@ static void
 datebuild(const char *s)
 {
 	FILE *f;
-
 
 	if (s) {
 		memcpy(build_date, s, HEXDATE_LEN);
@@ -611,7 +614,6 @@ static int
 choose(const char *old, const char *new, int err)
 {
 	struct stat st;
-
 
 	if (err) {
 		if ((lstat(new, &st) == 0) && remove(new)) {
@@ -1334,7 +1336,6 @@ approve(struct roadmap *m, int i)
 	int num = m->children[i + 1] - own;
 	int32_t *ch = m->child + own;
 
-
 	m->status[i] = -1;
 	m->done++;
 
@@ -1348,7 +1349,6 @@ forget(struct roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
-
 
 	if (num > 1)
 		return 0;
