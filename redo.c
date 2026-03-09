@@ -13,6 +13,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/
 */
 
+
 /***********************************************************
 
 This redo-c version can be found at:
@@ -28,7 +29,7 @@ which is the fork of:
 
 - Optimized recipes envocations.
 - Dependency loops could be detected during parallel builds.
-- Build log is Lua table.
+- Build log is a Lua table.
 
 
 Andrey Dobrovolsky <andrey.dobrovolsky.odessa@gmail.com>
@@ -356,7 +357,7 @@ track_append(char *dep)
 	track.used += record_len;
 
 
-	/* search for the dep's full path inside track */
+	/* search for the dep's full path inside the track.buf */
 
 	ptr = track.buf;
 
@@ -649,6 +650,7 @@ process_times(void)
 #define log_time(format) if (log_fd > 0)\
 	dprintf(log_fd, "%*s" format "\n", indent, "", process_times())
 
+
 static int
 run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 				const char *family, size_t dirprefix_len)
@@ -788,6 +790,7 @@ find_record(char *target_path)
 	)\
 )
 
+
 static int
 dep_changed(char *record, int hint)
 {
@@ -818,9 +821,6 @@ static int
 write_dep(int fd, char *dep, const char *dirprefix,
 				const char *updir, int hint)
 {
-	const char *prefix = "";
-
-
 	if (may_need_rehash(dep, hint)) {
 		int dep_fd = open(dep, O_RDONLY);
 
@@ -830,19 +830,20 @@ write_dep(int fd, char *dep, const char *dirprefix,
 			close(dep_fd);
 	}
 
-	if (dirprefix && *dep != '/') {
+	if (*dep != '/') {
 		size_t dp_len = strlen(dirprefix);
 
-		if (strncmp(dep, dirprefix, dp_len) == 0)
+		if (strncmp(dep, dirprefix, dp_len) == 0) {
 			dep += dp_len;
-		else
-			prefix = updir;
-	}
+			updir = "";
+		}
+	} else
+		updir = "";
 
 	hexhash[HEXHASH_LEN] = '\0';
 	hexdate[HEXDATE_LEN] = '\0';
 
-	if (dprintf(fd, "%s %s %s%s\n", hexhash, hexdate, prefix, dep) < 0) {
+	if (dprintf(fd, "%s %s %s%s\n", hexhash, hexdate, updir, dep) < 0) {
 		pperror("dprintf");
 		return ERROR;
 	}
@@ -854,7 +855,6 @@ write_dep(int fd, char *dep, const char *dirprefix,
 #define INDENT_PER_LEVEL 2
 
 #define NAME_MAX 255
-
 
 static int really_update_dep(int dir_fd, char *dep);
 
@@ -914,13 +914,12 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 #define log_err() if (log_fd > 0)\
 	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
 
-#define log_close_level(format) if (log_fd > 0)\
-	dprintf(log_fd, "%*s" format "\n%*s},\n",\
+#define log_close_level() if (log_fd > 0)\
+	dprintf(log_fd, "%*s        t1 = %ld, err = %d\n%*s},\n",\
 			indent, "", process_times(), err, indent, "")
 
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
-
 
 static int
 really_update_dep(int dir_fd, char *dep)
@@ -1030,8 +1029,8 @@ really_update_dep(int dir_fd, char *dep)
 */
 			memcpy(hexhash, record, HEXHASH_LEN);
 
-			err = write_dep(draft_fd, filename,
-						0, 0, UPDATED_RECENTLY);
+			err = write_dep(draft_fd, filename, "", "",
+							UPDATED_RECENTLY);
 			if (err)
 				break;
 
@@ -1059,10 +1058,10 @@ really_update_dep(int dir_fd, char *dep)
 		lseek(draft_fd, 0, SEEK_SET);
 
 		(void)(
-			(err = write_dep(draft_fd, recipe_rel, 0, 0, hint)) ||
+			(err = write_dep(draft_fd, recipe_rel,"","", hint)) ||
 			(err = run_recipe(dir_fd, draft_fd, recipe_rel,
 					target_rel, family, dirprefix_len)) ||
-			(err = write_dep(draft_fd, dep, 0, 0, IS_SOURCE))
+			(err = write_dep(draft_fd, dep, "", "", IS_SOURCE))
 		);
 
 		if (err && (err != BUSY)) {
@@ -1079,7 +1078,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	close(draft_fd);
 
-	log_close_level("        t1 = %ld, err = %d");
+	log_close_level();
 
 /*
 	If fchdir() in update_dep() failed then we need to create
@@ -1100,21 +1099,6 @@ envint(const char *name)
 }
 
 
-static void
-compute_updir(const char *dp, char *u)
-{
-	*u = 0;
-
-	while (dp) {
-		dp = strchr(dp, '/');
-		if (dp) {
-			dp++;
-			u = stpcpy(u, dirup);
-		}
-	}
-}
-
-
 static int
 keepdir()
 {
@@ -1130,21 +1114,39 @@ keepdir()
 
 
 static int
-occurrences(const char *str, int ch)
+occurrences(const char *s, int ch)
 {
 	int n = 0;
 
-	while (str) {
-		str = strchr(str, ch);
-		if (str) {
+	while (*s) {
+		if (*s++ == ch)
 			n++;
-			if (ch == 0)
-				break;
-			str++;
-		}
 	}
 
 	return n;
+}
+
+
+static const char *
+get_dirprefix(char *u, int usize)
+{
+	const char *dp = getenv("REDO_DIRPREFIX");
+	int n;
+
+	*u = '\0';
+
+	if (!dp)
+		return "";
+
+	n = occurrences(dp, '/');
+
+	if (n >= (usize / (int)(sizeof dirup - 1)))
+		exit(-1);
+
+	while (n--)
+		u = stpcpy(u, dirup);
+
+	return dp;
 }
 
 
@@ -1235,7 +1237,7 @@ text2name(char **x, int n, char **p)
 		*x++ = *p;
 	}
 
-	return strchr(*p, '\n') != 0; /* no more filenames allowed */
+	return strchr(*p, '\n') != 0;	/* no more filenames allowed */
 }
 
 
@@ -1369,7 +1371,6 @@ forget(struct roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
-
 int
 main(int argc, char *argv[])
 {
@@ -1379,8 +1380,8 @@ main(int argc, char *argv[])
 	struct roadmap map = {.name = 0};
 
 	int dir_fd = keepdir();
-	const char *dirprefix = getenv("REDO_DIRPREFIX");
 	char updir[PATH_MAX];
+	const char *dirprefix = get_dirprefix(updir, sizeof updir);
 
 
 	log_fd = log_fd_prev = envint("REDO_LOG_FD");
@@ -1438,18 +1439,9 @@ main(int argc, char *argv[])
 	eflag = envint("REDO_RECIPES");
 	fflag = envint("REDO_FIND");
 	tflag = envint("REDO_TRACE");
-
-
-	if (!map.name)
-		init_map(&map, argc - optind, argv + optind);
-
-
-	compute_updir(dirprefix, updir);
-
+	datebuild(getenv("REDO_BUILD_DATE"));
 	track_init(getenv("REDO_TRACK"));
 	indent = occurrences(track_buf(), TRACK_DELIM) * INDENT_PER_LEVEL;
-
-
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
@@ -1460,12 +1452,11 @@ main(int argc, char *argv[])
 		fd = envint("REDO_FD");
 
 
-	datebuild(getenv("REDO_BUILD_DATE"));
+	if (!map.name)
+		init_map(&map, argc - optind, argv + optind);
 
 	srand(getpid());
-
 	fence(log_fd_prev, "return {\n", close_comment);
-
 	retries = retries_max;
 
 	do {
