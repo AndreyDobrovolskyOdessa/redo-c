@@ -202,7 +202,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/********************* Globals **********************/
+/********************* Globals *********************************/
 
 static int wflag, eflag, fflag, tflag, log_fd, indent;
 
@@ -220,13 +220,11 @@ static struct {
 
 #define RECORD_SIZE	(NAME_OFFSET + PATH_MAX + 1)
 
-static char record_buf[RECORD_SIZE];
+static char record_buf[RECORD_SIZE], build_date[HEXDATE_LEN + 1];
 
 #define hexhash (record_buf)
 #define hexdate (record_buf + DATE_OFFSET)
 #define namebuf (record_buf + NAME_OFFSET)
-
-static char build_date[HEXDATE_LEN + 1];
 
 
 /****************** Literals ***************/
@@ -270,8 +268,26 @@ pperror(const char *s)
 }
 
 
+static int
+occurrences(const char *s, int ch)
+{
+	int n = 0;
+
+	while (*s) {
+		if (*s++ == ch)
+			n++;
+	}
+
+	return n;
+}
+
+
+#define TRACK_DELIM ':'
+
+#define INDENT_PER_LEVEL 2
+
 static void
-track_init(char *heritage)
+track_init(const char *heritage)
 {
 	if (!heritage)
 		heritage = "";
@@ -283,6 +299,8 @@ track_init(char *heritage)
 		exit(-1);
 	}
 	strcpy(track.buf, heritage);
+
+	indent = occurrences(track.buf, TRACK_DELIM) * INDENT_PER_LEVEL;
 }
 
 
@@ -294,10 +312,8 @@ track_truncate(size_t used)
 }
 
 
-#define TRACK_DELIM ':'
-
 static char *
-track_append(char *dep)
+track_append(const char *dep)
 {
 	char *record, *dep_full, *ptr;
 
@@ -353,7 +369,7 @@ track_append(char *dep)
 
 	record = dep_full - 1;
 	*record = TRACK_DELIM;
-	record_len = stpcpy(stpcpy(strchr(record, '\0'), "/"), dep) - record;
+	record_len = stpcpy(stpcpy(strchr(record, 0), "/"), dep) - record;
 	track.used += record_len;
 
 
@@ -380,7 +396,7 @@ track_append(char *dep)
 static char *
 base_name(char *name, int uprel)
 {
-	char *ptr = strchr(name, '\0');
+	char *ptr = strchr(name, 0);
 
 	do {
 		while ((ptr != name) && (*--ptr != '/'));
@@ -464,8 +480,9 @@ datefile(const char *name, struct stat *st)
 
 
 static void
-datebuild(const char *s)
+date_build(const char *var)
 {
+	const char *s = getenv(var);
 	FILE *f;
 
 	if (s) {
@@ -477,9 +494,9 @@ datebuild(const char *s)
 	datefd(fileno(f));
 	fclose(f);
 
-	memcpy(build_date, hexdate, HEXDATE_LEN);
+	strcpy(build_date, hexdate);
 
-	setenv("REDO_BUILD_DATE", build_date, 1);
+	setenv(var, build_date, 1);
 }
 
 
@@ -523,7 +540,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 {
 	char *recipe = recipe_rel;
 
-	char *end  = strchr(dep, '\0');
+	char *end  = strchr(dep, 0);
 	char *tail = end;
 	char *ext, *shadow;
 
@@ -781,12 +798,12 @@ find_record(char *target_path)
 }
 
 
-#define may_need_rehash(f,h) \
+#define may_need_rehash(target, hint) \
 (\
-	(h & IS_SOURCE) ||\
+	(hint & IS_SOURCE) ||\
 	(\
-		!(h & UPDATED_RECENTLY) &&\
-		(find_record(f) != OK)\
+		!(hint & UPDATED_RECENTLY) &&\
+		(find_record(target) != OK)\
 	)\
 )
 
@@ -852,8 +869,6 @@ write_dep(int fd, char *dep, const char *dirprefix,
 }
 
 
-#define INDENT_PER_LEVEL 2
-
 #define NAME_MAX 255
 
 static int really_update_dep(int dir_fd, char *dep);
@@ -908,8 +923,8 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-#define log_name(name) if (log_fd > 0)\
-	dprintf(log_fd, "%*s\"%s\",\n", indent, "", name);
+#define log_name() if (log_fd > 0)\
+	dprintf(log_fd, "%*s\"%s\",\n", indent, "", whole);
 
 #define log_err() if (log_fd > 0)\
 	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
@@ -947,7 +962,7 @@ really_update_dep(int dir_fd, char *dep)
 	}
 
 
-	log_name(whole);
+	log_name();
 
 	if (fflag)
 		dprintf(1, "--[[\n");
@@ -1113,20 +1128,6 @@ keepdir()
 }
 
 
-static int
-occurrences(const char *s, int ch)
-{
-	int n = 0;
-
-	while (*s) {
-		if (*s++ == ch)
-			n++;
-	}
-
-	return n;
-}
-
-
 static const char *
 get_dirprefix(char *u, int usize)
 {
@@ -1160,7 +1161,7 @@ get_dirprefix(char *u, int usize)
 static void
 hurry_up_on(int startup_or_success)
 {
-	static int night = SHORTEST;
+	static int night;
 	int asleep;
 	struct timespec s, r;
 
@@ -1439,9 +1440,8 @@ main(int argc, char *argv[])
 	eflag = envint("REDO_RECIPES");
 	fflag = envint("REDO_FIND");
 	tflag = envint("REDO_TRACE");
-	datebuild(getenv("REDO_BUILD_DATE"));
+	date_build("REDO_BUILD_DATE");
 	track_init(getenv("REDO_TRACK"));
-	indent = occurrences(track_buf(), TRACK_DELIM) * INDENT_PER_LEVEL;
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
