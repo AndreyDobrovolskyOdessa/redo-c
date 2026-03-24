@@ -714,8 +714,8 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		}
 
 		if (access(recipe, X_OK) != 0)	/* run -x files with /bin/sh */
-			execl("/bin/sh", "/bin/sh", tflag ? "-ex" : "-e",
-			      recipe,
+			execl("/bin/sh", "/bin/sh",
+				tflag ? "-ex" : "-e", recipe,
 				target_rel, family_rel, tmp_rel, (char *)0);
 		else
 			execl(recipe, recipe,
@@ -820,8 +820,16 @@ dep_changed(char *record, int hint)
 	if (missing)
 		datefile(filename, &st);
 
-	if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0)
+	if (strncmp(filedate, hexdate, HEXDATE_LEN) == 0) {
+/*
+		Dependency date matching its journal record date means
+		that dependency was not modified and the hash from its
+		journal record can be forwarded to the global buffer
+		to be used by write_dep().
+*/
+		memcpy(hexhash, record, HEXHASH_LEN);
 		return 0;
+	}
 
 	if (missing) {
 		fd = open(filename, O_RDONLY);
@@ -945,7 +953,7 @@ really_update_dep(int dir_fd, char *dep)
 	char journal[NAME_MAX + 1];
 	char draft[NAME_MAX + 1];
 
-	int uprel, draft_fd, err = 0, wanted = 1, hint, new_recipe = 1;
+	int uprel, draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
 
 	struct stat st;
 
@@ -1024,35 +1032,17 @@ really_update_dep(int dir_fd, char *dep)
 		while (read_record(record, journal_f, journal)) {
 			int self = !strcmp(filename, dep);
 
-			if (new_recipe) {
-				if (strcmp(filename, recipe_rel))
-					break;
-				new_recipe = 0;
-			}
+			hint = IS_SOURCE;
 
-			if (self)
-				hint = IS_SOURCE;
-			else
-				err = update_dep(dir_fd, filename, &hint);
-
-			if (err || dep_changed(record, hint))
-				break;
-/*
-			The next memcpy() call restores the correct hexhash for
-			write_dep(), handling the case of the matching dates
-			not followed with dependency rehashing.
-*/
-			memcpy(hexhash, record, HEXHASH_LEN);
-
-			err = write_dep(draft_fd, filename, "", "",
-							UPDATED_RECENTLY);
-			if (err)
-				break;
-
-			if (self) {
-				wanted = 0;
-				break;
-			}
+			if ((new_recipe &&
+				(new_recipe = strcmp(filename, recipe_rel))) ||
+			    (!self &&
+				(err = update_dep(dir_fd, filename, &hint))) ||
+			    dep_changed(record, hint) ||
+			    (err = write_dep(draft_fd, filename, "", "",
+							UPDATED_RECENTLY)) ||
+			    (self && (up_to_date = 1)))
+								break;
 		}
 
 		fclose(journal_f);
@@ -1069,7 +1059,7 @@ really_update_dep(int dir_fd, char *dep)
 	whole = track_buf() + whole_pos;
 	target_rel = whole + target_rel_off;
 
-	if (!err && wanted) {
+	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
 
 		(void)(
@@ -1129,9 +1119,8 @@ keepdir()
 
 
 static const char *
-get_dirprefix(char *u, int usize)
+get_dirprefix(const char *dp, char *u, int usize)
 {
-	const char *dp = getenv("REDO_DIRPREFIX");
 	int n;
 
 	*u = '\0';
@@ -1382,7 +1371,8 @@ main(int argc, char *argv[])
 
 	int dir_fd = keepdir();
 	char updir[PATH_MAX];
-	const char *dirprefix = get_dirprefix(updir, sizeof updir);
+	const char *dirprefix = get_dirprefix(getenv("REDO_DIRPREFIX"),
+							updir, sizeof updir);
 
 
 	log_fd = log_fd_prev = envint("REDO_LOG_FD");
