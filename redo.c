@@ -1365,7 +1365,7 @@ int
 main(int argc, char *argv[])
 {
 	int opt, log_fd_prev, fd = -1, map_fd;
-	int retries_max, retries, i, err = OK;
+	int retries_max, retries, i, hint, err = OK;
 
 	struct roadmap map = {.name = 0};
 
@@ -1412,7 +1412,6 @@ main(int argc, char *argv[])
 			if (map_fd >= 0) {
 				if (import_map(&map, map_fd) == OK) {
 					file_chdir(&dir_fd, optarg);
-					dirprefix = 0;
 				} else {
 					dprintf(2, "Bad map : %s\n", optarg);
 					return ERROR;
@@ -1438,9 +1437,9 @@ main(int argc, char *argv[])
 	if (strcmp(base_name(argv[0], 0), "redo") == 0) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
-	} else
-		fd = envint("REDO_FD");
-
+	} else if (!map.name)
+		fd = envint("REDO_FD");	/* 'depends-on' mode is incompatible
+						with external maps */
 
 	if (!map.name)
 		init_map(&map, argc - optind, argv + optind);
@@ -1454,8 +1453,6 @@ main(int argc, char *argv[])
 
 		for (i = 0; i < map.num ; i++) {
 			if (map.status[i] == 0) {
-				int hint;
-
 				err = update_dep(dir_fd, map.name[i], &hint);
 
 				if (!err && (fd > 0))
@@ -1464,20 +1461,16 @@ main(int argc, char *argv[])
 
 				if (!err) {
 					approve(&map, i);
-					if (retries_max > 0) {
-						retries = retries_max;
-						break;
-					}
-				} else if (err == BUSY) {
-					if (hint & IMMEDIATE_DEPENDENCY)
-						forget(&map, i);
-				} else {
+					retries = retries_max;
+					break;
+				} else if (err != BUSY) {
 					err = ERROR;
 					break;
-				}
+				} else if (hint & IMMEDIATE_DEPENDENCY)
+					forget(&map, i);
 			}
 		}
-	} while ((err != ERROR) && (map.done < map.todo) && (retries > 0));
+	} while ((err != ERROR) && (map.done < map.todo) && (retries >= 0));
 
 	fence(log_fd_prev, "}\n", open_comment);
 
