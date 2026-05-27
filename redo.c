@@ -887,42 +887,31 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 {
 	int dep_dir_fd = dir_fd, err = ERROR;
 
+	if (strchr(dep_path, TRACK_DELIM)) {
+		msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
+	} else {
+		char *dep = file_chdir(&dep_dir_fd, dep_path);
 
-	indent += INDENT_PER_LEVEL;
-
-	do {
-		char *dep;
-		size_t cutoff = track_used();
-
-		if (strchr(dep_path, TRACK_DELIM)) {
-			msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
-			break;
-		}
-
-		dep = file_chdir(&dep_dir_fd, dep_path);
 		if (!dep) {
 			msg("Missing dependency directory", dep_path);
-			break;
-		}
-
-		if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix)) {
+		} else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix)) {
 			msg("Dependency name too long", dep);
-			break;
+		} else {
+			size_t cutoff = track_used();
+
+			indent += INDENT_PER_LEVEL;
+			err = really_update_dep(dep_dir_fd, dep);
+			indent -= INDENT_PER_LEVEL;
+			track_truncate(cutoff);
 		}
 
-		err = really_update_dep(dep_dir_fd, dep);
-
-		track_truncate(cutoff);
-	} while (0);
-
-	indent -= INDENT_PER_LEVEL;
-
-	if (dir_fd != dep_dir_fd) {
-		if (fchdir(dir_fd) < 0) {
-			pperror("chdir back");
-			err = ERROR;
+		if (dir_fd != dep_dir_fd) {
+			if (fchdir(dir_fd) < 0) {
+				pperror("chdir back");
+				err = ERROR;
+			}
+			close(dep_dir_fd);
 		}
-		close(dep_dir_fd);
 	}
 
 	*hint = err & HINTS;
