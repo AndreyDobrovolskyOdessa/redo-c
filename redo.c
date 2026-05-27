@@ -1423,12 +1423,11 @@ main(int argc, char *argv[])
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
-	if (strcmp(base_name(argv[0], 0), "redo") == 0) {
+	if ((strcmp(base_name(argv[0], 0), "redo") == 0) || (map.name != 0)) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
-	} else if (!map.name)
-		fd = envint("REDO_FD");	/* 'depends-on' mode is incompatible
-						with external maps */
+	} else
+		fd = envint("REDO_FD");
 
 	if (!map.name)
 		init_map(&map, argc - optind, argv + optind);
