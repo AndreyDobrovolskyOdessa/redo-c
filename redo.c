@@ -1176,15 +1176,16 @@ fence(int log_fd_buf, const char *top, const char *hill)
 }
 
 
-struct roadmap {
+typedef struct {
 	int	num;
 	int	todo;
 	int	done;
+	int	sorted;
 	char	**name;
 	int32_t *status;
 	int32_t *children;
 	int32_t *child;
-};
+} roadmap;
 
 
 static int
@@ -1221,29 +1222,30 @@ text2name(char **x, int n, char **p)
 
 
 static int
-test_map(struct roadmap *m)
+test_map(roadmap *m)
 {
-	int i, c, n = m->num, last = m->children[0];
+	int i, j, n = m->num, low = m->children[0];
 
 
-	if (last != 0)
+	if (low != 0)
 		return ERROR;
 
 	for (i = 0; i < n; i++)
 		m->status[i] = 0;
 
-	for (i = 1; i <= n; i++) {
-		c = m->children[i];
-		if (c < last)
+	for (i = 1, j = 0; i <= n; i++) {
+		int high = m->children[i];
+		if (high < low)
 			return ERROR;
-		last = c;
-	}
-
-	for (i = 0; i < last; i++) {
-		c = m->child[i];
-		if ((c < 0) || (c >= n))
-			return ERROR;
-		m->status[c]++;
+		while (j < high) {
+			int ch = m->child[j++];
+			if ((ch < 0) || (ch >= n))
+				return ERROR;
+			if (ch < i)
+				m->sorted = 0;
+			m->status[ch]++;
+		}
+		low = high;
 	}
 
 	return OK;
@@ -1251,7 +1253,7 @@ test_map(struct roadmap *m)
 
 
 static int
-import_map(struct roadmap *m, int fd)
+import_map(roadmap *m, int fd)
 {
 	struct stat st;
 	int num;
@@ -1277,6 +1279,7 @@ import_map(struct roadmap *m, int fd)
 	m->num  = num;
 	m->todo = num;
 	m->done = 0;
+	m->sorted = 1;
 
 	m->name = (char **) buf;
 	m->status = (int32_t *) ptr;
@@ -1294,11 +1297,12 @@ import_map(struct roadmap *m, int fd)
 
 
 static void
-init_map(struct roadmap *m, int n, char **argv)
+init_map(roadmap *m, int n, char **argv)
 {
 	m->num  = n;
 	m->todo = n;
 	m->done = 0;
+	m->sorted = 0;
 
 	m->name = argv;
 	m->status = calloc(2 * n + 1, sizeof (int32_t));
@@ -1311,7 +1315,7 @@ init_map(struct roadmap *m, int n, char **argv)
 
 
 static void
-approve(struct roadmap *m, int i)
+approve(roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
@@ -1326,7 +1330,7 @@ approve(struct roadmap *m, int i)
 
 
 static int
-forget(struct roadmap *m, int i)
+forget(roadmap *m, int i)
 {
 	int own = m->children[i];
 	int num = m->children[i + 1] - own;
@@ -1356,7 +1360,7 @@ main(int argc, char *argv[])
 	int opt, log_fd_prev, fd = -1, map_fd;
 	int retries_max, retries, i, hint, err = OK;
 
-	struct roadmap map = {.name = 0};
+	roadmap map = {.name = 0};
 
 	int dir_fd = keepdir();
 	char updir[PATH_MAX];
@@ -1450,7 +1454,8 @@ main(int argc, char *argv[])
 				if (!err) {
 					approve(&map, i);
 					retries = retries_max;
-					break;
+					if (map.sorted)
+						break;
 				} else if (err != BUSY) {
 					err = ERROR;
 					break;
@@ -1458,7 +1463,7 @@ main(int argc, char *argv[])
 					forget(&map, i);
 			}
 		}
-	} while ((err != ERROR) && (map.done < map.todo) && (retries >= 0));
+	} while ((err != ERROR) && (map.done < map.todo) && (retries > 0));
 
 	fence(log_fd_prev, "}\n", open_comment);
 
