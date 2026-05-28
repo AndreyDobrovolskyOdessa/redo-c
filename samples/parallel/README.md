@@ -67,6 +67,17 @@ for storing both standard output files in the log.
 	JOBS=8 redo project.parallel     ninja -j 8
 
 
+### Warning on `depends-on` usage over roadmaps
+
+As roadmap describe dependencies between targets internally the usage of `depends-on` is suppressed for roadmaps.
+
+	depends-on -m some.roadmap
+
+will be treated as
+
+	redo -m some.roadmap
+
+
 ## Parallelizing inside the recipes
 
 Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in the separate processes, sequentializing the resulting log if it is redirected to one of the standard output streams.

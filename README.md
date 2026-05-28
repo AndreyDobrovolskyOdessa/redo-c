@@ -261,10 +261,10 @@ The technique for parallel builds implementation in recipes is described in [sam
 
 The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (EX_TEMPFAIL defined in `<sysexits.h>`).
 
+`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single passeven if some tergets were built successfully. `REDO_RETRIES` is not inherited by the child processes.
+
 
 ### `redo` retry delays.
-
-`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single pass. `REDO_RETRIES` is being unset after getting its value, so it is not inherited by the child processes.
 
 Constants `SHORTEST` and `SCALEUPS` defined in redo.c determine the duration of the delays between the retries. After each unsuccessful pass the random delay in the range [x .. 2 * x] is inserted, where x is reset to SHORTEST msec after each successful pass (and at the startup) and is doubled after each consequent retry but no more than SCALEUPS times.  
 
