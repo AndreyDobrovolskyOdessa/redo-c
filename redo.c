@@ -202,7 +202,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/********************* Globals *********************************/
+/********************* Globals *********************************************/
 
 static int wflag, eflag, fflag, tflag, log_fd, indent;
 
@@ -227,7 +227,7 @@ static char record_buf[RECORD_SIZE], build_date[HEXDATE_LEN + 1];
 #define namebuf (record_buf + NAME_OFFSET)
 
 
-/****************** Literals ***************/
+/****************** Literals ***********************************************/
 
 static const char
 
@@ -247,7 +247,6 @@ static const char
 
 "--]====================================================================]\n";
 
-/***************** end globals *********************************************/
 
 
 #define log_guard(s)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, s)
@@ -305,10 +304,10 @@ track_init(const char *heritage)
 
 
 static void
-track_truncate(size_t used)
+track_truncate(size_t pos)
 {
-	track.used = used;
-	track.buf[used] = '\0';
+	track.used = pos;
+	track.buf[pos] = '\0';
 }
 
 
@@ -538,11 +537,10 @@ file_chdir(int *fd, char *name)
 static int
 find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 {
-	char *recipe = recipe_rel;
-
-	char *end  = strchr(dep, 0);
-	char *tail = end;
-	char *ext, *shadow;
+	char	*recipe = recipe_rel,
+		*end  = strchr(dep, 0),
+		*tail = end,
+		*ext, *shadow;
 
 	size_t recipe_size = (end - dep) + sizeof recipe_suffix;
 
@@ -670,29 +668,30 @@ process_times(void)
 
 static int
 run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
-				const char *family, size_t dirprefix_len)
+				const char *family, size_t reldir_len)
 {
 	int err = ERROR;
 
 	pid_t pid;
 
-	const char *target = target_rel + dirprefix_len;
+	const char *target = target_rel + reldir_len;
 
-	char dirprefix[PATH_MAX];
-	char family_rel[PATH_MAX];
-	char tmp_rel[PATH_MAX + sizeof tmp_prefix];
-	char *tmp = tmp_rel + dirprefix_len;
+	char	reldir[PATH_MAX],
+		family_rel[PATH_MAX],
+		tmp_rel[PATH_MAX + sizeof tmp_prefix],
+
+		*tmp = tmp_rel + reldir_len;
 
 
 	log_time("             %ld, -- tdo");
 	log_guard(open_comment);
 
-	memcpy(dirprefix, target_rel, dirprefix_len);
-	dirprefix[dirprefix_len] = '\0';
+	memcpy(reldir, target_rel, reldir_len);
+	reldir[reldir_len] = '\0';
 
-	strcpy(stpcpy(family_rel, dirprefix), family);
+	strcpy(stpcpy(family_rel, reldir), family);
 
-	strcpy(stpcpy(stpcpy(tmp_rel, dirprefix), tmp_prefix), target);
+	strcpy(stpcpy(stpcpy(tmp_rel, reldir), tmp_prefix), target);
 
 	pid = fork();
 	if (pid < 0) {
@@ -707,7 +706,7 @@ run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
 		}
 
 		if (setenvint("REDO_FD", fd) ||
-		    setenv("REDO_DIRPREFIX", dirprefix, 1) ||
+		    setenv("REDO_RELDIR", reldir, 1) ||
 		    setenv("REDO_TRACK", track_buf(), 1)) {
 			perror("setenv");
 			exit(ERROR);
@@ -771,8 +770,9 @@ find_record(char *target_path)
 {
 	int err = ERROR;
 
-	char journal[PATH_MAX + sizeof journal_prefix];
-	char *target = base_name(target_path, 0);
+	char	*target = base_name(target_path, 0),
+		journal[PATH_MAX + sizeof journal_prefix];
+
 	size_t len = target - target_path;
 
 	FILE *journal_f;
@@ -811,8 +811,9 @@ find_record(char *target_path)
 static int
 dep_changed(char *record, int hint)
 {
-	char *filename = record + NAME_OFFSET;
-	char *filedate = record + DATE_OFFSET;
+	char	*filename = record + NAME_OFFSET,
+		*filedate = record + DATE_OFFSET;
+
 	struct stat st;
 	int fd, missing = may_need_rehash(filename, hint);
 
@@ -843,8 +844,7 @@ dep_changed(char *record, int hint)
 
 
 static int
-write_dep(int fd, char *dep, const char *dirprefix,
-				const char *updir, int hint)
+write_dep(int fd, char *dep, const char *reldir, const char *updir, int hint)
 {
 	if (may_need_rehash(dep, hint)) {
 		int dep_fd = open(dep, O_RDONLY);
@@ -856,10 +856,10 @@ write_dep(int fd, char *dep, const char *dirprefix,
 	}
 
 	if (*dep != '/') {
-		size_t dp_len = strlen(dirprefix);
+		size_t len = strlen(reldir);
 
-		if (strncmp(dep, dirprefix, dp_len) == 0) {
-			dep += dp_len;
+		if (strncmp(dep, reldir, len) == 0) {
+			dep += len;
 			updir = "";
 		}
 	} else
@@ -881,11 +881,11 @@ write_dep(int fd, char *dep, const char *dirprefix,
 
 static int really_update_dep(int dir_fd, char *dep);
 
-
 static int
 update_dep(int dir_fd, char *dep_path, int *hint)
 {
 	int dep_dir_fd = dir_fd, err = ERROR;
+
 
 	if (strchr(dep_path, TRACK_DELIM)) {
 		msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
@@ -936,11 +936,11 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 static int
 really_update_dep(int dir_fd, char *dep)
 {
-	char *whole, *target_rel;
-	char family[NAME_MAX + 1];
-	char recipe_rel[PATH_MAX];
-	char journal[NAME_MAX + 1];
-	char draft[NAME_MAX + 1];
+	char	*whole, *target_rel,
+		recipe_rel[PATH_MAX],
+		journal[NAME_MAX + 1],
+		draft  [NAME_MAX + 1],
+		family [NAME_MAX + 1];
 
 	int uprel, draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
 
@@ -948,7 +948,7 @@ really_update_dep(int dir_fd, char *dep)
 
 	FILE *journal_f;
 
-	size_t target_rel_off, target_rel_len, dirprefix_len,
+	size_t target_rel_off, target_rel_len, reldir_len,
 					whole_pos = track_used() + 1;
 
 
@@ -977,7 +977,7 @@ really_update_dep(int dir_fd, char *dep)
 	target_rel = base_name(whole, uprel);
 	target_rel_off = target_rel - whole;
 	target_rel_len = strlen(target_rel);
-	dirprefix_len = target_rel_len - strlen(dep);
+	reldir_len = target_rel_len - strlen(dep);
 
 	if (target_rel_len >= PATH_MAX) {
 		msg("Target relative name too long", target_rel);
@@ -1054,7 +1054,7 @@ really_update_dep(int dir_fd, char *dep)
 		(void)(
 			(err = write_dep(draft_fd, recipe_rel,"","", hint)) ||
 			(err = run_recipe(dir_fd, draft_fd, recipe_rel,
-					target_rel, family, dirprefix_len)) ||
+					target_rel, family, reldir_len)) ||
 			(err = write_dep(draft_fd, dep, "", "", IS_SOURCE))
 		);
 
@@ -1078,7 +1078,7 @@ really_update_dep(int dir_fd, char *dep)
 	If fchdir() in update_dep() failed then we need to create
 	the full draft name inside the whole dep path.
 */
-	strcpy(target_rel + dirprefix_len, draft);
+	strcpy(target_rel + reldir_len, draft);
 
 	return choose(journal, whole, err) | UPDATED_RECENTLY;
 }
@@ -1108,24 +1108,24 @@ keepdir()
 
 
 static const char *
-get_dirprefix(const char *dp, char *u, int usize)
+envdir(const char *rel, char *up, int usize)
 {
 	int n;
 
-	*u = '\0';
+	*up = '\0';
 
-	if (!dp)
+	if (!rel)
 		return "";
 
-	n = occurrences(dp, '/');
+	n = occurrences(rel, '/');
 
 	if (n >= (usize / (int)(sizeof dirup - 1)))
 		exit(-1);
 
 	while (n--)
-		u = stpcpy(u, dirup);
+		up = stpcpy(up, dirup);
 
-	return dp;
+	return rel;
 }
 
 
@@ -1177,14 +1177,14 @@ fence(int log_fd_buf, const char *top, const char *hill)
 
 
 typedef struct {
-	int	num;
-	int	todo;
-	int	done;
-	int	sorted;
+	int	num,
+		todo,
+		done,
+		sorted;
+	int32_t *status,
+		*children,
+		*child;
 	char	**name;
-	int32_t *status;
-	int32_t *children;
-	int32_t *child;
 } roadmap;
 
 
@@ -1317,8 +1317,8 @@ init_map(roadmap *m, int n, char **argv)
 static void
 approve(roadmap *m, int i)
 {
-	int own = m->children[i];
-	int num = m->children[i + 1] - own;
+	int	own = m->children[i],
+		num = m->children[i + 1] - own;
 	int32_t *ch = m->child + own;
 
 	m->status[i] = -1;
@@ -1332,16 +1332,16 @@ approve(roadmap *m, int i)
 static int
 forget(roadmap *m, int i)
 {
-	int own = m->children[i];
-	int num = m->children[i + 1] - own;
+	int	own = m->children[i],
+		num = m->children[i + 1] - own;
 
 	if (num > 1)
 		return 0;
 
 	if (num == 1) {
-		int child = m->child[own];
+		int ch = m->child[own];
 
-		if ((m->status[child] > 1) || !forget(m, child))
+		if ((m->status[ch] > 1) || !forget(m, ch))
 			return 0;
 	}
 
@@ -1357,15 +1357,14 @@ forget(roadmap *m, int i)
 int
 main(int argc, char *argv[])
 {
-	int opt, log_fd_prev, fd = -1, map_fd;
-	int retries_max, retries, i, hint, err = OK;
+	int	opt, log_fd_prev, fd = -1, map_fd = -1, dir_fd = keepdir(),
+		retries_max, retries, i, hint, err = OK,
+		step, prev, cur, storage;
 
-	roadmap map = {.name = 0};
+	roadmap map;
 
-	int dir_fd = keepdir();
 	char updir[PATH_MAX];
-	const char *dirprefix = get_dirprefix(getenv("REDO_DIRPREFIX"),
-							updir, sizeof updir);
+	const char *reldir = envdir(getenv("REDO_RELDIR"), updir,sizeof updir);
 
 
 	log_fd = log_fd_prev = envint("REDO_LOG_FD");
@@ -1387,11 +1386,11 @@ main(int argc, char *argv[])
 			setenvint("REDO_TRACE", 1);
 			break;
 		case 'l':
-			if (strcmp(optarg, "1") == 0) {
+			if (strcmp(optarg, "1") == 0)
 				log_fd = 1;
-			} else if (strcmp(optarg, "2") == 0) {
+			else if (strcmp(optarg, "2") == 0)
 				log_fd = 2;
-			} else {
+			else {
 				log_fd =  open(optarg, CR_WR_TR, 0666);
 				if (log_fd < 0) {
 					perror("logfile");
@@ -1403,17 +1402,18 @@ main(int argc, char *argv[])
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
 			if (map_fd >= 0) {
-				if (import_map(&map, map_fd) == OK) {
+				if (import_map(&map, map_fd) == OK)
 					file_chdir(&dir_fd, optarg);
-				} else {
+				else {
 					dprintf(2, "Bad map : %s\n", optarg);
 					return ERROR;
 				}
 			}
 			break;
 		default:
-			dprintf(2, "Usage: redo [-weft] [-l <logname>] "
-					"[-m <roadmap>] [TARGET [...]]\n");
+			dprintf(2,	"redo-c-weft-7\n"
+					"Usage: redo [-weft] [-l <logname>]"
+					" [-m <roadmap>] [TARGET [...]]\n");
 			return ERROR;
 		}
 	}
@@ -1427,13 +1427,13 @@ main(int argc, char *argv[])
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
-	if ((strcmp(base_name(argv[0], 0), "redo") == 0) || (map.name != 0)) {
+	if ((strcmp(base_name(argv[0], 0), "redo") == 0) || (map_fd >= 0)) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
 	} else
 		fd = envint("REDO_FD");
 
-	if (!map.name)
+	if (map_fd < 0)
 		init_map(&map, argc - optind, argv + optind);
 
 	srand(getpid());
@@ -1443,13 +1443,25 @@ main(int argc, char *argv[])
 	do {
 		hurry_up_on(retries-- == retries_max);
 
-		for (i = 0; i < map.num ; i++) {
-			if (map.status[i] == 0) {
-				err = update_dep(dir_fd, map.name[i], &hint);
+		for (i = 0, cur = 0; i < map.num ; i += step) {
+			prev = cur;
+			cur = map.status[i];
 
+			if (cur >= 0) 
+				step = 1;
+			else {
+				step = - cur;
+				if (prev >= 0)
+					storage = i;
+				else
+					map.status[storage] += cur;
+			}
+
+			if (cur == 0) {
+				err = update_dep(dir_fd, map.name[i], &hint);
 				if (!err && (fd > 0))
 					err = write_dep(fd, map.name[i],
-						dirprefix, updir, hint);
+							reldir, updir, hint);
 
 				if (!err) {
 					approve(&map, i);
