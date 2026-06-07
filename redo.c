@@ -1401,13 +1401,12 @@ main(int argc, char *argv[])
 			break;
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
-			if (map_fd >= 0) {
-				if (import_map(&map, map_fd) == OK)
-					file_chdir(&dir_fd, optarg);
-				else {
+			if ((map_fd >= 0) && (
+				(import_map(&map, map_fd) != OK) ||
+				(!file_chdir(&dir_fd, optarg))
+							)) {
 					dprintf(2, "Bad map : %s\n", optarg);
 					return ERROR;
-				}
 			}
 			break;
 		default:
