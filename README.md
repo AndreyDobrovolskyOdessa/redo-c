@@ -44,6 +44,8 @@ $2 - target's family (explained below)
 
 $3 - temporary file name to store the recipe output
 
+$4 - relative path to the recipe's directory
+
 
 ### Program and data flow recipe -> `redo`.
 
@@ -119,7 +121,7 @@ In case the appropriate recipe will be found, then it will be executed passing 3
 
     .do           x.y.z           x.y.z
 
-Recipe is always executed by `redo` in the recipe's directory. If target is located in subdir, then all 3 parameters will be relative paths.
+Recipe is executed by `redo` in the target's directory. Relative path to the recipe's directory is passed as $4 command-line argument.
 
 Recipe may be executable - binary or some script starting with the proper shebang. Such recipes are simply executed. If recipe is not executable it is considered shell script and is executed with `/bin/sh -e`.
 

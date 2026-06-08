@@ -267,20 +267,6 @@ pperror(const char *s)
 }
 
 
-static int
-occurrences(const char *s, int ch)
-{
-	int n = 0;
-
-	while (*s) {
-		if (*s++ == ch)
-			n++;
-	}
-
-	return n;
-}
-
-
 #define TRACK_DELIM ':'
 
 #define INDENT_PER_LEVEL 2
@@ -288,6 +274,8 @@ occurrences(const char *s, int ch)
 static void
 track_init(const char *heritage)
 {
+	char *s;
+
 	if (!heritage)
 		heritage = "";
 	track.used = strlen(heritage);
@@ -299,7 +287,10 @@ track_init(const char *heritage)
 	}
 	strcpy(track.buf, heritage);
 
-	indent = occurrences(track.buf, TRACK_DELIM) * INDENT_PER_LEVEL;
+	for(indent = 0, s = track.buf ; *s ; ) {
+		if (*s++ == TRACK_DELIM)
+			indent += INDENT_PER_LEVEL;
+	}
 }
 
 
@@ -341,9 +332,9 @@ track_append(const char *dep)
 			errno = ERANGE;
 
 		do {
-			if (errno != ERANGE) {
+			if (errno != ERANGE)
 				pperror("getcwd");
-			} else if (track.size < (SIZE_MAX - PATH_MAX)) {
+			else if (track.size < (SIZE_MAX - PATH_MAX)) {
 				size_t new_size = track.size + PATH_MAX;
 				char  *new_buf = realloc(track.buf, new_size);
 
@@ -393,13 +384,11 @@ track_append(const char *dep)
 
 
 static char *
-base_name(char *name, int uprel)
+base_name(char *name)
 {
 	char *ptr = strchr(name, 0);
 
-	do {
-		while ((ptr != name) && (*--ptr != '/'));
-	} while (uprel--);
+	while ((ptr != name) && (*--ptr != '/'));
 
 	if (*ptr == '/')
 		ptr++;
@@ -531,10 +520,10 @@ file_chdir(int *fd, char *name)
 
 #define SUFFIX_LEN	(sizeof recipe_suffix - 1)
 
-#define reserve(space)	if (recipe_free < (space)) return -1;\
+#define reserve(space)	if (recipe_free < (space)) return 0;\
 			recipe_free -= (space)
 
-static int
+static char *
 find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 {
 	char	*recipe = recipe_rel,
@@ -543,8 +532,6 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 		*ext, *shadow;
 
 	size_t recipe_size = (end - dep) + sizeof recipe_suffix;
-
-	int uprel;
 
 
 	/* rewind .do tail inside dependency name */
@@ -557,7 +544,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 		/* if we are still here means the dep is a recipe */
 
 		if (!eflag)
-			return -1;
+			return 0;
 
 		tail = ext;
 	}
@@ -579,7 +566,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 	recipe_free += ext - dep;
 
 
-	for (uprel = 0 ; slash ; uprel++, slash = strchr(slash + 1, '/')) {
+	for ( ; slash ; slash = strchr(slash + 1, '/')) {
 
 		while (dep != shadow) {
 			strcpy(recipe, dep);
@@ -589,7 +576,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 
 			if (access(recipe_rel, F_OK) == 0) {
 				*dep = '\0';
-				return uprel;
+				return recipe;
 			}
 
 			if (dep == tail)
@@ -604,7 +591,7 @@ find_recipe(char *dep, char *recipe_rel, size_t recipe_free, const char *slash)
 		recipe = stpcpy(recipe, dirup);
 	}
 
-	return -1;
+	return 0;
 }
 
 
@@ -662,73 +649,58 @@ process_times(void)
 }
 
 
+#define NAME_MAX 255
+
 #define log_time(format) if (log_fd > 0)\
 	dprintf(log_fd, "%*s" format "\n", indent, "", process_times())
 
-
 static int
-run_recipe(int dir_fd, int fd, char *recipe_rel, const char *target_rel,
+run_recipe(int fd, char *recipe_rel, const char *target,
 				const char *family, size_t reldir_len)
 {
 	int err = ERROR;
 
 	pid_t pid;
 
-	const char *target = target_rel + reldir_len;
-
 	char	reldir[PATH_MAX],
-		family_rel[PATH_MAX],
-		tmp_rel[PATH_MAX + sizeof tmp_prefix],
-
-		*tmp = tmp_rel + reldir_len;
+		tmp[NAME_MAX + 1];
 
 
 	log_time("             %ld, -- tdo");
 	log_guard(open_comment);
 
-	memcpy(reldir, target_rel, reldir_len);
+	memcpy(reldir, recipe_rel, reldir_len);
 	reldir[reldir_len] = '\0';
 
-	strcpy(stpcpy(family_rel, reldir), family);
-
-	strcpy(stpcpy(stpcpy(tmp_rel, reldir), tmp_prefix), target);
+	strcpy(stpcpy(tmp, tmp_prefix), target);
 
 	pid = fork();
-	if (pid < 0) {
+	if (pid < 0)
 		perror("fork");
-	} else if (pid == 0) {
-
-		const char *recipe = file_chdir(&dir_fd, recipe_rel);
-
-		if (!recipe) {
-			dprintf(2, "Recipe disappeared : %s\n", recipe_rel);
-			exit(ERROR);
-		}
+	else if (pid == 0) {
 
 		if (setenvint("REDO_FD", fd) ||
-		    setenv("REDO_RELDIR", reldir, 1) ||
 		    setenv("REDO_TRACK", track_buf(), 1)) {
 			perror("setenv");
 			exit(ERROR);
 		}
 
-		if (access(recipe, X_OK) != 0)	/* run -x files with /bin/sh */
+		if (access(recipe_rel, X_OK) != 0) /* executable? */
 			execl("/bin/sh", "/bin/sh",
-				tflag ? "-ex" : "-e", recipe,
-				target_rel, family_rel, tmp_rel, (char *)0);
+				tflag ? "-ex" : "-e", recipe_rel,
+				target, family, tmp, reldir, (char *)0);
 		else
-			execl(recipe, recipe,
-				target_rel, family_rel, tmp_rel, (char *)0);
+			execl(recipe_rel, recipe_rel,
+				target, family, tmp, reldir, (char *)0);
 
 		perror("execl");
 		exit(ERROR);
 	} else {
-		if (wait(&err) < 0) {
+		if (wait(&err) < 0)
 			perror("wait");
-		} else {
-			if (WCOREDUMP(err)) {
+		else {
+			if (WCOREDUMP(err))
 				dprintf(2, "Core dumped.\n");
-			}
 			if (WIFEXITED(err)) {
 				err = WEXITSTATUS(err);
 			} else if (WIFSIGNALED(err)) {
@@ -770,7 +742,7 @@ find_record(char *target_path)
 {
 	int err = ERROR;
 
-	char	*target = base_name(target_path, 0),
+	char	*target = base_name(target_path),
 		journal[PATH_MAX + sizeof journal_prefix];
 
 	size_t len = target - target_path;
@@ -844,7 +816,7 @@ dep_changed(char *record, int hint)
 
 
 static int
-write_dep(int fd, char *dep, const char *reldir, const char *updir, int hint)
+write_dep(int fd, char *dep, int hint)
 {
 	if (may_need_rehash(dep, hint)) {
 		int dep_fd = open(dep, O_RDONLY);
@@ -855,20 +827,10 @@ write_dep(int fd, char *dep, const char *reldir, const char *updir, int hint)
 			close(dep_fd);
 	}
 
-	if (*dep != '/') {
-		size_t len = strlen(reldir);
-
-		if (strncmp(dep, reldir, len) == 0) {
-			dep += len;
-			updir = "";
-		}
-	} else
-		updir = "";
-
 	hexhash[HEXHASH_LEN] = '\0';
 	hexdate[HEXDATE_LEN] = '\0';
 
-	if (dprintf(fd, "%s %s %s%s\n", hexhash, hexdate, updir, dep) < 0) {
+	if (dprintf(fd, "%s %s %s\n", hexhash, hexdate, dep) < 0) {
 		pperror("dprintf");
 		return ERROR;
 	}
@@ -876,8 +838,6 @@ write_dep(int fd, char *dep, const char *reldir, const char *updir, int hint)
 	return OK;
 }
 
-
-#define NAME_MAX 255
 
 static int really_update_dep(int dir_fd, char *dep);
 
@@ -887,16 +847,16 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 	int dep_dir_fd = dir_fd, err = ERROR;
 
 
-	if (strchr(dep_path, TRACK_DELIM)) {
+	if (strchr(dep_path, TRACK_DELIM))
 		msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
-	} else {
+	else {
 		char *dep = file_chdir(&dep_dir_fd, dep_path);
 
-		if (!dep) {
+		if (!dep)
 			msg("Missing dependency directory", dep_path);
-		} else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix)) {
+		else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix))
 			msg("Dependency name too long", dep);
-		} else {
+		else {
 			size_t cutoff = track_used();
 
 			indent += INDENT_PER_LEVEL;
@@ -936,20 +896,19 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 static int
 really_update_dep(int dir_fd, char *dep)
 {
-	char	*whole, *target_rel,
+	char	*whole, *recipe,
 		recipe_rel[PATH_MAX],
 		journal[NAME_MAX + 1],
 		draft  [NAME_MAX + 1],
 		family [NAME_MAX + 1];
 
-	int uprel, draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
+	int draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
 
 	struct stat st;
 
 	FILE *journal_f;
 
-	size_t target_rel_off, target_rel_len, reldir_len,
-					whole_pos = track_used() + 1;
+	size_t whole_pos = track_used() + 1, dep_pos;
 
 
 	whole = track_append(dep);
@@ -958,6 +917,7 @@ really_update_dep(int dir_fd, char *dep)
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
+	dep_pos = strlen(whole) - strlen(dep);
 
 	log_name();
 
@@ -965,24 +925,13 @@ really_update_dep(int dir_fd, char *dep)
 		dprintf(1, "--[[\n");
 
 	strcpy(family, dep);
-	uprel = find_recipe(family, recipe_rel, sizeof recipe_rel, whole);
+	recipe = find_recipe(family, recipe_rel, sizeof recipe_rel, whole);
 
 	if (fflag)
 		dprintf(1, "--]]\n");
 
-	if (uprel < 0)
+	if (!recipe)
 		return IS_SOURCE;
-
-
-	target_rel = base_name(whole, uprel);
-	target_rel_off = target_rel - whole;
-	target_rel_len = strlen(target_rel);
-	reldir_len = target_rel_len - strlen(dep);
-
-	if (target_rel_len >= PATH_MAX) {
-		msg("Target relative name too long", target_rel);
-		return ERROR;
-	}
 
 
 	strcpy(stpcpy(journal, journal_prefix), dep);
@@ -999,9 +948,9 @@ really_update_dep(int dir_fd, char *dep)
 	draft_fd = open(draft, O_CREAT | O_WRONLY | O_EXCL, 0666);
 
 	if (draft_fd < 0) {
-		if (errno == EEXIST) {
+		if (errno == EEXIST)
 			err = BUSY | IMMEDIATE_DEPENDENCY;
-		} else {
+		else {
 			pperror("open exclusive");
 			err = ERROR;
 		}
@@ -1028,7 +977,7 @@ really_update_dep(int dir_fd, char *dep)
 			    (!self &&
 				(err = update_dep(dir_fd, filename, &hint))) ||
 			    dep_changed(record, hint) ||
-			    (err = write_dep(draft_fd, filename, "", "",
+			    (err = write_dep(draft_fd, filename,
 							UPDATED_RECENTLY)) ||
 			    (self && (up_to_date = 1)))
 								break;
@@ -1046,16 +995,15 @@ really_update_dep(int dir_fd, char *dep)
 	whole and target_rel reside in it and need to be refreshed.
 */
 	whole = track_buf() + whole_pos;
-	target_rel = whole + target_rel_off;
 
 	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
 
 		(void)(
-			(err = write_dep(draft_fd, recipe_rel,"","", hint)) ||
-			(err = run_recipe(dir_fd, draft_fd, recipe_rel,
-					target_rel, family, reldir_len)) ||
-			(err = write_dep(draft_fd, dep, "", "", IS_SOURCE))
+			(err = write_dep(draft_fd, recipe_rel, hint)) ||
+			(err = run_recipe(draft_fd, recipe_rel, dep,
+					family, recipe - recipe_rel)) ||
+			(err = write_dep(draft_fd, dep, IS_SOURCE))
 		);
 
 		if (err && (err != BUSY)) {
@@ -1078,7 +1026,7 @@ really_update_dep(int dir_fd, char *dep)
 	If fchdir() in update_dep() failed then we need to create
 	the full draft name inside the whole dep path.
 */
-	strcpy(target_rel + reldir_len, draft);
+	strcpy(whole + dep_pos, draft);
 
 	return choose(journal, whole, err) | UPDATED_RECENTLY;
 }
@@ -1104,28 +1052,6 @@ keepdir()
 	}
 
 	return fd;
-}
-
-
-static const char *
-envdir(const char *rel, char *up, int usize)
-{
-	int n;
-
-	*up = '\0';
-
-	if (!rel)
-		return "";
-
-	n = occurrences(rel, '/');
-
-	if (n >= (usize / (int)(sizeof dirup - 1)))
-		exit(-1);
-
-	while (n--)
-		up = stpcpy(up, dirup);
-
-	return rel;
 }
 
 
@@ -1363,9 +1289,6 @@ main(int argc, char *argv[])
 
 	roadmap map;
 
-	char updir[PATH_MAX];
-	const char *reldir = envdir(getenv("REDO_RELDIR"), updir,sizeof updir);
-
 
 	log_fd = log_fd_prev = envint("REDO_LOG_FD");
 
@@ -1410,7 +1333,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2,	"redo-c-weft-7\n"
+			dprintf(2,	"redo-c-weft-8\n"
 					"Usage: redo [-weft] [-l <logname>]"
 					" [-m <roadmap>] [TARGET [...]]\n");
 			return ERROR;
@@ -1426,7 +1349,7 @@ main(int argc, char *argv[])
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
 
-	if ((strcmp(base_name(argv[0], 0), "redo") == 0) || (map_fd >= 0)) {
+	if ((strcmp(base_name(argv[0]), "redo") == 0) || (map_fd >= 0)) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
 	} else
@@ -1446,7 +1369,7 @@ main(int argc, char *argv[])
 			prev = cur;
 			cur = map.status[i];
 
-			if (cur >= 0) 
+			if (cur >= 0)
 				step = 1;
 			else {
 				step = - cur;
@@ -1459,8 +1382,7 @@ main(int argc, char *argv[])
 			if (cur == 0) {
 				err = update_dep(dir_fd, map.name[i], &hint);
 				if (!err && (fd > 0))
-					err = write_dep(fd, map.name[i],
-							reldir, updir, hint);
+					err = write_dep(fd, map.name[i], hint);
 
 				if (!err) {
 					approve(&map, i);

@@ -4,12 +4,7 @@
 #	defined (for example QUIET=y) then the log will contain both
 #	stdout and stderr.
 
-TNAME=${1##*/}
-TDIR=${1%$TNAME}
-
-depends-on ${TDIR}.do..${TNAME}
-
-export MAP_DIR=$(test -n "$TDIR" && cd $TDIR; pwd)
+depends-on .do..$1
 
 REDO_LOG_FD=
 
@@ -35,5 +30,5 @@ done
 
 wait
 
-lua log2map.lua $LOGS > $3
+MAP_DIR=$(pwd) lua ${4}log2map.lua $LOGS > $3
 
