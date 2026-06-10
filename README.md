@@ -22,80 +22,32 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 ## General description
 
-`redo` is incremental build systems engine. Any build project may be described as directed acyclic graph. The nodes of such graph are files (sources and targets) while branches indicate dependencies and are directed. The targets are built by the corresponding recipes. Recipe builds the target and describe the target's dependencies.
+`redo` is incremental build systems engine. Any build project may be described as directed acyclic graph. The nodes of such graph are files (sources and targets) while its directed branches indicate dependencies. The targets are built by the corresponding recipes. Recipe builds the target and describes the target's dependencies.
 
-The build system to be driven by `redo` is the set of the recipes. `redo` implements an effective interface between the recipes, allowing to design reliable, flexible and easily extendable build systems.
+The build system to be driven by `redo` is the set of the recipes. Recipes' names and locations in the filesystem determine for which targets they can applied. `redo` implements an effective interface with the recipes and another `redo` instances, allowing to design reliable, flexible and easily extendable build systems.
 
 
 ## Build process quick overview
 
-    redo [ target [ ... ] ] 
+The questions to be answered for basic usage of `redo` are:
 
-During the build process `redo` executes build recipes for targets with outdated dependencies. Recipes build targets and tell `redo` which files were used. Dependencies tracking is managed by `redo` and don't require any user's attention or intervention.
+* How does `redo` select the recipe for building certain target?
 
+* How does `redo` execute the recipe selected?
 
-### Program and data flow `redo` -> recipe.
-
-`redo` executes the build recipes passing 3 positional parameters:
-
-$1 - target's name
-
-$2 - target's family (explained below)
-
-$3 - temporary file name to store the recipe output
-
-$4 - relative path to the recipe's directory
+* What should recipe provide to function properly in `redo`-driven system?
 
 
-### Program and data flow recipe -> `redo`.
-
-Recipe stores the build result in $3 and register dependencies with
-
-    depends-on [ dep [ ... ] ]
-
-`redo` captures the recipe's exit code and in case of success replaces the target $1 with the temporary file $3, otherwise $3 is discarded.
+    redo a/b/c/x.y.z
 
 
-### `redo` vs `depends-on`
+### How does `redo` select the recipe for building certain target?
 
-`depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
+1. `redo` will change the current directory to the target's one. In the given example equivalent of `cd a/b/c`.
 
-Let's note that there is no dedicated name for the link to `redo` binary making it behave as `depends-on`. The only factor affecting `redo` behaviour is the way `redo` was called, as `redo` or as not-`redo`. So any link to `redo` binary (for example `redo-ifchange`) will have the same functionality as `depends-on`. Various links may be used during the same build and even in the same reciept. 
+2. Only files with `.do` suffix in their names are identified by `redo` as recipes. `redo` will concatenate target name `x.y.z` with `.do` and will start the search with testing existence of `x.y.z.do` in the target's directory.
 
-## The magic of `redo`
-
-In fact `depends-on` in the recipe envokes another instance of `redo` and the new instance communicate with the recipe caller `redo` "behind the closed doors". And if the requested dependency has its own build recipe, the process will recurse deeper independently of the current recipe execution.
-
-So the structure of the build tree and the target build steps are described per-node and can be easily modified, extended, truncated and any part of the tree may be easily reused by another build project using any node as an entry point.
-
-
-## More details about recipes
-
-When `redo` is called to build some target, the first task to accomplish is to find the recipe able to build the requested target.
-
-Only files having `.do` suffix are identified as recipes by `redo`.
-
-    Recipe name    Targets to build
-
-    x.do           x
-
-    a.b.c.do       a.b.c
-
-    .b.do          *.b, */*.b, */*/*.b, ...
-
-    .b.c.do        *.b.c, */*.b.c, */*/*.b.c, ...
-
-
-Dot-started recipes ( rules ) are able to build families of targets in their current dirs and all subdirs.
-
-
-### Selecting an appropriate recipe.
-
-    redo x.y.z
-
-1. The search for recipe will start with `x.y.z.do` in the `x.y.z` directory.
-
-2. First name and all extensions (excepts trailing `.do` ones) of supposed recipe filename will be sequentially stripped in the order and recipes
+3. First name and all extensions (excepts trailing `.do` ones) of the recipe name template will be sequentially stripped in the order and recipes
 
 *   `.y.z.do`
 
@@ -103,28 +55,47 @@ Dot-started recipes ( rules ) are able to build families of targets in their cur
 
 *   `.do`
 
-will be looked for in the `x.y.z` directory
+will be looked for in the target's directory.
 
-3. The same candidates as in step 2 will be looked for in all up-dirs.
+4. The same candidates as in step 3 will be looked for in all up-dirs.
 
-If no recipe able to build the requested target will be found, then `redo` exits successfully doing nothing.
+If no recipe suitable to build the requested target will be found, then `redo` exits successfully doing nothing. The first recipe candidate found existing will be used to build target `x.y.z`.
 
-In case the appropriate recipe will be found, then it will be executed passing 3 described above positional parameters. The target family name ($2) will be derived from the recipe and target names:
 
-    Recipe        Target ($1)     Family ($2)
+### How does `redo` execute the recipe selected?
 
-    a.b.c.do      a.b.c           (empty)
+The recipe found will be executed by `redo` as relative filename from the target's directory, passing 4 arguments. $2 and $4 values depend on the target's name and relative name of the recipe found:
 
-    .d.e.do       a.b.c.d.e       a.b.c
+	recipe		  $1		  $2		  $3		  $4
+	filename	target		family		temporary	relative recipe
+	to run		name		name		file name	directory
 
-    .d.e.do       x.d.e           x
+	"x.y.z.do"	"x.y.z"		""		<random>	""
 
-    .do           x.y.z           x.y.z
+	".z.do"		"x.y.z"		"x.y"		<random>	""
 
-Recipe is executed by `redo` in the target's directory. Relative path to the recipe's directory is passed as $4 command-line argument.
+	"../y.z.do"	"x.y.z"		"x"		<random>	"../"
 
-Recipe may be executable - binary or some script starting with the proper shebang. Such recipes are simply executed. If recipe is not executable it is considered shell script and is executed with `/bin/sh -e`.
+	"../../.do"	"x.y.z"		"x.y.z"		<random>	"../../"
 
+Family name can be produced by stripping the recipe's basename from concatenation of the target's name and `.do` suffix.
+
+Recipe may be executable - binary or some script starting with the proper shebang. Such recipes are executed as is. If recipe is not executable it is supposed to be a shell script and is executed with `/bin/sh -e`.
+
+If recipe returns OK(0) then `redo` replaces the previous version of the target with $3 file. If recipe returns ERROR(1) then $3 file is discarded.
+
+After completing the current target's operations `redo` returns to the directory where from it stepped to the target's directory and repeats with next target if present.
+
+
+### What should recipe provide to function properly in `redo`-driven system?
+
+Target's dependencies should be registered by executing
+
+	depends-on [ dep [ ... ] ]
+
+The new version of the target should be written to the temporary file with the name passed to the recipe by caller `redo` as $3. If temporary file $3 is built successfully then recipe should return OK(0) otherwise it should return ERROR(1).
+
+Virtual targets are supported, so recipe may write nothing to $3 if it is desired.
 
 ## Usage
 
@@ -180,6 +151,34 @@ or
 
 
 ## Implementation details
+
+### `redo` vs `depends-on`
+
+`depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
+
+Let's note that there is no dedicated name for the link to `redo` binary making it behave as `depends-on`. The only factor affecting `redo` behaviour is the way `redo` was called, as `redo` or as not-`redo`. So any link to `redo` binary (for example `redo-ifchange`) will have the same functionality as `depends-on`. Various links may be used during the same build and even in the same reciept. 
+
+### The magic of `redo`
+
+In fact `depends-on` in the recipe envokes another instance of `redo` and the new instance communicate with the recipe caller `redo` "behind the closed doors". And if the requested dependency has its own build recipe, the process will recurse deeper independently of the current recipe execution.
+
+So the structure of the build tree and the target build steps are described per-node and can be easily modified, extended, truncated and any part of the tree may be easily reused by another build project using any node as an entry point.
+
+
+### More details about recipes
+
+    Recipe name    Targets to build
+
+    x.do           x
+
+    a.b.c.do       a.b.c
+
+    .b.do          *.b, */*.b, */*/*.b, ...
+
+    .b.c.do        *.b.c, */*.b.c, */*/*.b.c, ...
+
+Dot-started recipes ( rules ) are able to build families of targets in their current dirs and all subdirs.
+
 
 ### Journals
 
@@ -263,7 +262,7 @@ The technique for parallel builds implementation in recipes is described in [sam
 
 The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (EX_TEMPFAIL defined in `<sysexits.h>`).
 
-`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single passeven if some tergets were built successfully. `REDO_RETRIES` is not inherited by the child processes.
+`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single passeven if some targets were built successfully. `REDO_RETRIES` is not inherited by the child processes.
 
 
 ### `redo` retry delays.
