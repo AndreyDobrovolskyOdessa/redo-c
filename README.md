@@ -38,7 +38,7 @@ The questions to be answered for basic usage of `redo` are:
 * What should recipe provide to function properly in `redo`-driven system?
 
 
-	redo a/b/c/x.y.z
+    redo a/b/c/x.y.z
 
 
 ### How does `redo` select the recipe for building certain target?
@@ -66,17 +66,17 @@ If no recipe suitable to build the requested target will be found, then `redo` e
 
 The recipe found will be executed by `redo` as relative filename from the target's directory, passing 4 arguments. $2 and $4 values depend on the target's name and relative name of the recipe found:
 
-	recipe            $1              $2               $3              $4
-	filename        target          family          temporary       relative recipe
-	to run          name            name            file name       directory
+	recipe           $1          $2           $3            $4
+	filename       target      family      temporary     relative recipe
+	to run         name        name        file name     directory
 
-	"x.y.z.do"      "x.y.z"         ""              <random>        ""
+	"x.y.z.do"     "x.y.z"     ""          <random>      ""
 
-	".z.do"         "x.y.z"         "x.y"           <random>        ""
+	".z.do"        "x.y.z"     "x.y"       <random>      ""
 
-	"../y.z.do"     "x.y.z"         "x"             <random>        "../"
+	"../y.z.do"    "x.y.z"     "x"         <random>      "../"
 
-	"../../.do"     "x.y.z"         "x.y.z"         <random>        "../../"
+	"../../.do"    "x.y.z"     "x.y.z"     <random>      "../../"
 
 Family name can be produced by stripping the recipe's basename from concatenation of the target's name and `.do` suffix.
 
@@ -91,7 +91,7 @@ After completing the current target's operations `redo` returns to the directory
 
 Target's dependencies should be registered by executing
 
-	depends-on [ dep [ ... ] ]
+    depends-on [ dep [ ... ] ]
 
 The new version of the target should be written to the temporary file with the name passed to the recipe by caller `redo` as $3. If temporary file $3 is built successfully then recipe should return OK(0) otherwise it should return ERROR(1).
 
