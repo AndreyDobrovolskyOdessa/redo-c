@@ -37,7 +37,6 @@ The questions to be answered for basic usage of `redo` are:
 
 * What should recipe provide to function properly in `redo`-driven system?
 
-
     redo a/b/c/x.y.z
 
 
