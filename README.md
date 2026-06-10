@@ -158,7 +158,7 @@ or
 
 `depends-on` is the link to `redo`. The main difference between `redo` and `depends-on` is that `depends-on` reports (if possible) about the targets built to the caller `redo` instance, while `redo` does not.
 
-Let's note that there is no dedicated name for the link to `redo` binary making it behave as `depends-on`. The only factor affecting `redo` behaviour is the way `redo` was called, as `redo` or as not-`redo`. So any link to `redo` binary (for example `redo-ifchange`) will have the same functionality as `depends-on`. Various links may be used during the same build and even in the same reciept. 
+Let's note that there is no dedicated name for the link to `redo` binary making it behave as `depends-on`. The only factor affecting `redo` behaviour is the way `redo` was called, as `redo` or as not-`redo`. So any link to `redo` binary (for example `redo-ifchange`) will have the same functionality as `depends-on`. Various links may be used during the same build and even in the same recipe. 
 
 ### The magic of `redo`
 
@@ -264,7 +264,7 @@ The technique for parallel builds implementation in recipes is described in [sam
 
 The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (EX_TEMPFAIL defined in `<sysexits.h>`).
 
-`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single passeven if some targets were built successfully. `REDO_RETRIES` is not inherited by the child processes.
+`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default `REDO_RETRIES` value is `RETRIES_DEFAULT` (defined in redo.c). For `depends-on` default `REDO_RETRIES` value is 0, meaning the single pass even if some targets were built successfully. `REDO_RETRIES` is not inherited by the child processes.
 
 
 ### `redo` retry delays.
