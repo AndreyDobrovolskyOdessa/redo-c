@@ -27,7 +27,12 @@ http://creativecommons.org/publicdomain/zero/1.0/
 The build system to be driven by `redo` is the set of the recipes. Recipes' names and locations in the filesystem determine for which targets they can applied. `redo` implements an effective interface with the recipes and another `redo` instances, allowing to design reliable, flexible and easily extendable build systems.
 
 
-## Build process quick overview
+## Build process brief overview
+
+#### Example
+
+    redo a/b/c/x.y.z
+
 
 The questions to be answered for basic usage of `redo` are:
 
@@ -36,11 +41,6 @@ The questions to be answered for basic usage of `redo` are:
 * How does `redo` execute the recipe selected?
 
 * What should recipe provide to function properly in `redo`-driven system?
-
-
-#### Example
-
-    redo a/b/c/x.y.z
 
 
 ### How does `redo` select the recipe for building certain target?
@@ -99,6 +99,7 @@ The new version of the target should be written to the temporary file with the n
 
 Virtual targets are supported, so recipe may write nothing to $3 if it is desired.
 
+
 ## Usage
 
 ### Standalone build
@@ -141,15 +142,16 @@ will build the `redo` binary, create `depends-on` link and copy them to the alre
 
 * `-m <roadmap>` Build according to the [roadmap](samples/parallel#roadmap). If the requested roadmap file is not found then command-line arguments are used as targets. If the roadmap was imported successfully then command-line targets are ignored. Errors during the roadmap import lead to `exit(ERROR)`.
 
-#### Tip
 
-If log is written to stdout or stderr then recipes' output is enclosed properly and appears in the log as comments, keeping log as a valid Lua table. Debugging tastes better with
+### File naming recomendations
 
-    redo -l 2 target 2>target.log
+#### `.do..` prefix
 
-or
+This prefix is used by `redo` for under-the-hood gear, so using filenames with the `.do..` prefix may cause unexpected behaviour. Probably it is the good idea to not use such prefix for filenames in Your project's directories.
 
-    redo -l 1 target >target.log 2>&1
+#### `.do` suffix
+
+The file having `.do` suffix in its name may be used by `redo` as recipe, so better to use this suffix for recipe names only.
 
 
 ## Implementation details
@@ -190,10 +192,6 @@ If some file is referenced by `depends-on` but have no recipe to be built, such 
 
 The journals can not be targets, but can be used as sources.
 
-#### WARNING!
-
-Using files which names start with the journal prefix `.do..` may cause unexpected behaviour. Probably it is the good idea to not use such prefix for filenames in Your project's directories.
-
 
 ### More details of `redo` program flow
 
@@ -220,24 +218,6 @@ Worth mentioning that testing of the 3.3 condition is recursive. The steps descr
 4. Execute the recipe and if it exits successfully, then write the result into `xxx`, else `redo` fails.
 
 5. Update `.do..xxx` journal.
-
-
-### Hashed sources aka self-targets
-
-Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
-
-Conversion can be provided with the help of the following simple recipe:
-
-    if test -f "$1"; then  mv "$1" "$3"; fi
-
-Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active recipes to self-targets. Such conversion may slow-down projects with lot of small sources.
-
-
-### Always out-of-date targets
-
-Can be implemented using target's dependency on its own journal:
-
-    depends-on .do..$1
 
 
 ### Recipes as targets
@@ -283,14 +263,40 @@ gives minimal dalay in the [10 .. 20] msec range (15 msec mean time) and the max
 gives 4 sec total wait mean time.
 
 
-### Hints
+## Shortcuts, hints and tricks
 
-You can test which recipes will be encountered by `redo` appropriate to build certain `<target>` with
+### Always out-of-date targets
 
-    redo -f <target>
+Can be implemented using in recipe the target's dependency on its own journal:
+
+    depends-on .do..$1
 
 
-### Tricks
+### Hashed sources aka self-targets
+
+Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
+
+Conversion can be provided with the help of the following simple recipe:
+
+    if test -f "$1"; then  mv "$1" "$3"; fi
+
+Adding to Your project `.do` file consisting of above shown command will convert all sources excepts active recipes to self-targets. Such conversion may slow-down projects with lot of small sources.
+
+
+### Improving log's usability for debugging
+
+If log is written to stdout or stderr then recipes' output is enclosed properly and appears in the log as comments, keeping log as a valid Lua table. Debugging tastes better with
+
+    redo -l 2 target 2>target.log
+
+or
+
+    redo -l 1 target >target.log 2>&1
+
+Options `-f` and `-t` can make log even more descriptive at a price of worse readability.
+
+
+### Visibility tricks
 
 The sequence `.do.` found inside the supposed target's name during the find_recipe() search for appropriate recipe will interrupt the search routine. That's why it is not recommended for plain builds. But it may be used with care for the targets, which need cwd-only recipe search or must escape the omnivorous `.do` visibility area.
 
@@ -319,7 +325,7 @@ Making file invisible for all recipes incuding `.do`:
     --]]
 
 
-### Troubleshooting
+## Troubleshooting
 
 If the build was interrupted then some locks may remain uncleared. Such locks can be located with the help of the build log. See [samples/locks](samples/locks).
 
