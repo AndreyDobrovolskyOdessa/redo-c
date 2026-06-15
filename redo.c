@@ -384,16 +384,11 @@ track_append(const char *dep)
 
 
 static char *
-base_name(char *name)
+base_name(char *path)
 {
-	char *ptr = strchr(name, 0);
+	char *slash = strrchr(path, '/');
 
-	while ((ptr != name) && (*--ptr != '/'));
-
-	if (*ptr == '/')
-		ptr++;
-
-	return ptr;
+	return slash ? slash + 1 : path;
 }
 
 
@@ -405,34 +400,6 @@ setenvint(const char *name, int i)
 	snprintf(buf, sizeof buf, "%d", i);
 
 	return setenv(name, buf, 1);
-}
-
-
-static void
-hashfd(int fd)
-{
-	static const char hexdigit[] = "0123456789abcdef";
-
-	struct sha256 ctx;
-	char buf[4096];
-	char *a;
-	unsigned char hash[HASH_LEN];
-	int i;
-	ssize_t r;
-
-
-	sha256_init(&ctx);
-
-	while ((r = read(fd, buf, sizeof buf)) > 0) {
-		sha256_update(&ctx, buf, r);
-	}
-
-	sha256_sum(&ctx, hash);
-
-	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hexdigit[hash[i] / 16];
-		*a++ = hexdigit[hash[i] % 16];
-	}
 }
 
 
@@ -462,7 +429,7 @@ static void
 datefile(const char *name, struct stat *st)
 {
 	if(stat(name, st))
-		st->st_ctime = 0;;
+		st->st_ctime = 0;
 	datestat(st);
 }
 
@@ -485,6 +452,40 @@ date_build(const char *var)
 	strcpy(build_date, hexdate);
 
 	setenv(var, build_date, 1);
+}
+
+
+static void
+rehash(char *dep, int redate)
+{
+	static const char hexdigit[] = "0123456789abcdef";
+
+	struct sha256 ctx;
+	char buf[4096];
+	char *a;
+	unsigned char hash[HASH_LEN];
+	int i, fd = open(dep, O_RDONLY);
+	ssize_t r;
+
+
+	sha256_init(&ctx);
+
+	while ((r = read(fd, buf, sizeof buf)) > 0) {
+		sha256_update(&ctx, buf, r);
+	}
+
+	sha256_sum(&ctx, hash);
+
+	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
+		*a++ = hexdigit[hash[i] / 16];
+		*a++ = hexdigit[hash[i] % 16];
+	}
+
+	if (redate)
+		datefd(fd);
+
+	if (fd > 0)
+		close(fd);
 }
 
 
@@ -770,12 +771,12 @@ find_record(char *target_path)
 }
 
 
-#define may_need_rehash(target, hint) \
+#define may_need_rehash(dep, hint) \
 (\
 	(hint & IS_SOURCE) ||\
 	(\
 		!(hint & UPDATED_RECENTLY) &&\
-		(find_record(target) != OK)\
+		(find_record(dep) != OK)\
 	)\
 )
 
@@ -787,7 +788,7 @@ dep_changed(char *record, int hint)
 		*filedate = record + DATE_OFFSET;
 
 	struct stat st;
-	int fd, missing = may_need_rehash(filename, hint);
+	int missing = may_need_rehash(filename, hint);
 
 
 	if (missing)
@@ -804,12 +805,8 @@ dep_changed(char *record, int hint)
 		return 0;
 	}
 
-	if (missing) {
-		fd = open(filename, O_RDONLY);
-		hashfd(fd);
-		if (fd > 0)
-			close(fd);
-	}
+	if (missing)
+		rehash(filename, 0);
 
 	return strncmp(record, hexhash, HEXHASH_LEN);
 }
@@ -818,14 +815,8 @@ dep_changed(char *record, int hint)
 static int
 write_dep(int fd, char *dep, int hint)
 {
-	if (may_need_rehash(dep, hint)) {
-		int dep_fd = open(dep, O_RDONLY);
-
-		hashfd(dep_fd);
-		datefd(dep_fd);
-		if (dep_fd > 0)
-			close(dep_fd);
-	}
+	if (may_need_rehash(dep, hint))
+		rehash(dep, 1);
 
 	hexhash[HEXHASH_LEN] = '\0';
 	hexdate[HEXDATE_LEN] = '\0';
