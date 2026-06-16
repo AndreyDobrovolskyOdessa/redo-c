@@ -1269,6 +1269,11 @@ forget(roadmap *m, int i)
 }
 
 
+#define HELP "redo-c-weft-8\n"\
+"Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n"\
+"       depends-on [-weft] [DEP [...]]\n"
+
+
 #define RETRIES_DEFAULT 10
 
 int
@@ -1324,9 +1329,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		default:
-			dprintf(2,	"redo-c-weft-8\n"
-					"Usage: redo [-weft] [-l <logname>]"
-					" [-m <roadmap>] [TARGET [...]]\n");
+			dprintf(2, HELP);
 			return ERROR;
 		}
 	}
