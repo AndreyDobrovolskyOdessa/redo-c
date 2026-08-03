@@ -272,6 +272,11 @@ Can be implemented using in recipe the target's dependency on its own journal:
     depends-on .do..$1
 
 
+### Silent mode
+
+If no log is being written then `redo` outputs error messages to stderr. These messages can be inhibited with negative `REDO_LOG_FD` environmental variable.
+
+
 ### Hashed sources aka self-targets
 
 Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
