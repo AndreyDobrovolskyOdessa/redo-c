@@ -279,6 +279,8 @@ If no log is being written then `redo` outputs error messages to stderr. These m
 
 ### Hashed sources aka self-targets
 
+Self-target is the target built by a recipe including no `depends-on` calls. Such target has no dependencies other than implicit ones - the recipe and the target itself. 
+
 Targets are hashed once per build, while sources are hashed once per dependence. If Your project includes big source files required by more than one target, converting these sources into self-tagets will speed-up build and update.
 
 Conversion can be provided with the help of the following simple recipe:
