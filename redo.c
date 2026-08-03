@@ -872,14 +872,19 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 
 #define log_name() if (log_fd > 0)\
-	dprintf(log_fd, "%*s\"%s\",\n", indent, "", whole);
+	dprintf(log_fd, "%*s\"%s\",\n", indent, "", whole)
 
 #define log_err() if (log_fd > 0)\
 	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
 
-#define log_close_level() if (log_fd > 0)\
+#define fail() err && (err != BUSY)
+
+#define target_report() \
+if (log_fd > 0)\
 	dprintf(log_fd, "%*s        t1 = %ld, err = %d\n%*s},\n",\
-			indent, "", process_times(), err, indent, "")
+			indent, "", process_times(), err, indent, ""); \
+else if (!log_fd && fail())\
+	dprintf(2, "redo %s\n     %s -> %d\n", whole, recipe_rel, err)
 
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
@@ -997,21 +1002,17 @@ really_update_dep(int dir_fd, char *dep)
 			(err = write_dep(draft_fd, dep, IS_SOURCE))
 		);
 
-		if (err && (err != BUSY)) {
+		if (fail()) {
 			if (journal_f)
 				chmod(journal, st.st_mode & (~S_IRUSR));
 			else
 				close(open(journal, CR_WR_TR, 0222));
-			log_guard(open_comment);
-			dprintf(2, "redo %*s%s\n     %*s%s -> %d\n",
-				indent,"", whole, indent,"", recipe_rel, err);
-			log_guard(close_comment);
 		}
 	}
 
-	close(draft_fd);
+	target_report();
 
-	log_close_level();
+	close(draft_fd);
 
 /*
 	If fchdir() in update_dep() failed then we need to create
@@ -1269,7 +1270,7 @@ forget(roadmap *m, int i)
 }
 
 
-#define HELP "redo-c-weft-8\n"\
+#define HELP "redo-c-weft-9\n"\
 "Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n"\
 "       depends-on [-weft] [DEP [...]]\n"
 
