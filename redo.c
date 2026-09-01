@@ -640,7 +640,7 @@ choose(const char *old, const char *new, int err)
 
 
 static long
-process_times(void)
+ptimes(void)
 {
 	struct tms t;
 
@@ -652,8 +652,11 @@ process_times(void)
 
 #define NAME_MAX 255
 
-#define log_time(format) if (log_fd > 0)\
-	dprintf(log_fd, "%*s" format "\n", indent, "", process_times())
+#define KWD 12
+
+#define log_time(sym, key) if (log_fd > 0)\
+	dprintf(log_fd, "%*s%c%*s = %ld,\n",\
+			indent, "", sym, KWD, key, ptimes())
 
 static int
 run_recipe(int fd, char *recipe_rel, const char *target,
@@ -667,7 +670,7 @@ run_recipe(int fd, char *recipe_rel, const char *target,
 		tmp[NAME_MAX + 1];
 
 
-	log_time("             %ld, -- tdo");
+	log_time(' ', "0, tdo");
 	log_guard(open_comment);
 
 	memcpy(reldir, recipe_rel, reldir_len);
@@ -881,8 +884,8 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 #define target_report() \
 if (log_fd > 0)\
-	dprintf(log_fd, "%*s        t1 = %ld, err = %d\n%*s},\n",\
-			indent, "", process_times(), err, indent, ""); \
+	dprintf(log_fd, "%*s %*s = %ld, err = %d\n%*s},\n",\
+			indent, "", KWD, "t1", ptimes(), err, indent, ""); \
 else if (!log_fd && fail())\
 	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
 
@@ -957,7 +960,7 @@ really_update_dep(int dir_fd, char *dep)
 	}
 
 
-	log_time("{       t0 = %ld,");
+	log_time('{', "t0");
 
 	journal_f = fopen(journal, "r");
 
