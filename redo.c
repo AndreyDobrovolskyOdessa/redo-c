@@ -884,7 +884,7 @@ if (log_fd > 0)\
 	dprintf(log_fd, "%*s        t1 = %ld, err = %d\n%*s},\n",\
 			indent, "", process_times(), err, indent, ""); \
 else if (!log_fd && fail())\
-	dprintf(2, "redo %s\n     %s -> %d\n", whole, recipe_rel, err)
+	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
 
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
@@ -896,7 +896,8 @@ really_update_dep(int dir_fd, char *dep)
 		recipe_rel[PATH_MAX],
 		journal[NAME_MAX + 1],
 		draft  [NAME_MAX + 1],
-		family [NAME_MAX + 1];
+		family [NAME_MAX + 1],
+		*mark = "...";
 
 	int draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
 
@@ -916,6 +917,7 @@ really_update_dep(int dir_fd, char *dep)
 	dep_pos = strlen(whole) - strlen(dep);
 
 	log_name();
+
 
 	if (fflag)
 		dprintf(1, "--[[\n");
@@ -1008,6 +1010,8 @@ really_update_dep(int dir_fd, char *dep)
 			else
 				close(open(journal, CR_WR_TR, 0222));
 		}
+
+		mark = "->";
 	}
 
 	target_report();
