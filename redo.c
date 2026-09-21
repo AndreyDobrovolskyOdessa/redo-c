@@ -239,17 +239,36 @@ static const char
 
 	dirup[] = "../",
 
-	open_comment[]	=
+	open_comment[]	= "--[%s[\n",
 
-"--[====================================================================[\n",
-
-	close_comment[]	=
-
-"--]====================================================================]\n";
+	close_comment[]	= "--]%s]\n";
 
 
+static char *
+stretch(size_t len)
+{
+	static char *buf = 0;
+	static size_t size = 0;
 
-#define log_guard(s)	if ((log_fd > 0) && (log_fd < 3)) dprintf(log_fd, s)
+	if (len >= size) {
+		size = 2 * len + 1;
+		buf = realloc(buf, size);
+		if (!buf) {
+			perror("stretch");
+			exit(-1);
+		}
+		memset(buf, '=', size - 1);
+		buf[size - 1] = '\0';
+	}
+
+	return buf + (size - 1 - len);
+}
+
+
+#define MIN_STRETCH 68
+
+#define log_guard(f)	if ((log_fd > 0) && (log_fd < 3))\
+				dprintf(log_fd, f, stretch(MIN_STRETCH))
 
 static void
 msg(const char *x, const char *y)
@@ -1100,7 +1119,7 @@ fence(int log_fd_buf, const char *top, const char *hill)
 				dprintf(log_fd, top);
 		} else {
 			if (log_fd < 3)
-				dprintf(log_fd, hill);
+				dprintf(log_fd, hill, stretch(MIN_STRETCH));
 		}
 	}
 }
