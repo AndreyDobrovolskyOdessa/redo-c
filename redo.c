@@ -204,7 +204,7 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 
 /********************* Globals *********************************************/
 
-static int wflag, eflag, fflag, tflag, log_fd, indent;
+static int wflag, eflag, fflag, tflag, log_fd, level = 0;
 
 static struct {
 	char	*buf;
@@ -269,8 +269,6 @@ pperror(const char *s)
 
 #define TRACK_DELIM ':'
 
-#define INDENT_PER_LEVEL 2
-
 static void
 track_init(const char *heritage)
 {
@@ -287,9 +285,9 @@ track_init(const char *heritage)
 	}
 	strcpy(track.buf, heritage);
 
-	for(indent = 0, s = track.buf ; *s ; ) {
+	for(s = track.buf ; *s ; ) {
 		if (*s++ == TRACK_DELIM)
-			indent += INDENT_PER_LEVEL;
+			level++;
 	}
 }
 
@@ -846,9 +844,9 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 		else {
 			size_t cutoff = track_used();
 
-			indent += INDENT_PER_LEVEL;
+			level++;
 			err = really_update_dep(dep_dir_fd, dep);
-			indent -= INDENT_PER_LEVEL;
+			level--;
 			track_truncate(cutoff);
 		}
 
@@ -889,6 +887,9 @@ else if (!log_fd && fail())\
 	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
 
 
+#define FOLD_DIVISOR 20
+#define INDENT_PER_LEVEL 2
+
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
 
 static int
@@ -901,7 +902,8 @@ really_update_dep(int dir_fd, char *dep)
 		family [NAME_MAX + 1],
 		*mark = "...";
 
-	int draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1;
+	int	draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1,
+		indent = (((level - 1) % FOLD_DIVISOR) + 1) * INDENT_PER_LEVEL;
 
 	struct stat st;
 
@@ -958,6 +960,8 @@ really_update_dep(int dir_fd, char *dep)
 		return err;
 	}
 
+	if (indent == (FOLD_DIVISOR * INDENT_PER_LEVEL))
+		indent = 0;
 
 	log_time('{', "t0");
 
