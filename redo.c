@@ -202,9 +202,9 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/********************* Globals *********************************************/
+/********************* Globals **************************************/
 
-static int wflag, eflag, fflag, tflag, log_fd, level = 0;
+static int wflag, eflag, fflag, tflag, log_fd, level = 0, max_nesting;
 
 static struct {
 	char	*buf;
@@ -227,7 +227,7 @@ static char record_buf[RECORD_SIZE], build_date[HEXDATE_LEN + 1];
 #define namebuf (record_buf + NAME_OFFSET)
 
 
-/****************** Literals ***********************************************/
+/****************** Literals ****************************************/
 
 static const char
 
@@ -242,6 +242,8 @@ static const char
 	open_comment[]	= "--[%s[\n",
 
 	close_comment[]	= "--]%s]\n";
+
+/****************** end globals *************************************/
 
 
 static char *
@@ -892,21 +894,34 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 #define KWD 12
 
-#define log_time(sym, key) if (log_fd > 0)\
-	dprintf(log_fd, "%*s%c%*s = %ld,\n",\
-			indent, "", sym, KWD, key, ptimes())
+#define log_dotime() if (log_fd > 0)\
+	dprintf(log_fd, "%*s %*s = %ld,\n",\
+			indent, "", KWD, "0, tdo", ptimes())
+
+#define nesting_enclosure(f) if ((level % max_nesting) == 0)\
+	dprintf(log_fd, f, indent, "",\
+			stretch(level / max_nesting + MIN_STRETCH))
+
+#define open_target_report() if (log_fd > 0) {\
+	nesting_enclosure("%*s((load([%s[ return\n");\
+	dprintf(log_fd, "%*s{%*s = %ld,\n",\
+			indent, "", KWD, "t0", ptimes());\
+}
 
 #define fail() err && (err != BUSY)
 
-#define target_report() \
-if (log_fd > 0)\
+#define close_target_report() \
+if (log_fd > 0) {\
 	dprintf(log_fd, "%*s %*s = %ld, err = %d\n%*s},\n",\
-			indent, "", KWD, "t1", ptimes(), err, indent, ""); \
+			indent, "", KWD, "t1", ptimes(), err, indent, "");\
+	nesting_enclosure("%*snil ]%s]))()),\n");\
+} \
 else if (!log_fd && fail())\
 	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
 
 
 #define FOLD_DIVISOR 20
+
 #define INDENT_PER_LEVEL 2
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
@@ -982,7 +997,7 @@ really_update_dep(int dir_fd, char *dep)
 	if (indent == (FOLD_DIVISOR * INDENT_PER_LEVEL))
 		indent = 0;
 
-	log_time('{', "t0");
+	open_target_report();
 
 	journal_f = fopen(journal, "r");
 
@@ -1022,7 +1037,7 @@ really_update_dep(int dir_fd, char *dep)
 	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
 
-		log_time(' ', "0, tdo");
+		log_dotime();
 
 		(void)(
 			(err = write_dep(draft_fd, recipe_rel, hint)) ||
@@ -1041,7 +1056,7 @@ really_update_dep(int dir_fd, char *dep)
 		mark = "->";
 	}
 
-	target_report();
+	close_target_report();
 
 	close(draft_fd);
 
@@ -1308,6 +1323,8 @@ forget(roadmap *m, int i)
 
 #define RETRIES_DEFAULT 10
 
+#define NESTING_LIMIT_DEFAULT 80
+
 int
 main(int argc, char *argv[])
 {
@@ -1374,6 +1391,10 @@ main(int argc, char *argv[])
 	track_init(getenv("REDO_TRACK"));
 	retries_max = envint("REDO_RETRIES");
 	unsetenv("REDO_RETRIES");
+
+	max_nesting = envint("REDO_NESTING");
+	if (max_nesting <= 0)
+		max_nesting = NESTING_LIMIT_DEFAULT;
 
 	if ((strcmp(base_name(argv[0]), "redo") == 0) || (map_fd >= 0)) {
 		if (retries_max == 0)
