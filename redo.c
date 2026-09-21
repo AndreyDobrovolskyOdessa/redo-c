@@ -652,12 +652,6 @@ ptimes(void)
 
 #define NAME_MAX 255
 
-#define KWD 12
-
-#define log_time(sym, key) if (log_fd > 0)\
-	dprintf(log_fd, "%*s%c%*s = %ld,\n",\
-			indent, "", sym, KWD, key, ptimes())
-
 static int
 run_recipe(int fd, char *recipe_rel, const char *target,
 				const char *family, size_t reldir_len)
@@ -670,7 +664,6 @@ run_recipe(int fd, char *recipe_rel, const char *target,
 		tmp[NAME_MAX + 1];
 
 
-	log_time(' ', "0, tdo");
 	log_guard(open_comment);
 
 	memcpy(reldir, recipe_rel, reldir_len);
@@ -880,6 +873,12 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 #define log_err() if (log_fd > 0)\
 	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
 
+#define KWD 12
+
+#define log_time(sym, key) if (log_fd > 0)\
+	dprintf(log_fd, "%*s%c%*s = %ld,\n",\
+			indent, "", sym, KWD, key, ptimes())
+
 #define fail() err && (err != BUSY)
 
 #define target_report() \
@@ -999,6 +998,8 @@ really_update_dep(int dir_fd, char *dep)
 
 	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
+
+		log_time(' ', "0, tdo");
 
 		(void)(
 			(err = write_dep(draft_fd, recipe_rel, hint)) ||
