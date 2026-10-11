@@ -1132,10 +1132,8 @@ fence(int log_fd_buf, const char *top, const char *hill)
 		if (log_fd != log_fd_buf) {
 			if (log_fd_buf <= 0)
 				dprintf(log_fd, top);
-		} else {
-			if (log_fd < 3)
-				dprintf(log_fd, hill, stretch(MIN_STRETCH));
-		}
+		} else if (log_fd < 3)
+			dprintf(log_fd, hill, stretch(MIN_STRETCH));
 	}
 }
 
@@ -1316,9 +1314,9 @@ forget(roadmap *m, int i)
 }
 
 
-#define HELP "redo-c-weft-9\n"\
-"Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n"\
-"       depends-on [-weft] [DEP [...]]\n"
+#define HELP "redo-c-weft-9\n\
+Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n\
+       depends-on [-weft] [DEP [...]]\n"
 
 
 #define RETRIES_DEFAULT 10
