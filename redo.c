@@ -1316,7 +1316,7 @@ forget(roadmap *m, int i)
 
 #define HELP "redo-c-weft-9\n\
 Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n\
-       depends-on [-weft] [DEP [...]]\n"
+       depends-on [-weft] [-l <logname>] [-m <roadmap>] [DEP [...]]\n"
 
 
 #define RETRIES_DEFAULT 10
@@ -1367,12 +1367,13 @@ main(int argc, char *argv[])
 			break;
 		case 'm':
 			map_fd = open(optarg, O_RDONLY);
-			if ((map_fd >= 0) && (
-				(import_map(&map, map_fd) != OK) ||
-				(!file_chdir(&dir_fd, optarg))
-							)) {
+			if (map_fd >= 0) {
+				if ((import_map(&map, map_fd) != OK) ||
+						(!file_chdir(&dir_fd, optarg)))
+				{
 					dprintf(2, "Bad map : %s\n", optarg);
 					return ERROR;
+				}
 			}
 			break;
 		default:
@@ -1394,7 +1395,7 @@ main(int argc, char *argv[])
 	if (max_nesting <= 0)
 		max_nesting = NESTING_LIMIT_DEFAULT;
 
-	if ((strcmp(base_name(argv[0]), "redo") == 0) || (map_fd >= 0)) {
+	if (strcmp(base_name(argv[0]), "redo") == 0) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
 	} else
