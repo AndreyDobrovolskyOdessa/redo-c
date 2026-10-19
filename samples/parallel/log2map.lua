@@ -112,24 +112,18 @@ end
 -- Writing the roadmap --
 -------------------------
 
-io.write(("<char *>"):rep(#dict)) -- placeholders for name pointers
-
-io.write("\n")
+io.write(("<char *>"):rep(#dict), "\n") -- placeholders for name pointers
 
 for i, name in ipairs(dict) do
-  io.write(" ", ("%3d"):format(status[i]))
+  io.write((" %3d"):format(status[i]))
 end
-
-io.write("\n")
 
 for i, offset in ipairs(children) do
-  io.write(" ", ("%3d"):format(offset))
+  io.write((" %3d"):format(offset))
 end
 
-io.write("\n")
-
 for i, j in ipairs(child) do
-  io.write(" ", ("%3d"):format(j - 1))
+  io.write((" %3d"):format(j - 1))
 end
 
 for i, name in ipairs(dict) do

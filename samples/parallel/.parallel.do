@@ -10,10 +10,19 @@ REDO_LOG_FD=
 
 if test -f "$1"
 then
-	JOBS=${JOBS:-2}
+	JOBS=$(lua -e "print(math.floor(tonumber('$JOBS') or 2))")
+
+	if test "$JOBS" -lt 1
+	then
+		JOBS=1
+	fi
+
+	if test "$JOBS" -ge 2
+	then
+		MAXJOBS=
+	fi
 else
 	JOBS=1
-	export MAXJOBS=y
 fi
 
 LOGS=$(lua -e "for i = 1, $JOBS do print(('$1.%d.log'):format(i)) end")
