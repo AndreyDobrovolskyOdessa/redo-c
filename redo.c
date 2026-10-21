@@ -715,16 +715,11 @@ run_recipe(int fd, char *recipe_rel, const char *target,
 		if (wait(&err) < 0)
 			perror("wait");
 		else {
-			if (WCOREDUMP(err))
-				dprintf(2, "Core dumped.\n");
-			if (WIFEXITED(err)) {
+			if (WIFEXITED(err))
 				err = WEXITSTATUS(err);
-			} else if (WIFSIGNALED(err)) {
+			else if (WIFSIGNALED(err)) {
 				err = WTERMSIG(err);
 				dprintf(2, "Terminated.\n");
-			} else if (WIFSTOPPED(err)) {
-				err = WSTOPSIG(err);
-				dprintf(2, "Stopped.\n");
 			}
 		}
 	}
@@ -1283,6 +1278,7 @@ approve(roadmap *m, int i)
 		num = m->children[i + 1] - own;
 	int32_t *ch = m->child + own;
 
+
 	m->status[i] = -1;
 	m->done++;
 
@@ -1296,6 +1292,7 @@ forget(roadmap *m, int i)
 {
 	int	own = m->children[i],
 		num = m->children[i + 1] - own;
+
 
 	if (num > 1)
 		return 0;
