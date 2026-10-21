@@ -19,5 +19,5 @@ Lock file names.
     75
     LOCK=$(lua log2lock.lua target.log) || fuser -s $LOCK || rm -f $LOCK
 
-
+Cleaning chain-dependent locks is iterative, one lock per iteration.
 

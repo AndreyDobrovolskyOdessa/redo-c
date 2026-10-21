@@ -1386,17 +1386,22 @@ main(int argc, char *argv[])
 	date_build("REDO_BUILD_DATE");
 	track_init(getenv("REDO_TRACK"));
 	retries_max = envint("REDO_RETRIES");
-	unsetenv("REDO_RETRIES");
-
 	max_nesting = envint("REDO_NESTING");
+
 	if (max_nesting <= 0)
 		max_nesting = NESTING_LIMIT_DEFAULT;
 
 	if (strcmp(base_name(argv[0]), "redo") == 0) {
 		if (retries_max == 0)
 			retries_max = RETRIES_DEFAULT;
-	} else
+		else if (retries_max < 0)
+			retries_max = -retries_max;
+	} else {
+		if (retries_max > 0)
+			retries_max = 0;
 		fd = envint("REDO_FD");
+	}
+
 
 	if (map_fd < 0)
 		init_map(&map, argc - optind, argv + optind);
@@ -1424,19 +1429,23 @@ main(int argc, char *argv[])
 
 			if (cur == 0) {
 				err = update_dep(dir_fd, map.name[i], &hint);
-				if (!err && (fd > 0))
+				if ((err == OK) && (fd > 0))
 					err = write_dep(fd, map.name[i], hint);
 
-				if (!err) {
+				if (err == OK) {
 					approve(&map, i);
 					retries = retries_max;
 					if (map.sorted)
 						break;
-				} else if (err != BUSY) {
+				} else if (err == BUSY) {
+					if (hint & IMMEDIATE_DEPENDENCY)
+						forget(&map, i);
+					if (retries_max == 0)
+						break;
+				} else {
 					err = ERROR;
 					break;
-				} else if (hint & IMMEDIATE_DEPENDENCY)
-					forget(&map, i);
+				}
 			}
 		}
 	} while ((err != ERROR) && (map.done < map.todo) && (retries > 0));
