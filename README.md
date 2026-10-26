@@ -244,23 +244,23 @@ The technique for parallel builds implementation in recipes is described in [sam
 
 The current version of `redo` is lock-free. The list of the target names is passed across trying to build each. Any target's build failure cause immediate exit returning `ERROR` (1). If target is busy, move to the next target. The pass is successful if at least one of the targets was built successfully. After the successful pass the next pass (if necessary) is started immediately. Otherwise (all targets are busy) the retry pass is started after some delay. This delay is doubled after retry and reset after successful pass. After the certain number of an unsuccessful passes `redo` exits returning `BUSY` (EX_TEMPFAIL defined in `<sysexits.h>`).
 
-`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default number of retries allowed is `RETRIES_DEFAULT` (defined in redo.c). `REDO_RETRIES` is inherited by the child processes. `redo` uses absolute value of `REDO_RETRIES`.
+`REDO_RETRIES` environment variable defines the number of consequent unsuccessful passes allowed for `redo` before exiting as `BUSY`. For `redo` default number of retries allowed is `RETRIES_MAX_DEFAULT` (defined in redo.c). `REDO_RETRIES` is inherited by the child processes. `redo` uses absolute value of `REDO_RETRIES`.
 
 For `depends-on` default retries number is 0, meaning the single pass even if some targets were built successfully. Any positive `REDO_RETRIES` value falls back to 0. If some target is busy the default behaviour of `depends-on` is to exit immediately returning `BUSY`. Negative `REDO_RETRIES` prevents `depends-on` from early exits on busy targets and makes it try to build all the targets once in absence of errors.
 
 
 ### `redo` retry delays.
 
-Constants `SHORTEST` and `SCALEUPS` defined in redo.c determine the duration of the delays between the retries. After each unsuccessful pass the random delay in the range [x .. 2 * x] is inserted, where x is reset to SHORTEST msec after each successful pass (and at the startup) and is doubled after each consequent retry but no more than SCALEUPS times.  
+Constants `SLEEP_MIN` and `SLEEP_MAX` defined in redo.c determine the duration of the delays between the retries. After each unsuccessful pass the random delay in the range [x .. 2 * x] is inserted, where x is reset to SLEEP_MIN msec after each successful pass (and at the startup) and is doubled after each consequent retry until it will become greater or equal to `SLEEP_MAX`.  
 
 As an example
 
-    #define SHORTEST 10
-    #define SCALEUPS 6
+    #define SLEEP_MIN 10
+    #define SLEEP_MAX 640
 
 gives minimal dalay in the [10 .. 20] msec range (15 msec mean time) and the maximum delay in the range [640 .. 1280] msec (0.96 sec mean time).
 
-    #define RETRIES_DEFAULT 10
+    #define RETRIES_MAX_DEFAULT 10
 
 gives 4 sec total wait mean time.
 

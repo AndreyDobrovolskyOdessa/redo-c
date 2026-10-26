@@ -202,9 +202,9 @@ static void sha256_update(struct sha256 *s, const void *m, unsigned long len)
 /* ------------------------------------------------------------------------- */
 
 
-/********************* Globals **************************************/
+/********************* Globals **********************************/
 
-static int wflag, eflag, fflag, tflag, log_fd, level = 0, max_nesting;
+static int wflag, eflag, fflag, tflag, log_fd, level, log_nesting;
 
 static struct {
 	char	*buf;
@@ -227,7 +227,7 @@ static char record_buf[RECORD_SIZE], build_date[HEXDATE_LEN + 1];
 #define namebuf (record_buf + NAME_OFFSET)
 
 
-/****************** Literals ****************************************/
+/****************** Literals ************************************/
 
 static const char
 
@@ -243,7 +243,7 @@ static const char
 
 	close_comment[]	= "--]%s]\n";
 
-/****************** end globals *************************************/
+/****************** end globals *********************************/
 
 
 static char *
@@ -306,7 +306,7 @@ track_init(const char *heritage)
 	}
 	strcpy(track.buf, heritage);
 
-	for(s = track.buf ; *s ; ) {
+	for (level = 0, s = track.buf ; *s ; ) {
 		if (*s++ == TRACK_DELIM)
 			level++;
 	}
@@ -397,11 +397,6 @@ track_append(const char *dep)
 }
 
 
-#define track_buf()	(track.buf + 0)
-
-#define track_used()	(track.used + 0)
-
-
 static char *
 base_name(char *path)
 {
@@ -474,30 +469,30 @@ date_build(const char *var)
 }
 
 
+#define BASE 16
+
 static void
-rehash(char *dep, int redate)
+rehash(const char *dep, int redate)
 {
-	static const char hexdigit[] = "0123456789abcdef";
+	static const char hexdigit[BASE] = "0123456789abcdef";
 
 	struct sha256 ctx;
-	char buf[4096];
-	char *a;
-	unsigned char hash[HASH_LEN];
+	unsigned char buf[4096], hash[HASH_LEN];
 	int i, fd = open(dep, O_RDONLY);
 	ssize_t r;
+	char *a;
 
 
 	sha256_init(&ctx);
 
-	while ((r = read(fd, buf, sizeof buf)) > 0) {
+	while ((r = read(fd, buf, sizeof buf)) > 0)
 		sha256_update(&ctx, buf, r);
-	}
 
 	sha256_sum(&ctx, hash);
 
 	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hexdigit[hash[i] / 16];
-		*a++ = hexdigit[hash[i] % 16];
+		*a++ = hexdigit[hash[i] / BASE];
+		*a++ = hexdigit[hash[i] % BASE];
 	}
 
 	if (redate)
@@ -658,21 +653,10 @@ choose(const char *old, const char *new, int err)
 }
 
 
-static long
-ptimes(void)
-{
-	struct tms t;
-
-	times(&t);
-
-	return t.tms_utime + t.tms_stime + t.tms_cutime + t.tms_cstime;
-}
-
-
 #define NAME_MAX 255
 
 static int
-run_recipe(int fd, char *recipe_rel, const char *target,
+run_recipe(int fd, const char *recipe_rel, const char *target,
 				const char *family, size_t reldir_len)
 {
 	int err = ERROR;
@@ -696,9 +680,9 @@ run_recipe(int fd, char *recipe_rel, const char *target,
 	else if (pid == 0) {
 
 		if (setenvint("REDO_FD", fd) ||
-		    setenv("REDO_TRACK", track_buf(), 1)) {
+		    setenv("REDO_TRACK", track.buf, 1)) {
 			perror("setenv");
-			exit(ERROR);
+			exit(-1);
 		}
 
 		if (access(recipe_rel, X_OK) != 0) /* executable? */
@@ -710,7 +694,7 @@ run_recipe(int fd, char *recipe_rel, const char *target,
 				target, family, tmp, reldir, (char *)0);
 
 		perror("execl");
-		exit(ERROR);
+		exit(-1);
 	} else {
 		if (wait(&err) < 0)
 			perror("wait");
@@ -840,44 +824,14 @@ write_dep(int fd, char *dep, int hint)
 }
 
 
-static int really_update_dep(int dir_fd, char *dep);
-
-static int
-update_dep(int dir_fd, char *dep_path, int *hint)
+static long
+ptimes(void)
 {
-	int dep_dir_fd = dir_fd, err = ERROR;
+	struct tms t;
 
+	times(&t);
 
-	if (strchr(dep_path, TRACK_DELIM))
-		msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
-	else {
-		char *dep = file_chdir(&dep_dir_fd, dep_path);
-
-		if (!dep)
-			msg("Missing dependency directory", dep_path);
-		else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix))
-			msg("Dependency name too long", dep);
-		else {
-			size_t cutoff = track_used();
-
-			level++;
-			err = really_update_dep(dep_dir_fd, dep);
-			level--;
-			track_truncate(cutoff);
-		}
-
-		if (dir_fd != dep_dir_fd) {
-			if (fchdir(dir_fd) < 0) {
-				pperror("chdir back");
-				err = ERROR;
-			}
-			close(dep_dir_fd);
-		}
-	}
-
-	*hint = err & HINTS;
-
-	return err & ERRORS;
+	return t.tms_utime + t.tms_stime + t.tms_cutime + t.tms_cstime;
 }
 
 
@@ -893,9 +847,9 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 	dprintf(log_fd, "%*s %*s = %ld,\n",\
 			indent, "", KWD, "0, tdo", ptimes())
 
-#define nesting_enclosure(f) if ((level % max_nesting) == 0)\
+#define nesting_enclosure(f) if ((level % log_nesting) == 0)\
 	dprintf(log_fd, f, indent, "",\
-			stretch(level / max_nesting + MIN_STRETCH))
+			stretch(level / log_nesting + MIN_STRETCH))
 
 #define open_target_report() if (log_fd > 0) {\
 	nesting_enclosure("%*s((load([%s[ return\n");\
@@ -915,11 +869,13 @@ else if (!log_fd && fail())\
 	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
 
 
-#define FOLD_DIVISOR 20
+#define FOLD_MARGIN 20
 
 #define INDENT_PER_LEVEL 2
 
 #define CR_WR_TR (O_CREAT | O_WRONLY | O_TRUNC)
+
+static int update_dep(int dir_fd, char *dep_path, int *hint);
 
 static int
 really_update_dep(int dir_fd, char *dep)
@@ -932,18 +888,18 @@ really_update_dep(int dir_fd, char *dep)
 		*mark = "...";
 
 	int	draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1,
-		indent = (((level - 1) % FOLD_DIVISOR) + 1) * INDENT_PER_LEVEL;
+		indent = (((level - 1) % FOLD_MARGIN) + 1) * INDENT_PER_LEVEL;
 
 	struct stat st;
 
 	FILE *journal_f;
 
-	size_t whole_pos = track_used() + 1, dep_pos;
+	size_t whole_pos = track.used + 1, dep_pos;
 
 
 	whole = track_append(dep);
 	if (!whole) {
-		msg("Dependency loop attempt", track_buf());
+		msg("Dependency loop attempt", track.buf);
 		return wflag ? IS_SOURCE : ERROR;
 	}
 
@@ -989,7 +945,7 @@ really_update_dep(int dir_fd, char *dep)
 		return err;
 	}
 
-	if (indent == (FOLD_DIVISOR * INDENT_PER_LEVEL))
+	if (indent == (FOLD_MARGIN * INDENT_PER_LEVEL))
 		indent = 0;
 
 	open_target_report();
@@ -1027,7 +983,7 @@ really_update_dep(int dir_fd, char *dep)
 	track.buf may be relocated during the nested update_dep() calls.
 	whole and target_rel reside in it and need to be refreshed.
 */
-	whole = track_buf() + whole_pos;
+	whole = track.buf + whole_pos;
 
 	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
@@ -1066,6 +1022,45 @@ really_update_dep(int dir_fd, char *dep)
 
 
 static int
+update_dep(int dir_fd, char *dep_path, int *hint)
+{
+	int dep_dir_fd = dir_fd, err = ERROR;
+
+
+	if (strchr(dep_path, TRACK_DELIM))
+		msg("Illegal symbol "stringize(TRACK_DELIM), dep_path);
+	else {
+		char *dep = file_chdir(&dep_dir_fd, dep_path);
+
+		if (!dep)
+			msg("Missing dependency directory", dep_path);
+		else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix))
+			msg("Dependency name too long", dep);
+		else {
+			size_t cutoff = track.used;
+
+			level++;
+			err = really_update_dep(dep_dir_fd, dep);
+			level--;
+			track_truncate(cutoff);
+		}
+
+		if (dir_fd != dep_dir_fd) {
+			if (fchdir(dir_fd) < 0) {
+				pperror("chdir back");
+				err = ERROR;
+			}
+			close(dep_dir_fd);
+		}
+	}
+
+	*hint = err & HINTS;
+
+	return err & ERRORS;
+}
+
+
+static int
 envint(const char *name)
 {
 	char *s = getenv(name);
@@ -1088,9 +1083,8 @@ keepdir()
 }
 
 
-#define SHORTEST	10
-#define SCALEUPS	6
-#define LONGEST		(SHORTEST << SCALEUPS)
+#define SLEEP_MIN	10
+#define SLEEP_MAX	640
 
 #define MS_PER_S	1000
 #define NS_PER_MS	1000000
@@ -1104,13 +1098,13 @@ hurry_up_on(int startup_or_success)
 
 
 	if (startup_or_success) {
-		night = SHORTEST;
+		night = SLEEP_MIN;
 		return;
 	}
 
 	asleep = night + (rand() % night); /* ms */
 
-	if (night < LONGEST)
+	if (night < SLEEP_MAX)
 		night *= 2;
 
 	s.tv_sec  =  asleep / MS_PER_S;
@@ -1121,11 +1115,11 @@ hurry_up_on(int startup_or_success)
 
 
 static void
-fence(int log_fd_buf, const char *top, const char *hill)
+fence(int log_fd_in, const char *top, const char *hill)
 {
 	if (log_fd > 0) {
-		if (log_fd != log_fd_buf) {
-			if (log_fd_buf <= 0)
+		if (log_fd != log_fd_in) {
+			if (log_fd_in <= 0)
 				dprintf(log_fd, top);
 		} else if (log_fd < 3)
 			dprintf(log_fd, hill, stretch(MIN_STRETCH));
@@ -1265,7 +1259,7 @@ init_map(roadmap *m, int n, char **argv)
 	m->status = calloc(2 * n + 1, sizeof (int32_t));
 	if (!m->status) {
 		perror("calloc");
-		exit(ERROR);
+		exit(-1);
 	}
 	m->children = m->status + n;
 }
@@ -1316,21 +1310,21 @@ Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n\
        depends-on [-weft] [-l <logname>] [-m <roadmap>] [DEP [...]]\n"
 
 
-#define RETRIES_DEFAULT 10
+#define RETRIES_MAX_DEFAULT 10
 
-#define NESTING_LIMIT_DEFAULT 80
+#define LOG_NESTING_DEFAULT 80
 
 int
 main(int argc, char *argv[])
 {
-	int	opt, log_fd_prev, fd = -1, map_fd = -1, dir_fd = keepdir(),
+	int	opt, log_fd_in, fd = -1, map_fd = -1, dir_fd = keepdir(),
 		retries_max, retries, i, hint, err = OK,
 		step, prev, cur, storage;
 
 	roadmap map;
 
 
-	log_fd = log_fd_prev = envint("REDO_LOG_FD");
+	log_fd = log_fd_in = envint("REDO_LOG_FD");
 
 	opterr = 0;
 
@@ -1386,14 +1380,14 @@ main(int argc, char *argv[])
 	date_build("REDO_BUILD_DATE");
 	track_init(getenv("REDO_TRACK"));
 	retries_max = envint("REDO_RETRIES");
-	max_nesting = envint("REDO_NESTING");
+	log_nesting = envint("REDO_NESTING");
 
-	if (max_nesting <= 0)
-		max_nesting = NESTING_LIMIT_DEFAULT;
+	if (log_nesting <= 0)
+		log_nesting = LOG_NESTING_DEFAULT;
 
 	if (strcmp(base_name(argv[0]), "redo") == 0) {
 		if (retries_max == 0)
-			retries_max = RETRIES_DEFAULT;
+			retries_max = RETRIES_MAX_DEFAULT;
 		else if (retries_max < 0)
 			retries_max = -retries_max;
 	} else {
@@ -1407,7 +1401,7 @@ main(int argc, char *argv[])
 		init_map(&map, argc - optind, argv + optind);
 
 	srand(getpid());
-	fence(log_fd_prev, "return {\n", close_comment);
+	fence(log_fd_in, "return {\n", close_comment);
 	retries = retries_max;
 
 	do {
@@ -1450,7 +1444,7 @@ main(int argc, char *argv[])
 		}
 	} while ((err != ERROR) && (map.done < map.todo) && (retries > 0));
 
-	fence(log_fd_prev, "}\n", open_comment);
+	fence(log_fd_in, "}\n", open_comment);
 
 	if (err != ERROR)
 		err = (map.done < map.num) ? BUSY : OK;
