@@ -227,7 +227,7 @@ The current `redo` version follows approach of "do-layers". File belongs to the 
 
 ### Note about the soft links as targets
 
-Recipes may create soft links as the targets. In case such target is linked to non-existing file then it will be hashed as non-existing (empty) file. And if the link will be removed redo will not be able to detect its disappearance and restore it.
+Recipes may create soft links as the targets. In case such target is linked to non-existing file then it will be hashed as non-existing file. And if the link will be removed redo will not be able to detect its disappearance.
 
 
 ### Loop dependencies

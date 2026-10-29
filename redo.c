@@ -469,40 +469,6 @@ date_build(const char *var)
 }
 
 
-#define BASE 16
-
-static void
-rehash(const char *dep, int redate)
-{
-	static const char hexdigit[BASE] = "0123456789abcdef";
-
-	struct sha256 ctx;
-	unsigned char buf[4096], hash[HASH_LEN];
-	int i, fd = open(dep, O_RDONLY);
-	ssize_t r;
-	char *a;
-
-
-	sha256_init(&ctx);
-
-	while ((r = read(fd, buf, sizeof buf)) > 0)
-		sha256_update(&ctx, buf, r);
-
-	sha256_sum(&ctx, hash);
-
-	for (i = 0, a = hexhash; i < HASH_LEN; i++) {
-		*a++ = hexdigit[hash[i] / BASE];
-		*a++ = hexdigit[hash[i] % BASE];
-	}
-
-	if (redate)
-		datefd(fd);
-
-	if (fd > 0)
-		close(fd);
-}
-
-
 static char *
 file_chdir(int *fd, char *name)
 {
@@ -633,12 +599,15 @@ choose(const char *old, const char *new, int err)
 {
 	struct stat st;
 
-	if (err) {
+	if (err)
+	{
 		if ((lstat(new, &st) == 0) && remove(new)) {
 			pperror("remove new");
 			err = ERROR;
 		}
-	} else {
+	}
+		else
+	{
 		if ((lstat(old, &st) == 0) && remove(old)) {
 			pperror("remove old");
 			err = ERROR;
@@ -765,6 +734,53 @@ find_record(char *target_path)
 }
 
 
+#define BASE 16
+
+static int
+rehash(const char *dep, int redate)
+{
+	static const char hexdigit[BASE] = "0123456789abcdef";
+
+	struct sha256 ctx;
+	unsigned char buf[4096], hash[HASH_LEN];
+	int i, fd = open(dep, O_RDONLY);
+	ssize_t result;
+	char *digit;
+
+
+	if (fd < 0) {
+		memset(hexhash, '-', HEXHASH_LEN);
+		if (redate)
+			memset(hexdate, '0', HEXDATE_LEN);
+		return OK;
+	}
+
+	sha256_init(&ctx);
+
+	while ((result = read(fd, buf, sizeof buf)) > 0)
+		sha256_update(&ctx, buf, result);
+
+	if (result < 0) {
+		pperror("read");
+		return ERROR;
+	}
+
+	sha256_sum(&ctx, hash);
+
+	for (i = 0, digit = hexhash; i < HASH_LEN; i++) {
+		*digit++ = hexdigit[hash[i] / BASE];
+		*digit++ = hexdigit[hash[i] % BASE];
+	}
+
+	if (redate)
+		datefd(fd);
+
+	close(fd);
+
+	return OK;
+}
+
+
 #define may_need_rehash(dep, hint) \
 (\
 	(hint & IS_SOURCE) ||\
@@ -799,8 +815,8 @@ dep_changed(char *record, int hint)
 		return 0;
 	}
 
-	if (missing)
-		rehash(filename, 0);
+	if (missing && (rehash(filename, 0) != OK))
+		return 1;
 
 	return strncmp(record, hexhash, HEXHASH_LEN);
 }
@@ -809,8 +825,10 @@ dep_changed(char *record, int hint)
 static int
 write_dep(int fd, char *dep, int hint)
 {
-	if (may_need_rehash(dep, hint))
-		rehash(dep, 1);
+	if (may_need_rehash(dep, hint) && (rehash(dep, 1) != OK)) {
+		msg("write_dep()", dep);
+		return ERROR;
+	}
 
 	hexhash[HEXHASH_LEN] = '\0';
 	hexdate[HEXDATE_LEN] = '\0';
@@ -1305,10 +1323,9 @@ forget(roadmap *m, int i)
 }
 
 
-#define HELP "redo-c-weft-9\n\
+#define HELP "redo-c-weft-91\n\
 Usage: redo [-weft] [-l <logname>] [-m <roadmap>] [TARGET [...]]\n\
        depends-on [-weft] [-l <logname>] [-m <roadmap>] [DEP [...]]\n"
-
 
 #define RETRIES_MAX_DEFAULT 10
 
