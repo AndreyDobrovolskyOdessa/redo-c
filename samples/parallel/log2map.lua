@@ -29,8 +29,15 @@ explore = function(dep, target)
   end
 end
 
+
+local env
+
+env = {
+  load = function(s) return load(s, "enclosed", "t", env) end
+}
+
 for i, logname in ipairs{...} do
-  local f = assert(loadfile(logname), logname .. " failed")
+  local f = assert(loadfile(logname, "t", env), logname .. " failed")
   explore(f())
 end
 
