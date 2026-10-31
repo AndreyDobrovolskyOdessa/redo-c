@@ -67,6 +67,11 @@ for storing both standard output files in the log.
 	JOBS=8 redo project.parallel     ninja -j 8
 
 
+### Troubleshooting
+
+If `log2map.lua` fails to parse the log produced by normally exited (not interrupted) `redo` and Lua has version earlier than 5.5 then the first thing to do is to use Lua 5.5 (or newer). If usage of Lua 5.5 is undesirable then running `redo` with environment variable `REDO_NESTING` set to 20, 10 or even 5 (guaranteed table constructor nesting depth for parser of earlier Lua versions) will surely help.
+
+
 ## Parallelizing inside the recipes
 
 Obviously makes sence for the targets not having common dependencies. May be used by project developer for the cases of independent targets. An example in shell is `parallel_depends_on()` function, see `samples/parallel/playground/recipe`. Function is compatible with `.parallel.do` rule. Function is controlled with MAXJOBS variable. If MAXJOBS is not defined then parallel_depends_on() is equivalent to depends-on. If MAXJOBS is defined then parallel_depends_on() build all the targets given in the separate processes, sequentializing the resulting log if it is redirected to one of the standard output streams.
