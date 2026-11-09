@@ -208,11 +208,12 @@ static int wflag, eflag, fflag, tflag, log_fd, level, log_nesting;
 
 static struct {
 	char	*buf;
-	size_t	size, used;
+	size_t	size,
+		used;
 } track;
 
 #define HASH_LEN	32
-#define HEXHASH_LEN	(2 * HASH_LEN)
+#define HEXHASH_LEN	(HASH_LEN * 2)
 #define HEXDATE_LEN	16
 
 #define DATE_OFFSET	(HEXHASH_LEN + 1)
@@ -220,7 +221,8 @@ static struct {
 
 #define RECORD_SIZE	(NAME_OFFSET + PATH_MAX + 1)
 
-static char record_buf[RECORD_SIZE], build_date[HEXDATE_LEN + 1];
+static char	record_buf[RECORD_SIZE],
+		build_date[HEXDATE_LEN + 1];
 
 #define hexhash (record_buf)
 #define hexdate (record_buf + DATE_OFFSET)
@@ -281,11 +283,7 @@ msg(const char *x, const char *y)
 }
 
 
-static void
-pperror(const char *s)
-{
-	msg(s, strerror(errno));
-}
+#define pperror(s) msg(s, strerror(errno))
 
 
 #define TRACK_DELIM ':'
@@ -306,10 +304,9 @@ track_init(const char *heritage)
 	}
 	strcpy(track.buf, heritage);
 
-	for (level = 0, s = track.buf ; *s ; ) {
+	for (level = 0, s = track.buf ; *s ; )
 		if (*s++ == TRACK_DELIM)
 			level++;
-	}
 }
 
 
@@ -417,10 +414,9 @@ setenvint(const char *name, int i)
 #define stringyze(s) #s
 
 static void
-datestat(struct stat *st)
+print_time(uint64_t t)
 {
-	snprintf(hexdate, HEXDATE_LEN + 1,
-		"%0" stringize(HEXDATE_LEN) PRIx64, (uint64_t) st->st_ctime);
+	snprintf(hexdate, HEXDATE_LEN+1, "%0" stringize(HEXDATE_LEN) PRIx64,t);
 }
 
 
@@ -429,29 +425,25 @@ datefd(int fd)
 {
 	struct stat st;
 
-	if (fstat(fd, &st))
-		st.st_ctime = 0;
-	datestat(&st);
+	print_time(fstat(fd, &st) ? 0 : st.st_ctime);
 }
 
 
 static void
 datefile(const char *name, struct stat *st)
 {
-	if(stat(name, st))
-		st->st_ctime = 0;
-	datestat(st);
+	print_time(stat(name, st) ? 0 : st->st_ctime);
 }
 
 
 static void
-date_build(const char *var)
+date_build(const char *name)
 {
-	const char *s = getenv(var);
+	const char *var = getenv(name);
 	FILE *f;
 
-	if (s) {
-		memcpy(build_date, s, HEXDATE_LEN);
+	if (var) {
+		memcpy(build_date, var, HEXDATE_LEN);
 		return;
 	}
 
@@ -461,7 +453,7 @@ date_build(const char *var)
 
 	strcpy(build_date, hexdate);
 
-	setenv(var, build_date, 1);
+	setenv(name, build_date, 1);
 }
 
 
@@ -680,7 +672,7 @@ run_recipe(int fd, const char *recipe_rel, const char *target,
 
 
 static int
-read_record(char *buf, FILE *f, char *filename)
+read_record(char *buf, FILE *f, const char *filename)
 {
 	if(fgets(buf, RECORD_SIZE, f)) {
 		char *eol_ch = strchr(buf, '\n');
@@ -734,23 +726,17 @@ find_record(const char *target_path)
 #define BASE 16
 
 static int
-rehash(const char *dep, int redate)
+hashfd(int fd)
 {
 	static const char hexdigit[BASE] = "0123456789abcdef";
 
-	struct sha256 ctx;
-	unsigned char buf[4096], hash[HASH_LEN];
-	int i, fd = open(dep, O_RDONLY);
+	struct sha256	ctx;
+	unsigned char	buf[4096],
+			hash[HASH_LEN];
+	int i;
 	ssize_t result;
 	char *digit;
 
-
-	if (fd < 0) {
-		memset(hexhash, '-', HEXHASH_LEN);
-		if (redate)
-			memset(hexdate, '0', HEXDATE_LEN);
-		return OK;
-	}
 
 	sha256_init(&ctx);
 
@@ -769,19 +755,33 @@ rehash(const char *dep, int redate)
 		*digit++ = hexdigit[hash[i] % BASE];
 	}
 
-	if (redate)
-		datefd(fd);
-
-	close(fd);
-
 	return OK;
 }
 
 
-#define may_need_rehash(dep, hint) \
-(\
-	(hint & IS_SOURCE) ||\
-	(\
+static int
+rehash(const char *dep, int redate)
+{
+	int err = OK, fd = open(dep, O_RDONLY);
+
+
+	if (fd < 0)
+		memset(hexhash, '-', HEXHASH_LEN);
+	else
+		err = hashfd(fd);
+
+	if (redate)
+		datefd(fd);
+
+	if (fd > 0)
+		close(fd);
+
+	return err;
+}
+
+
+#define may_need_rehash(dep, hint) (\
+	(hint & IS_SOURCE) || (\
 		!(hint & UPDATED_RECENTLY) &&\
 		(find_record(dep) != OK)\
 	)\
@@ -789,10 +789,10 @@ rehash(const char *dep, int redate)
 
 
 static int
-dep_changed(char *record, int hint)
+dep_changed(const char *record, int hint)
 {
-	char	*filename = record + NAME_OFFSET,
-		*filedate = record + DATE_OFFSET;
+	const char	*filename = record + NAME_OFFSET,
+			*filedate = record + DATE_OFFSET;
 
 	struct stat st;
 	int missing = may_need_rehash(filename, hint);
@@ -822,10 +822,8 @@ dep_changed(char *record, int hint)
 static int
 write_dep(int fd, const char *dep, int hint)
 {
-	if (may_need_rehash(dep, hint) && (rehash(dep, 1) != OK)) {
-		msg("write_dep()", dep);
+	if (may_need_rehash(dep, hint) && (rehash(dep, 1) != OK))
 		return ERROR;
-	}
 
 	hexhash[HEXHASH_LEN] = '\0';
 	hexdate[HEXDATE_LEN] = '\0';
@@ -874,14 +872,13 @@ ptimes(void)
 
 #define fail() err && (err != BUSY)
 
-#define close_target_report() \
-if (log_fd > 0) {\
+#define close_target_report() if (log_fd > 0) {\
 	dprintf(log_fd, "%*s %*s = %ld, err = %d\n%*s},\n",\
 			indent, "", KWD, "t1", ptimes(), err, indent, "");\
 	nesting_enclosure("%*snil ]%s]))()),\n");\
-} \
-else if (!log_fd && fail())\
-	dprintf(2, "redo %s\n     %s %s %d\n", dep_full, recipe_rel, mark, err)
+} else if (!log_fd && fail())\
+	dprintf(2, "redo %s\n     %s %s %d\n",\
+			dep_full, recipe_rel, mark, err)
 
 
 #define FOLD_MARGIN 20
@@ -1068,9 +1065,9 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 static int
 envint(const char *name)
 {
-	char *s = getenv(name);
+	char *var = getenv(name);
 
-	return s ? strtol(s, 0, 10) : 0;
+	return var ? strtol(var, 0, 10) : 0;
 }
 
 
@@ -1081,7 +1078,7 @@ keepdir()
 
 	if (fd < 0) {
 		perror("dir open");
-		exit(ERROR);
+		exit(-1);
 	}
 
 	return fd;
@@ -1253,14 +1250,14 @@ import_map(roadmap *m, int fd)
 
 
 static void
-init_map(roadmap *m, int n, char **argv)
+init_map(roadmap *m, int n, char **name)
 {
 	m->num  = n;
 	m->todo = n;
 	m->done = 0;
 	m->sorted = 0;
 
-	m->name = argv;
+	m->name = name;
 	m->status = calloc(2 * n + 1, sizeof (int32_t));
 	if (!m->status) {
 		perror("calloc");
@@ -1322,8 +1319,7 @@ int
 main(int argc, char *argv[])
 {
 	int	opt, log_fd_in, fd = -1, map_fd = -1, dir_fd = keepdir(),
-		retries_max, retries, i, hint, err = OK,
-		step, prev, cur, storage;
+		retries_max, retries, err = OK;
 
 	roadmap map;
 
@@ -1409,6 +1405,8 @@ main(int argc, char *argv[])
 	retries = retries_max;
 
 	do {
+		int i, step, prev, cur, acc, hint;
+
 		hurry_up_on(retries-- == retries_max);
 
 		for (i = 0, cur = 0; i < map.num ; i += step) {
@@ -1420,9 +1418,9 @@ main(int argc, char *argv[])
 			else {
 				step = - cur;
 				if (prev >= 0)
-					storage = i;
+					acc = i;
 				else
-					map.status[storage] += cur;
+					map.status[acc] += cur;
 			}
 
 			if (cur == 0) {
