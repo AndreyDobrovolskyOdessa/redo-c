@@ -1047,96 +1047,6 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
-/***************** main() helpers ****************************/
-
-static int
-envint(const char *name)
-{
-	char *var = getenv(name);
-
-	return var ? strtol(var, 0, 10) : 0;
-}
-
-
-static int
-keepdir()
-{
-	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-
-	if (fd < 0) {
-		perror("dir open");
-		exit(-1);
-	}
-
-	return fd;
-}
-
-
-static void
-date_build(const char *name)
-{
-	const char *var = getenv(name);
-	FILE *f;
-
-	if (var) {
-		memcpy(build_date, var, HEXDATE_LEN);
-		return;
-	}
-
-	f = tmpfile();
-	datefd(fileno(f));
-	fclose(f);
-
-	strcpy(build_date, hexdate);
-
-	setenv(name, build_date, 1);
-}
-
-
-#define SLEEP_MIN	10
-#define SLEEP_MAX	640
-
-#define MS_PER_S	1000
-#define NS_PER_MS	1000000
-
-static void
-hurry_up_on(int startup_or_success)
-{
-	static int night;
-	int asleep;
-	struct timespec s, r;
-
-
-	if (startup_or_success) {
-		night = SLEEP_MIN;
-		return;
-	}
-
-	asleep = night + (rand() % night); /* ms */
-
-	if (night < SLEEP_MAX)
-		night *= 2;
-
-	s.tv_sec  =  asleep / MS_PER_S;
-	s.tv_nsec = (asleep % MS_PER_S) * NS_PER_MS;
-
-	nanosleep(&s, &r);
-}
-
-
-static void
-fence(int log_fd_in, const char *top, const char *hill)
-{
-	if (log_fd > 0) {
-		if (log_fd != log_fd_in) {
-			if (log_fd_in <= 0)
-				dprintf(log_fd, top);
-		} else if (log_fd < 3)
-			dprintf(log_fd, hill, stretch(MIN_STRETCH));
-	}
-}
-
-
 /************* Roadmap management **********************/
 
 typedef struct {
@@ -1314,6 +1224,96 @@ forget(roadmap *m, int i)
 	m->todo--;
 
 	return 1;
+}
+
+
+/***************** main() helpers ****************************/
+
+static int
+envint(const char *name)
+{
+	char *var = getenv(name);
+
+	return var ? strtol(var, 0, 10) : 0;
+}
+
+
+static int
+keepdir()
+{
+	int fd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+
+	if (fd < 0) {
+		perror("dir open");
+		exit(-1);
+	}
+
+	return fd;
+}
+
+
+static void
+date_build(const char *name)
+{
+	const char *var = getenv(name);
+	FILE *f;
+
+	if (var) {
+		memcpy(build_date, var, HEXDATE_LEN);
+		return;
+	}
+
+	f = tmpfile();
+	datefd(fileno(f));
+	fclose(f);
+
+	strcpy(build_date, hexdate);
+
+	setenv(name, build_date, 1);
+}
+
+
+#define SLEEP_MIN	10
+#define SLEEP_MAX	640
+
+#define MS_PER_S	1000
+#define NS_PER_MS	1000000
+
+static void
+hurry_up_on(int startup_or_success)
+{
+	static int night;
+	int asleep;
+	struct timespec s, r;
+
+
+	if (startup_or_success) {
+		night = SLEEP_MIN;
+		return;
+	}
+
+	asleep = night + (rand() % night); /* ms */
+
+	if (night < SLEEP_MAX)
+		night *= 2;
+
+	s.tv_sec  =  asleep / MS_PER_S;
+	s.tv_nsec = (asleep % MS_PER_S) * NS_PER_MS;
+
+	nanosleep(&s, &r);
+}
+
+
+static void
+fence(int log_fd_in, const char *top, const char *hill)
+{
+	if (log_fd > 0) {
+		if (log_fd != log_fd_in) {
+			if (log_fd_in <= 0)
+				dprintf(log_fd, top);
+		} else if (log_fd < 3)
+			dprintf(log_fd, hill, stretch(MIN_STRETCH));
+	}
 }
 
 
