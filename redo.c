@@ -229,7 +229,7 @@ static char	record_buf[RECORD_SIZE],
 #define namebuf (record_buf + NAME_OFFSET)
 
 
-/****************** Literals ************************************/
+/**************** Literals *****************/
 
 static const char
 
@@ -245,8 +245,8 @@ static const char
 
 	close_comment[]	= "--]%s]\n";
 
-/****************** end globals *********************************/
 
+/***************** Messaging ************************************/
 
 static char *
 stretch(size_t len)
@@ -285,6 +285,8 @@ msg(const char *x, const char *y)
 
 #define pperror(s) msg(s, strerror(errno))
 
+
+/************** Track management ****************************/
 
 #define TRACK_DELIM ':'
 
@@ -390,6 +392,8 @@ track_cycle_scan(size_t tail_pos)
 }
 
 
+/*************** Basic routines ******************************/
+
 static const char *
 base_name(const char *path)
 {
@@ -436,27 +440,6 @@ datefile(const char *name, struct stat *st)
 }
 
 
-static void
-date_build(const char *name)
-{
-	const char *var = getenv(name);
-	FILE *f;
-
-	if (var) {
-		memcpy(build_date, var, HEXDATE_LEN);
-		return;
-	}
-
-	f = tmpfile();
-	datefd(fileno(f));
-	fclose(f);
-
-	strcpy(build_date, hexdate);
-
-	setenv(name, build_date, 1);
-}
-
-
 static char *
 file_chdir(int *fd, char *name)
 {
@@ -486,6 +469,8 @@ file_chdir(int *fd, char *name)
 	return slash + 1;
 }
 
+
+/************************* Engine gears **************************************/
 
 #define SUFFIX_LEN	(sizeof recipe_suffix - 1)
 
@@ -1062,6 +1047,8 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 }
 
 
+/***************** main() helpers ****************************/
+
 static int
 envint(const char *name)
 {
@@ -1082,6 +1069,27 @@ keepdir()
 	}
 
 	return fd;
+}
+
+
+static void
+date_build(const char *name)
+{
+	const char *var = getenv(name);
+	FILE *f;
+
+	if (var) {
+		memcpy(build_date, var, HEXDATE_LEN);
+		return;
+	}
+
+	f = tmpfile();
+	datefd(fileno(f));
+	fclose(f);
+
+	strcpy(build_date, hexdate);
+
+	setenv(name, build_date, 1);
 }
 
 
@@ -1128,6 +1136,8 @@ fence(int log_fd_in, const char *top, const char *hill)
 	}
 }
 
+
+/************* Roadmap management **********************/
 
 typedef struct {
 	int	num,
