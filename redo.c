@@ -322,83 +322,79 @@ track_truncate(size_t pos)
 
 
 static char *
-track_append(const char *dep)
+track_enlarge(size_t new_size)
 {
-	char *record, *dep_full, *ptr;
+	char  *new_buf = 0;
 
-	size_t record_len, track_engaged = track.used
-
-		+ 1			/* TRACK_DELIM */
-					/* dep's directory */
-		+ 1			/* '/' */
-		+ sizeof draft_prefix	/* is to be reserved in order to have
-					enough free space to construct the
-					draft_full in really_update_dep() */
-		+ strlen(dep)		/* dep */
-		+ 1;			/* terminating '\0' */
-
-
-	/* store cwd in the track */
-
-	while (1) {
-		if (track.size > track_engaged) {
-			dep_full = getcwd(track.buf + track.used + 1,
-					     track.size - track_engaged);
-
-			if (dep_full)		/* getcwd successful */
-				break;
+	if (new_size > track.size) {
+		new_buf = realloc(track.buf, new_size);
+		if (new_buf) {
+			track.size = new_size;
+			track.buf  = new_buf;
 		} else
-			errno = ERANGE;
-
-		do {
-			if (errno != ERANGE)
-				pperror("getcwd");
-			else if (track.size < (SIZE_MAX - PATH_MAX)) {
-				size_t new_size = track.size + PATH_MAX;
-				char  *new_buf = realloc(track.buf, new_size);
-
-				if (new_buf) {
-					track.size = new_size;
-					track.buf  = new_buf;
-					break;
-				}
-				pperror("realloc");
-			}
-
-			msg("Failed to get cwd", dep);
-
-			wflag = 0;	/* suppress warning, ensure error */
-			return 0;
-
-		} while(0);
+			pperror("realloc");
 	}
 
+	return new_buf;
+}
 
-	/* construct the dep's record and join it with the track */
+static int
+track_append(const char *dep, size_t dep_len)
+{
+	size_t	cwd_pos = track.used	+ 1,		/* TRACK_DELIM */
+							/* cwd */
+		engaged = cwd_pos	+ 1		/* '/' */
+					+ dep_len	/* dep */
+					+ 1;		/* '\0' */
 
-	record = dep_full - 1;
-	*record = TRACK_DELIM;
-	record_len = stpcpy(stpcpy(strchr(record, 0), "/"), dep) - record;
-	track.used += record_len;
 
+	while (1) {
+		if (track.size <= engaged)
+			errno = ERANGE;
+		else if (getcwd(track.buf + cwd_pos, track.size - engaged))
+			break;
 
-	/* search for the dep's full path inside the track.buf */
+		if (errno != ERANGE) {
+			pperror("getcwd");
+			return 1;
+		}
 
-	ptr = track.buf;
+		if (!track_enlarge(track.size * 2))
+			return 1;
+	}
 
-	do {
-		ptr = strstr(ptr, record);
-		if (ptr == record)
-			return dep_full;
-		ptr += record_len;
-	} while (*ptr != TRACK_DELIM);
+	track.buf[track.used++] = TRACK_DELIM;		/* TRACK_DELIM */
+	track.used += strlen(track.buf + track.used);	/* cwd */
+	track.buf[track.used++] = '/';			/* '/' */
+	strcpy(track.buf + track.used, dep);		/* dep */
+	track.used += dep_len;
 
 	return 0;
 }
 
 
-static char *
-base_name(char *path)
+static int
+track_cycle_scan(size_t tail_pos)
+{
+	char	*tail = track.buf + tail_pos,
+		*ptr  = track.buf;
+
+	size_t	tail_len = track.used - tail_pos;
+
+
+	do {
+		ptr = strstr(ptr, tail);
+		if (ptr == tail)
+			return 0;
+		ptr += tail_len;
+	} while (*ptr != TRACK_DELIM);
+
+	return 1;
+}
+
+
+static const char *
+base_name(const char *path)
 {
 	char *slash = strrchr(path, '/');
 
@@ -702,12 +698,13 @@ read_record(char *buf, FILE *f, char *filename)
 
 
 static int
-find_record(char *target_path)
+find_record(const char *target_path)
 {
 	int err = ERROR;
 
-	char	*target = base_name(target_path),
-		journal[PATH_MAX + sizeof journal_prefix];
+	const char *target = base_name(target_path);
+
+	char journal[PATH_MAX + sizeof journal_prefix];
 
 	size_t len = target - target_path;
 
@@ -823,7 +820,7 @@ dep_changed(char *record, int hint)
 
 
 static int
-write_dep(int fd, char *dep, int hint)
+write_dep(int fd, const char *dep, int hint)
 {
 	if (may_need_rehash(dep, hint) && (rehash(dep, 1) != OK)) {
 		msg("write_dep()", dep);
@@ -854,7 +851,7 @@ ptimes(void)
 
 
 #define log_name() if (log_fd > 0)\
-	dprintf(log_fd, "%*s\"%s\",\n", indent, "", whole)
+	dprintf(log_fd, "%*s\"%s\",\n", indent, "", dep_full)
 
 #define log_err() if (log_fd > 0)\
 	dprintf(log_fd, "%*s{ err = %d },\n", indent, "", err)
@@ -884,7 +881,7 @@ if (log_fd > 0) {\
 	nesting_enclosure("%*snil ]%s]))()),\n");\
 } \
 else if (!log_fd && fail())\
-	dprintf(2, "redo %s\n     %s %s %d\n", whole, recipe_rel, mark, err)
+	dprintf(2, "redo %s\n     %s %s %d\n", dep_full, recipe_rel, mark, err)
 
 
 #define FOLD_MARGIN 20
@@ -896,41 +893,36 @@ else if (!log_fd && fail())\
 static int update_dep(int dir_fd, char *dep_path, int *hint);
 
 static int
-really_update_dep(int dir_fd, char *dep)
+do_update_dep(int dir_fd, const char *dep, size_t tail_pos)
 {
-	char	*whole, *recipe,
+	char	*recipe,
+		*dep_full = track.buf + tail_pos + 1,
 		recipe_rel[PATH_MAX],
 		journal[NAME_MAX + 1],
 		draft  [NAME_MAX + 1],
 		family [NAME_MAX + 1],
 		*mark = "...";
 
-	int	draft_fd, err = 0, up_to_date = 0, hint, new_recipe = 1,
+	int	draft_fd, err = OK, up_to_date = 0, hint, new_recipe = 1,
 		indent = (((level - 1) % FOLD_MARGIN) + 1) * INDENT_PER_LEVEL;
 
 	struct stat st;
 
 	FILE *journal_f;
 
-	size_t whole_pos = track.used + 1, dep_pos;
-
-
-	whole = track_append(dep);
-	if (!whole) {
-		msg("Dependency loop attempt", track.buf);
-		return wflag ? IS_SOURCE : ERROR;
-	}
-
-	dep_pos = strlen(whole) - strlen(dep);
 
 	log_name();
 
+	if (track_cycle_scan(tail_pos)) {
+		msg("Dependency loop attempt", track.buf);
+		return wflag ? IS_SOURCE : ERROR;
+	}
 
 	if (fflag)
 		dprintf(1, "--[[\n");
 
 	strcpy(family, dep);
-	recipe = find_recipe(family, recipe_rel, sizeof recipe_rel, whole);
+	recipe = find_recipe(family, recipe_rel, sizeof recipe_rel, dep_full);
 
 	if (fflag)
 		dprintf(1, "--]]\n");
@@ -997,12 +989,6 @@ really_update_dep(int dir_fd, char *dep)
 	if (new_recipe)
 		err = update_dep(dir_fd, recipe_rel, &hint);
 
-/*
-	track.buf may be relocated during the nested update_dep() calls.
-	whole and target_rel reside in it and need to be refreshed.
-*/
-	whole = track.buf + whole_pos;
-
 	if (!err && !up_to_date) {
 		lseek(draft_fd, 0, SEEK_SET);
 
@@ -1029,20 +1015,15 @@ really_update_dep(int dir_fd, char *dep)
 
 	close(draft_fd);
 
-/*
-	If fchdir() in update_dep() failed then we need to create
-	the full draft name inside the whole dep path.
-*/
-	strcpy(whole + dep_pos, draft);
-
-	return choose(journal, whole, err) | UPDATED_RECENTLY;
+	return choose(journal, draft, err) | UPDATED_RECENTLY;
 }
 
 
 static int
 update_dep(int dir_fd, char *dep_path, int *hint)
 {
-	int dep_dir_fd = dir_fd, err = ERROR;
+	int	dep_dir_fd = dir_fd,
+		err = ERROR;
 
 
 	if (strchr(dep_path, TRACK_DELIM))
@@ -1052,15 +1033,21 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 
 		if (!dep)
 			msg("Missing dependency directory", dep_path);
-		else if (strlen(dep) > (NAME_MAX + 1 - sizeof tmp_prefix))
-			msg("Dependency name too long", dep);
 		else {
-			size_t cutoff = track.used;
+			size_t	dep_len = strlen(dep),
+				tail_pos = track.used;
 
-			level++;
-			err = really_update_dep(dep_dir_fd, dep);
-			level--;
-			track_truncate(cutoff);
+			if (dep_len > (NAME_MAX + 1 - sizeof tmp_prefix))
+				msg("Dependency name too long", dep);
+			else if (track_append(dep, dep_len))
+				msg("Failed to get cwd", dep_path);
+			else {
+				level++;
+				err = do_update_dep(dep_dir_fd, dep, tail_pos);
+				level--;
+			}
+
+			track_truncate(tail_pos);
 		}
 
 		if (dir_fd != dep_dir_fd) {
