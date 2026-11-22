@@ -271,8 +271,8 @@ stretch(size_t len)
 
 #define MIN_STRETCH 68
 
-#define log_guard(f)	if ((log_fd > 0) && (log_fd < 3))\
-				dprintf(log_fd, f, stretch(MIN_STRETCH))
+#define log_guard(f) if ((log_fd > 0) && (log_fd < 3))\
+			dprintf(log_fd, f, stretch(MIN_STRETCH))
 
 static void
 msg(const char *x, const char *y)
@@ -293,8 +293,6 @@ msg(const char *x, const char *y)
 static void
 track_init(const char *heritage)
 {
-	char *s;
-
 	if (!heritage)
 		heritage = "";
 	track.used = strlen(heritage);
@@ -306,17 +304,9 @@ track_init(const char *heritage)
 	}
 	strcpy(track.buf, heritage);
 
-	for (level = 0, s = track.buf ; *s ; )
-		if (*s++ == TRACK_DELIM)
+	for (level = 0; *heritage ; )
+		if (*heritage++ == TRACK_DELIM)
 			level++;
-}
-
-
-static void
-track_truncate(size_t pos)
-{
-	track.used = pos;
-	track.buf[pos] = '\0';
 }
 
 
@@ -336,6 +326,7 @@ track_enlarge(size_t new_size)
 
 	return new_buf;
 }
+
 
 static int
 track_append(const char *dep, size_t dep_len)
@@ -392,6 +383,9 @@ track_cycle_scan(size_t tail_pos)
 }
 
 
+#define track_rewind(pos) track.used = pos; track.buf[pos] = '\0'
+
+
 /*************** Basic routines ******************************/
 
 static const char *
@@ -420,7 +414,7 @@ setenvint(const char *name, int i)
 static void
 print_time(uint64_t t)
 {
-	snprintf(hexdate, HEXDATE_LEN+1, "%0" stringize(HEXDATE_LEN) PRIx64,t);
+	snprintf(hexdate, HEXDATE_LEN+1, "%0"stringize(HEXDATE_LEN) PRIx64, t);
 }
 
 
@@ -833,6 +827,8 @@ ptimes(void)
 }
 
 
+#define dep_full (track.buf + tail_pos + 1)
+
 #define log_name() if (log_fd > 0)\
 	dprintf(log_fd, "%*s\"%s\",\n", indent, "", dep_full)
 
@@ -878,7 +874,6 @@ static int
 do_update_dep(int dir_fd, const char *dep, size_t tail_pos)
 {
 	char	*recipe,
-		*dep_full = track.buf + tail_pos + 1,
 		recipe_rel[PATH_MAX],
 		journal[NAME_MAX + 1],
 		draft  [NAME_MAX + 1],
@@ -1029,7 +1024,7 @@ update_dep(int dir_fd, char *dep_path, int *hint)
 				level--;
 			}
 
-			track_truncate(tail_pos);
+			track_rewind(tail_pos);
 		}
 
 		if (dir_fd != dep_dir_fd) {
@@ -1444,10 +1439,11 @@ main(int argc, char *argv[])
 					if (map.sorted)
 						break;
 				} else if (err == BUSY) {
-					if (hint & IMMEDIATE_DEPENDENCY)
-						forget(&map, i);
 					if (retries_max == 0)
 						break;
+					if ((retries_max > 0) &&
+						(hint & IMMEDIATE_DEPENDENCY))
+							forget(&map, i);
 				} else {
 					err = ERROR;
 					break;
