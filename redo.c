@@ -246,7 +246,7 @@ static const char
 	close_comment[]	= "--]%s]\n";
 
 
-/***************** Messaging ************************************/
+/***************** Messaging **********************************/
 
 static char *
 stretch(size_t len)
@@ -286,7 +286,7 @@ msg(const char *x, const char *y)
 #define pperror(s) msg(s, strerror(errno))
 
 
-/************** Track management ****************************/
+/************** Track management ************************/
 
 #define TRACK_DELIM ':'
 
@@ -386,7 +386,7 @@ track_cycle_scan(size_t tail_pos)
 #define track_rewind(pos) track.used = pos; track.buf[pos] = '\0'
 
 
-/*************** Basic routines ******************************/
+/*************** Basic routines ********************************/
 
 static const char *
 base_name(const char *path)
@@ -579,6 +579,7 @@ choose(const char *old, const char *new, int err)
 			pperror("remove old");
 			err = ERROR;
 		}
+
 		if ((lstat(new, &st) == 0) && rename(new, old)) {
 			pperror("rename");
 			err = ERROR;
@@ -1262,9 +1263,7 @@ date_build(const char *name)
 	datefd(fileno(f));
 	fclose(f);
 
-	strcpy(build_date, hexdate);
-
-	setenv(name, build_date, 1);
+	setenv(name, strcpy(build_date, hexdate), 1);
 }
 
 
@@ -1396,6 +1395,7 @@ main(int argc, char *argv[])
 		else if (retries_max < 0)
 			retries_max = -retries_max;
 	} else {
+		map.sorted = 0;
 		if (retries_max > 0)
 			retries_max = 0;
 		fd = envint("REDO_FD");
@@ -1421,7 +1421,7 @@ main(int argc, char *argv[])
 			if (cur >= 0)
 				step = 1;
 			else {
-				step = - cur;
+				step = -cur;
 				if (prev >= 0)
 					acc = i;
 				else
